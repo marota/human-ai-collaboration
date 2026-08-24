@@ -1,0 +1,67 @@
+---
+layout: default
+---
+<div class="hero">
+  <div class="shell">
+    <p class="eyebrow">{{ page.eyebrow | default: site.author.name }}</p>
+    <h1 class="hero__title">{{ site.title }}</h1>
+    <p class="hero__deck">{{ site.tagline }}</p>
+    <div class="hero__actions">
+      <a class="btn btn--primary" href="{{ '/series/' | relative_url }}">Read the series <span aria-hidden="true">→</span></a>
+      <a class="btn btn--ghost" href="{{ '/video/' | relative_url }}">Watch the explainer</a>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <article class="prose prose--wide prose--intro">
+    {{ content }}
+  </article>
+</div>
+
+<section class="section">
+  <div class="shell">
+    <div class="section__head">
+      <h2 class="section__title">The series</h2>
+      <p class="section__meta">{{ site.series | size }} parts · 2025–2026</p>
+    </div>
+    {%- if page.series_intro %}
+    <p class="section__intro">{{ page.series_intro }}</p>
+    {%- endif %}
+    {%- include series-list.html detail='subtitle' -%}
+    <a class="series-more" href="{{ '/series/' | relative_url }}">Read the series in order <span aria-hidden="true">→</span></a>
+  </div>
+</section>
+
+{%- if page.cards -%}
+<section class="section">
+  <div class="shell">
+    <div class="section__head">
+      <h2 class="section__title">Also on this site</h2>
+    </div>
+    <ul class="cards">
+      {%- for c in page.cards %}
+      <li>
+        <a class="card" href="{{ c.href | relative_url }}">
+          <h3 class="card__title">{{ c.title }}</h3>
+          <p class="card__text">{{ c.text }}</p>
+          <span class="card__cta">{{ c.cta | default: 'Read more' }} <span aria-hidden="true">→</span></span>
+        </a>
+      </li>
+      {%- endfor %}
+    </ul>
+  </div>
+</section>
+{%- endif -%}
+
+{%- if page.doi -%}
+<div class="shell">
+  <div class="callout">
+    <div>
+      <p class="callout__label">Cite this series</p>
+      <p>A permanent, citable version is archived on Zenodo.</p>
+    </div>
+    <p><code>DOI: {{ page.doi }}</code></p>
+  </div>
+</div>
+{%- endif -%}

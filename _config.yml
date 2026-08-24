@@ -18,15 +18,21 @@ author:
 url: "https://marota.github.io"
 baseurl: "/human-ai-collaboration"          # ex. "/human-ai-decision" — vide si dépôt <USERNAME>.github.io
 
-theme: minima
-minima:
-  skin: classic
-  nav_pages:
-    - series.md
-    - video.md
-    - projects/index.md
-    - references.md
-    - about.md
+# Thème maison (voir _layouts/, _includes/, assets/css/main.css) — pas de gem theme.
+lang: en
+
+# Navigation principale — l'ordre ici est l'ordre affiché.
+nav:
+  - title: The series
+    url: /series/
+  - title: Explainer video
+    url: /video/
+  - title: Projects
+    url: /projects/
+  - title: References
+    url: /references/
+  - title: About
+    url: /about/
 
 collections:
   series:

@@ -1,22 +1,12 @@
 ---
-layout: page
+layout: series
 title: The series
 permalink: /series/
----
-
-Ten posts, written between 2025 and 2026, on human–AI joint decision-making in
-critical operations. Each one takes a piece of the cognitive systems engineering
-literature and asks what it implies for systems being deployed today.
-
-{% assign parts = site.series | sort: "part" %}
-{% for p in parts %}
-### {{ p.part }}. [{{ p.title }}]({{ p.url | relative_url }})
-
-{% if p.summary %}{{ p.summary }}{% endif %}
-{% if p.anchors %}*Builds on: {{ p.anchors }}*{% endif %}
-
-{% endfor %}
-
+eyebrow: Ten parts · 2025–2026
+deck: >-
+  Ten posts on human–AI joint decision-making in critical operations. Each one
+  takes a piece of the cognitive systems engineering literature and asks what it
+  implies for systems being deployed today.
 ---
 
 ## Citing this series

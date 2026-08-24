@@ -1,0 +1,30 @@
+<header class="masthead">
+  <div class="shell masthead__inner">
+    <a class="brand" href="{{ '/' | relative_url }}">
+      <svg class="brand__mark" width="22" height="22" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.6" aria-hidden="true" focusable="false">
+        <circle cx="6" cy="12" r="3.2"></circle>
+        <circle cx="18" cy="6" r="2.4"></circle>
+        <circle cx="18" cy="18" r="2.4"></circle>
+        <path d="M8.9 10.6 15.6 7.1M8.9 13.4l6.7 3.5"></path>
+      </svg>
+      <span class="brand__text">
+        Human–AI Joint Decision-Making
+        <small>{{ site.author.name }}</small>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
+      {%- for item in site.nav -%}
+        {%- assign target = item.url | relative_url -%}
+        {%- assign is_current = false -%}
+        {%- if page.url == item.url -%}
+          {%- assign is_current = true -%}
+        {%- elsif item.url != '/' and page.url contains item.url -%}
+          {%- assign is_current = true -%}
+        {%- endif -%}
+        <a class="nav__link" href="{{ target }}"{% if is_current %} aria-current="page"{% endif %}>{{ item.title }}</a>
+      {%- endfor -%}
+    </nav>
+  </div>
+</header>
