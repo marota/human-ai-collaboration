@@ -16,7 +16,7 @@ author:
   orcid: "0000-0003-1753-5493"   # <-- décommenter une fois l'ORCID créé
 
 url: "https://marota.github.io"
-baseurl: "https://marota.github.io/human-ai-collaboration"          # ex. "/human-ai-decision" — vide si dépôt <USERNAME>.github.io
+baseurl: "/human-ai-collaboration"          # ex. "/human-ai-decision" — vide si dépôt <USERNAME>.github.io
 
 theme: minima
 minima:
