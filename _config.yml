@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------------------
+# Jekyll config — GitHub Pages
+# Remplacer <USERNAME> et <REPO> par tes valeurs avant le premier push.
+# Si le dépôt s'appelle <USERNAME>.github.io, laisser baseurl vide.
+# ---------------------------------------------------------------------------
+
+title: "Human–AI Joint Decision-Making in Critical Systems"
+tagline: "Design and evaluation criteria for AI decision support where errors are physical and irreversible"
+description: >-
+  A ten-part series, an explainer video and a curated reference base on how
+  humans and AI actually make joint decisions in critical infrastructure —
+  and on what it would take to deploy and trust these systems reliably.
+
+author:
+  name: "Antoine Marot"
+  orcid: "0000-0003-1753-5493"   # <-- décommenter une fois l'ORCID créé
+
+url: "https://marota.github.io"
+baseurl: "https://marota.github.io/human-ai-collaboration"          # ex. "/human-ai-decision" — vide si dépôt <USERNAME>.github.io
+
+theme: minima
+minima:
+  skin: classic
+  nav_pages:
+    - series.md
+    - video.md
+    - projects/index.md
+    - references.md
+    - about.md
+
+collections:
+  series:
+    output: true
+    permalink: /series/:name/
+
+defaults:
+  - scope:
+      path: ""
+      type: "series"
+    values:
+      layout: "post"
+  - scope:
+      path: ""
+    values:
+      layout: "page"
+
+markdown: kramdown
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - vendor

@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you refer to this work, please cite it as below."
+title: "Human-AI Joint Decision-Making in Critical Systems: a ten-part series"
+abstract: >-
+  A ten-part series translating the cognitive systems engineering canon into
+  design and evaluation criteria for AI decision support in critical
+  infrastructure, with an accompanying explainer video and curated reference base.
+type: generic
+authors:
+  - family-names: "Marot"
+    given-names: "Antoine"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # TODO
+date-released: 2026-01-01
+license: CC-BY-4.0
+url: "https://<USERNAME>.github.io/<REPO>"
+# doi: "10.5281/zenodo.XXXXXXX"    # TODO: apres depot Zenodo
+keywords:
+  - human-AI collaboration
+  - cognitive systems engineering
+  - AI evaluation
+  - human oversight
+  - critical infrastructure
+  - EU AI Act
