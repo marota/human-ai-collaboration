@@ -2,10 +2,12 @@
 layout: page
 title: References
 permalink: /references/
+prose_class: prose--refs prose--wide
+eyebrow: Annotated bibliography
+deck: >-
+  The literature and infrastructure this work builds on. Grouped by what each is
+  useful for, rather than by type.
 ---
-
-The literature and infrastructure this work builds on. Grouped by what each is
-useful *for*, rather than by type.
 
 <!-- TODO: ajouter les URLs manquantes et une ligne de contexte par entree.
      Une bibliographie annotee vaut dix fois une liste de liens. -->

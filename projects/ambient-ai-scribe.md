@@ -2,11 +2,12 @@
 layout: page
 title: Ambient AI Scribe
 permalink: /projects/ambient-ai-scribe/
+prose_class: prose--wide
+eyebrow: Project
+deck: A speech-to-text pipeline for control-room operations.
+# Repo: OperatorAudioScribe. Le nom d'affichage differe du nom de depot.
+status: "[private repository | public repository | protocol published, code private]"
 ---
-
-*A speech-to-text pipeline for control-room operations.*
-**Status:** [private repository | public repository | protocol published, code private]
-<!-- Repo: OperatorAudioScribe. Le nom d'affichage differe du nom de depot. -->
 
 ## The problem
 

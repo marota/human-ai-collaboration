@@ -2,6 +2,7 @@
 layout: page
 title: About
 permalink: /about/
+eyebrow: Antoine Marot
 ---
 
 I'm Antoine Marot. For thirteen years at RTE, the French transmission system

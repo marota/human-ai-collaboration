@@ -1,0 +1,59 @@
+{%- comment -%}
+  Renders the ten-part series as an editorial list.
+  Params:
+    detail — "subtitle" (compact, home page) or "full" (series page)
+  Entries whose title still starts with "[" are treated as unwritten drafts:
+  they are listed, but not linked, and marked "In preparation".
+{%- endcomment -%}
+
+{%- assign parts = site.series | sort: "part" -%}
+<ol class="series-list">
+  {%- for p in parts -%}
+    {%- assign first_char = p.title | slice: 0 -%}
+    {%- assign is_draft = false -%}
+    {%- if first_char == '[' -%}{%- assign is_draft = true -%}{%- endif -%}
+
+    <li class="series-item{% if is_draft %} series-item--soon{% endif %}">
+      {%- if is_draft -%}
+      <div class="series-item__inner">
+        <span class="series-item__num">{{ p.part }}</span>
+        <span>
+          <span class="series-item__title">In preparation</span>
+        </span>
+      </div>
+      {%- else -%}
+      <a class="series-item__inner" href="{{ p.url | relative_url }}">
+        <span class="series-item__num">{{ p.part }}</span>
+        <span>
+          <span class="series-item__title">{{ p.title }}</span>
+          {%- if include.detail == 'full' -%}
+            {%- if p.summary and p.summary != '' -%}
+              <span class="series-item__sub">{{ p.summary }}</span>
+            {%- elsif p.subtitle -%}
+              <span class="series-item__sub">{{ p.subtitle }}</span>
+            {%- endif -%}
+            {%- assign show_phase = false -%}
+            {%- if p.phase and p.phase != '' -%}
+              {%- unless p.phase contains '|' -%}{%- assign show_phase = true -%}{%- endunless -%}
+            {%- endif -%}
+            {%- assign show_anchors = false -%}
+            {%- if p.anchors and p.anchors != '' -%}
+              {%- assign anchor_first = p.anchors | slice: 0 -%}
+              {%- if anchor_first != '[' -%}{%- assign show_anchors = true -%}{%- endif -%}
+            {%- endif -%}
+            {%- if show_phase or show_anchors -%}
+            <span class="series-item__tags">
+              {%- if show_phase %}<span class="tag tag--accent">{{ p.phase }}</span>{% endif -%}
+              {%- if show_anchors %}<span class="tag">Builds on: {{ p.anchors }}</span>{% endif -%}
+            </span>
+            {%- endif -%}
+          {%- elsif p.subtitle -%}
+            <span class="series-item__sub">{{ p.subtitle }}</span>
+          {%- endif -%}
+        </span>
+        <span class="series-item__arrow" aria-hidden="true">→</span>
+      </a>
+      {%- endif -%}
+    </li>
+  {%- endfor -%}
+</ol>

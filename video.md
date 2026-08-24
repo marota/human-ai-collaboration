@@ -2,17 +2,18 @@
 layout: page
 title: Explainer video
 permalink: /video/
+prose_class: prose--wide
+eyebrow: Synthesis
+deck: >-
+  A tutorial-style synthesis of the series, and a perspective on how Europe could
+  build shared capability for designing, stress-testing and certifying human–AI
+  collaboration before deployment in critical systems.
 ---
 
-A tutorial-style synthesis of the series, and a perspective on how Europe could
-build shared capability for designing, stress-testing and certifying human–AI
-collaboration before deployment in critical systems.
-
-<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
-  <iframe style="position:absolute;top:0;left:0;width:100%;height:100%;"
-          src="https://www.youtube-nocookie.com/embed/s8pMBovlHKo"
+<div class="video-frame">
+  <iframe src="https://www.youtube-nocookie.com/embed/s8pMBovlHKo"
           title="Perspectives on trusted human–AI collaboration in critical systems"
-          frameborder="0"
+          loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowfullscreen></iframe>
 </div>

@@ -1,0 +1,36 @@
+<footer class="site-footer">
+  <div class="shell site-footer__inner">
+    <div>
+      <h2>{{ site.title }}</h2>
+      <p>{{ site.tagline }}</p>
+    </div>
+
+    <div>
+      <h2>Sections</h2>
+      <ul>
+        {%- for item in site.nav %}
+        <li><a href="{{ item.url | relative_url }}">{{ item.title }}</a></li>
+        {%- endfor %}
+      </ul>
+    </div>
+
+    <div>
+      <h2>{{ site.author.name }}</h2>
+      <ul>
+        <li><a href="https://scholar.google.com/citations?user=amRq8b8AAAAJ&amp;hl=fr" rel="me">Google Scholar</a></li>
+        <li><a href="https://www.linkedin.com/in/antoine-MAROT" rel="me">LinkedIn</a></li>
+        <li><a href="https://github.com/marota" rel="me">GitHub</a></li>
+        {%- if site.author.orcid %}
+        <li><a href="https://orcid.org/{{ site.author.orcid }}" rel="me">ORCID</a></li>
+        {%- endif %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="shell">
+    <div class="site-footer__colophon">
+      <span>© {{ site.time | date: '%Y' }} {{ site.author.name }} · Text under CC BY 4.0</span>
+      <span><a href="{{ '/feed.xml' | relative_url }}">RSS</a> · Built with Jekyll on GitHub Pages</span>
+    </div>
+  </div>
+</footer>

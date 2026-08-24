@@ -1,0 +1,22 @@
+---
+layout: default
+---
+<div class="page-head">
+  <div class="shell">
+    {%- if page.eyebrow %}<p class="eyebrow">{{ page.eyebrow }}</p>{% endif %}
+    <h1 class="page-head__title">{{ page.title }}</h1>
+    {%- if page.deck %}<p class="page-head__deck">{{ page.deck }}</p>{% endif %}
+  </div>
+</div>
+
+<section class="section">
+  <div class="shell">
+    {%- include series-list.html detail='full' -%}
+  </div>
+</section>
+
+<div class="shell">
+  <article class="prose">
+    {{ content }}
+  </article>
+</div>

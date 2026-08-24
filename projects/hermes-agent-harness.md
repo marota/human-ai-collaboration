@@ -2,11 +2,12 @@
 layout: page
 title: hermes-agent-harness
 permalink: /projects/hermes-agent-harness/
+prose_class: prose--wide
+eyebrow: Project
+deck: An evaluation harness for LLM-based agents.
+# TODO: choisir. Si le depot reste prive, cette page EST le livrable public.
+status: "[private repository | public repository | protocol published, code private]"
 ---
-
-*An evaluation harness for LLM-based agents.*
-**Status:** [private repository | public repository | protocol published, code private]
-<!-- TODO: choisir. Si le depot reste prive, cette page EST le livrable public. -->
 
 ## The problem
 

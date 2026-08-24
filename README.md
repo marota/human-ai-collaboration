@@ -82,6 +82,8 @@ as arbitré ces questions vaut autant que la performance technique.
 ├── about.md                    # bio courte + liens
 ├── CITATION.cff                # métadonnées de citation (GitHub l'affiche)
 ├── Gemfile · .gitignore · LICENSE
+├── _layouts/                   # thème maison : default, home, page, post, series
+├── _includes/                  # head, header, footer, series-list
 ├── _series/
 │   ├── 01-from-augmentation-to-cognitive-surrender.md   # pré-rempli
 │   └── 02..10-titre-a-remplacer.md                      # gabarits
@@ -89,8 +91,36 @@ as arbitré ces questions vaut autant que la performance technique.
 │   ├── index.md
 │   ├── hermes-agent-harness.md
 │   └── ambient-ai-scribe.md
-└── assets/img/
+└── assets/
+    ├── css/main.css            # toute l'apparence du site
+    └── img/favicon.svg
 ```
+
+---
+
+## Apparence
+
+Le site n'utilise pas de thème externe : les gabarits sont dans `_layouts/` et
+`_includes/`, et **toute l'apparence tient dans `assets/css/main.css`**. Pas de
+SCSS, pas de build, pas de dépendance réseau — la police est une pile système à
+empattements, donc pas de Google Fonts et pas de requête tierce.
+
+Les couleurs sont des variables CSS déclarées en haut du fichier (`:root`), avec
+un jeu équivalent pour le mode sombre (`prefers-color-scheme: dark`). Changer
+l'accent du site = changer `--accent` / `--accent-deep` aux deux endroits.
+
+Deux conventions utiles dans les gabarits :
+
+- **Front matter d'une page** : `eyebrow` (surtitre), `deck` (chapô sous le
+  titre), `status` (badge, pages projets), `prose_class: prose--wide` pour une
+  colonne de texte plus large.
+- **Série** : tant que le `title:` d'un post commence par `[`, il est considéré
+  comme non écrit — il apparaît en « In preparation », sans lien. Remplacer le
+  titre suffit à l'activer partout (accueil, sommaire, navigation précédent /
+  suivant).
+
+La navigation principale se règle dans `_config.yml`, clé `nav:` — l'ordre de la
+liste est l'ordre affiché.
 
 Les emplacements à compléter sont marqués `[A COMPLETER]` et `TODO`.
 Pour tous les repérer : `grep -rn "A COMPLETER\|TODO" .`

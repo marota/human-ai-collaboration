@@ -1,0 +1,19 @@
+---
+layout: default
+---
+<div class="page-head">
+  <div class="shell">
+    {%- if page.eyebrow %}<p class="eyebrow">{{ page.eyebrow }}</p>{% endif %}
+    <h1 class="page-head__title">{{ page.title }}</h1>
+    {%- if page.deck %}<p class="page-head__deck">{{ page.deck }}</p>{% endif %}
+    {%- if page.status %}
+    <div class="page-head__meta"><span class="tag">Status: {{ page.status }}</span></div>
+    {%- endif %}
+  </div>
+</div>
+
+<div class="shell">
+  <article class="prose {{ page.prose_class }}">
+    {{ content }}
+  </article>
+</div>
