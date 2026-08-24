@@ -1,5 +1,5 @@
 ---
-part: 03
+part: "03"
 title: "[TITRE DU POST 03]"
 subtitle: "[sous-titre court, optionnel]"
 summary: "[1–2 phrases : la question posée et la réponse apportée. S'affiche sur la page série.]"

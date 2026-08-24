@@ -1,5 +1,5 @@
 ---
-part: 01
+part: "01"
 title: "From augmentation to cognitive surrender"
 subtitle: "What happens when experts trust AI more than their own judgement"
 summary: "Routine reliance on generative AI can quietly displace independent reasoning — and the more confident the system sounds, the more readily people abandon judgement, even in domains where they are objectively more competent."
