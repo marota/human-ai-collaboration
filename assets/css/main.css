@@ -760,6 +760,51 @@ a.series-item__inner:hover .series-item__arrow {
 .prose .figure { margin-block: 2rem; }
 .prose .figure--narrow { max-width: 26rem; }
 
+/* --- Stat tiles ----------------------------------------------------------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin-block: 2rem;
+}
+.prose .tiles { padding-left: 0; list-style: none; }
+.tiles li {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.tiles strong {
+  display: block;
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.tiles span {
+  display: block;
+  margin-top: 0.3rem;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+.tiles em {
+  display: block;
+  margin-top: 0.45rem;
+  font-style: normal;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
 /* --- Embedded map --------------------------------------------------------- */
 
 /* Widens past the prose measure. The prose box starts at the shell's content

@@ -34,13 +34,14 @@ possible collaborations can be spotted rather than guessed at.
 The data is organised into five layers, one YAML file per entity, plus the
 consortium relationships between them. The current snapshot holds:
 
-| Layer | Count | What it covers |
-|---|---|---|
-| Teams | 220 | Research labs, industrial R&D groups, operator R&D teams |
-| Projects | 85 | Funded projects and programmes (Horizon Europe, SESAR, national) |
-| Frameworks | 28 | Standards, regulations, guidelines, reference models |
-| Commons | 21 | Open datasets, benchmarks, models, software, communities |
-| Project ↔ team links | 129 | Who is in which consortium |
+<ul class="tiles">
+  <li><strong>220</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
+  <li><strong>106</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
+  <li><strong>28</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
+  <li><strong>21</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
+  <li><strong>129</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
+  <li><strong>27</strong><span>Countries</span><em>Europe in the broad sense, including UK, CH and NO</em></li>
+</ul>
 
 Infrastructure — testbeds, simulators, control-room labs, compute — is shown as
 a derived layer: the teams and projects tagged with a simulation or compute

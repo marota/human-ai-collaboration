@@ -1,250 +1,349 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Cartographie Human-AI Collaboration — Europe</title>
+<title>Human-AI Collaboration in Europe — ecosystem map</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-  html, body { margin:0; padding:0; height:100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
-  #app { display:grid; grid-template-columns: 320px 1fr; height:100vh; }
-  #sidebar { padding:18px; overflow-y:auto; background:#fafafa; border-right:1px solid #e5e5e5; }
-  #sidebar h1 { font-size:18px; margin:0 0 4px; font-weight:600; }
-  #sidebar p.lede { color:#666; font-size:13px; margin:4px 0 16px; line-height:1.4; }
-  #map { height:100vh; }
-  .layer-toggle, .filter-group { margin-bottom:14px; }
-  .layer-toggle label, .filter-group label { display:flex; align-items:center; padding:4px 0; font-size:13px; cursor:pointer; }
-  .layer-toggle input, .filter-group input { margin-right:8px; }
-  .filter-group h3 { font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#888; margin:0 0 6px; font-weight:600; }
-  .filter-subgroup { margin-top:10px; padding-top:6px; border-top:1px dashed #e5e5e5; }
-  .filter-subgroup:first-of-type { border-top:none; padding-top:0; margin-top:4px; }
-  .filter-subgroup h4 { font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:#9ca3af; margin:0 0 2px; font-weight:600; }
+  :root {
+    --bg:#f4f5f7; --panel:#ffffff; --panel-2:#f8f9fa;
+    --ink:#1a1d21; --muted:#5c6570; --faint:#8b939d;
+    --line:#e4e7eb; --line-soft:#eef0f3;
+    --accent:#2563eb; --accent-soft:#eff4ff;
+    --shadow:0 10px 30px -12px rgba(16,20,26,.28);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0f1115; --panel:#161a20; --panel-2:#1b2027;
+      --ink:#e7e9ec; --muted:#9aa3ad; --faint:#79828d;
+      --line:#262c34; --line-soft:#1f242b;
+      --accent:#6f9dff; --accent-soft:#1a2436;
+      --shadow:0 10px 30px -12px rgba(0,0,0,.7);
+    }
+  }
+
+  *, *::before, *::after { box-sizing:border-box; }
+  html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  #app { display:grid; grid-template-columns:minmax(300px, 340px) 1fr; height:100vh; }
+  #map { height:100vh; background:var(--panel-2); }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+
+  /* ---- sidebar shell: fixed head, scrolling body ---- */
+  #sidebar { display:flex; flex-direction:column; height:100vh; overflow:hidden;
+    background:var(--panel); border-right:1px solid var(--line); }
+  .sb-head { flex:none; padding:16px 18px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .sb-body { flex:1; overflow-y:auto; overscroll-behavior:contain; padding:14px 18px 22px; }
+
+  #sidebar h1 { font-size:15px; margin:0 0 3px; font-weight:650; letter-spacing:-.01em; line-height:1.25; }
+  #sidebar p.lede { color:var(--muted); font-size:12px; margin:0; line-height:1.45; }
+
+  /* ---- live stats, right under the title ---- */
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:12px; }
+  .stats div { background:var(--panel-2); border:1px solid var(--line-soft); border-radius:6px;
+    padding:6px 4px; text-align:center; }
+  .stats strong { display:block; font-size:15px; font-weight:650; color:var(--ink); font-variant-numeric:tabular-nums; line-height:1.2; }
+  .stats span { display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--faint); margin-top:1px; }
+
+  .reset-btn { width:100%; margin-top:8px; padding:6px; font-family:inherit; font-size:11px; font-weight:600;
+    color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:6px; cursor:pointer;
+    transition:color .15s, border-color .15s, background-color .15s; }
+  .reset-btn:hover { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+
+  /* ---- section headings ---- */
+  .sb-section { margin-bottom:20px; }
+  .sb-section > h3, .filter-group h3, .layer-toggle h3 { font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.07em; color:var(--faint); margin:0 0 8px; font-weight:700; }
+
+  .layer-toggle label, .filter-group label { display:flex; align-items:center; padding:3.5px 0;
+    font-size:12.5px; cursor:pointer; color:var(--ink); line-height:1.3; }
+  .layer-toggle label:hover, .filter-group label:hover { color:var(--accent); }
+  .layer-toggle input, .filter-group input { margin:0 8px 0 0; flex:none; accent-color:var(--accent); }
+
+  .filter-subgroup { margin-top:12px; padding-top:9px; border-top:1px solid var(--line-soft); }
+  .filter-subgroup:first-of-type { border-top:none; padding-top:0; margin-top:2px; }
+  .filter-subgroup h4 { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+    margin:0 0 4px; font-weight:650; }
   .subgroup-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .subgroup-actions { display:inline-flex; align-items:center; gap:4px; }
-  .subgroup-actions .sep { color:#d1d5db; font-size:10px; }
-  .subgroup-btn { background:none; border:none; padding:0 2px; cursor:pointer; color:#6b7280; font-size:10px; font-weight:500; font-family:inherit; }
-  .subgroup-btn:hover { color:#111; text-decoration:underline; }
+  .subgroup-actions, .summary-actions { display:inline-flex; align-items:center; gap:4px; }
+  .subgroup-actions .sep, .summary-actions .sep { color:var(--line); font-size:10px; }
+  .subgroup-btn, .select-all-btn { background:none; border:none; padding:0 2px; cursor:pointer;
+    color:var(--muted); font-size:10px; font-weight:600; font-family:inherit; }
+  .subgroup-btn:hover, .select-all-btn:hover { color:var(--accent); text-decoration:underline; }
   .layer-toggle .subgroup-header h3 { margin:0; }
-  .search-group { margin-bottom:14px; }
-  .search-group details { margin:0 0 8px; padding:6px 8px; background:#fff; border:1px solid #e5e5e5; border-radius:4px; }
-  .search-group details[open] { background:#fafafa; }
-  .search-group summary { font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#444; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:8px; list-style:none; }
+
+  .legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px;
+    vertical-align:middle; flex:none; box-shadow:0 0 0 1px rgba(0,0,0,.14) inset; }
+
+  /* ---- search / selection panels ---- */
+  .search-group details { margin:0 0 6px; padding:7px 9px; background:var(--panel-2);
+    border:1px solid var(--line); border-radius:6px; }
+  .search-group details[open] { border-color:var(--accent); background:var(--panel); }
+  .search-group summary { font-size:11.5px; color:var(--ink); cursor:pointer; font-weight:600;
+    display:flex; align-items:center; gap:8px; list-style:none; }
   .search-group summary::-webkit-details-marker { display:none; }
-  .search-group summary::before { content:'▶'; font-size:8px; color:#9ca3af; transition:transform 0.15s; }
+  .search-group summary::before { content:'▸'; font-size:10px; color:var(--faint); transition:transform .15s; }
   .search-group details[open] > summary::before { transform:rotate(90deg); }
   .search-summary-title { flex:1; }
-  .search-count { font-size:10px; color:#fff; background:#9ca3af; border-radius:8px; padding:1px 7px; min-width:18px; text-align:center; font-weight:600; }
-  .search-count.has-selection { background:#3b82f6; }
-  .search-input { width:100%; padding:5px 8px; font-size:12px; border:1px solid #d1d5db; border-radius:4px; box-sizing:border-box; margin:8px 0 6px; font-family:inherit; }
-  .search-list { max-height:180px; overflow-y:auto; border:1px solid #e5e5e5; border-radius:4px; background:#fff; }
-  .search-item { display:flex; align-items:center; gap:6px; padding:3px 8px; font-size:12px; cursor:pointer; border-bottom:1px solid #f3f4f6; margin:0; }
-  .search-item:hover { background:#f3f4f6; }
+  .search-count { font-size:10px; color:var(--faint); background:var(--line-soft); border-radius:8px;
+    padding:1px 7px; min-width:18px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
+  .search-count.has-selection { background:var(--accent); color:#fff; }
+  .search-input { width:100%; padding:6px 9px; font-size:12px; border:1px solid var(--line);
+    border-radius:5px; margin:9px 0 6px; font-family:inherit; background:var(--panel); color:var(--ink); }
+  .search-input::placeholder { color:var(--faint); }
+  .search-list { max-height:190px; overflow-y:auto; border:1px solid var(--line); border-radius:5px; background:var(--panel); }
+  .search-item { display:flex; align-items:center; gap:7px; padding:4px 9px; font-size:12px; cursor:pointer;
+    border-bottom:1px solid var(--line-soft); margin:0; color:var(--ink); }
+  .search-item:hover { background:var(--accent-soft); }
   .search-item:last-child { border-bottom:none; }
-  .search-item input { margin:0; flex-shrink:0; }
+  .search-item input { margin:0; flex-shrink:0; accent-color:var(--accent); }
   .search-item-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .search-item-meta { color:#9ca3af; font-size:10px; flex-shrink:0; }
-  .clear-search-btn { font-size:11px; color:#6b7280; background:none; border:none; cursor:pointer; padding:6px 0 0; font-family:inherit; }
-  .clear-search-btn:hover { color:#111; text-decoration:underline; }
-  .summary-actions { display:flex; align-items:center; gap:3px; }
-  .select-all-btn { background:none; border:none; padding:0 2px; cursor:pointer; color:#6b7280; font-size:10px; font-weight:600; font-family:inherit; }
-  .select-all-btn:hover { color:#111; text-decoration:underline; }
-  .search-note { font-size:10px; color:#9ca3af; margin:0 0 0 0; line-height:1.4; font-style:italic; }
-  .search-empty { padding:8px; font-size:11px; color:#9ca3af; font-style:italic; text-align:center; }
-  .search-subheader { padding:6px 8px 3px; font-size:9px; text-transform:uppercase; letter-spacing:0.04em; color:#6b7280; font-weight:700; background:#f9fafb; border-bottom:1px solid #e5e7eb; }
+  .search-item-meta { color:var(--faint); font-size:10px; flex-shrink:0; }
+  .clear-search-btn { font-size:11px; color:var(--muted); background:none; border:none; cursor:pointer;
+    padding:6px 0 0; font-family:inherit; }
+  .clear-search-btn:hover { color:var(--accent); text-decoration:underline; }
+  .search-empty { padding:10px; font-size:11px; color:var(--faint); text-align:center; }
+  .search-subheader { padding:6px 9px 3px; font-size:9px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); font-weight:700; background:var(--panel-2); border-bottom:1px solid var(--line-soft); }
   .search-subheader:first-child { border-top:none; }
-  .legend-dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; vertical-align:middle; border:1px solid rgba(0,0,0,0.2); }
-  .stats { margin-top:16px; padding:10px 12px; background:#fff; border:1px solid #e5e5e5; border-radius:6px; font-size:12px; color:#444; }
-  .stats strong { color:#000; }
-  .popup-title { font-weight:600; font-size:13px; margin-bottom:4px; }
-  .popup-meta { font-size:11px; color:#666; margin-bottom:6px; }
-  .popup-desc { font-size:12px; line-height:1.4; }
-  .popup-link { display:inline-block; margin-top:6px; color:#0064d2; text-decoration:none; font-size:11px; }
+
+  /* ---- explanatory notes ---- */
+  .note { font-size:11px; color:var(--muted); line-height:1.5; margin:10px 0 0;
+    padding:9px 10px; background:var(--panel-2); border-left:2px solid var(--line); border-radius:0 5px 5px 0; }
+  .note strong { color:var(--ink); font-weight:650; }
+  .search-note, .legend-note { font-size:11px; color:var(--muted); line-height:1.5; margin:10px 0 0; }
+
+  /* ---- popups ---- */
+  .popup-title { font-weight:650; font-size:13px; margin-bottom:4px; }
+  .popup-meta { font-size:11px; color:var(--muted); margin-bottom:6px; }
+  .popup-desc { font-size:12px; line-height:1.45; }
+  .popup-link { display:inline-block; margin-top:7px; color:var(--accent); text-decoration:none; font-size:11px; font-weight:600; }
   .popup-link:hover { text-decoration:underline; }
-  details { margin-top:14px; }
-  details summary { cursor:pointer; font-size:12px; color:#666; }
-  details ul { font-size:12px; padding-left:20px; line-height:1.5; }
-  .footer { font-size:11px; color:#999; margin-top:20px; line-height:1.4; }
-  .hai-marker { background:transparent; border:none; }
+  .leaflet-popup-content-wrapper { background:var(--panel); color:var(--ink); border-radius:8px; }
+  .leaflet-popup-tip { background:var(--panel); }
   .domain-badges { margin:4px 0 6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
-  .domain-badge { display:inline-flex; align-items:center; gap:3px; font-size:10px; color:#444; background:#f3f4f6; padding:1px 6px; border-radius:8px; }
-  .domain-badge::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c, #999); }
-  .legend-note { font-size:11px; color:#888; margin-top:6px; line-height:1.4; font-style:italic; }
+  .domain-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--muted);
+    background:var(--panel-2); padding:1px 7px; border-radius:8px; }
+  .domain-badge::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c,#999); }
+  .hai-marker { background:transparent; border:none; }
+
+  /* ---- credits ---- */
+  details.credits { margin-top:4px; border-top:1px solid var(--line-soft); padding-top:12px; }
+  details.credits > summary { cursor:pointer; font-size:11px; color:var(--muted); font-weight:600; }
+  details.credits > summary:hover { color:var(--accent); }
+  details.credits ul { font-size:11px; padding-left:18px; line-height:1.55; color:var(--muted); }
+  details.credits a { color:var(--accent); }
+  .footer { font-size:10.5px; color:var(--faint); margin:14px 0 0; line-height:1.5; }
+
+  /* ---- mobile: sidebar becomes a drawer ---- */
+  .sb-toggle, .sb-backdrop, .sb-close { display:none; }
+  @media (max-width: 820px) {
+    #app { grid-template-columns:1fr; }
+    #sidebar { position:fixed; top:0; bottom:0; left:0; width:min(90vw, 340px); z-index:1200;
+      transform:translateX(-100%); transition:transform .22s ease; box-shadow:var(--shadow); }
+    body.panel-open #sidebar { transform:none; }
+    .sb-backdrop { display:block; position:fixed; inset:0; z-index:1100; background:rgba(10,13,18,.42);
+      opacity:0; pointer-events:none; transition:opacity .22s ease; }
+    body.panel-open .sb-backdrop { opacity:1; pointer-events:auto; }
+    .sb-toggle { display:inline-flex; align-items:center; gap:6px; position:fixed; top:10px; left:10px; z-index:1000;
+      padding:8px 13px; font-family:inherit; font-size:12px; font-weight:650; color:var(--ink);
+      background:var(--panel); border:1px solid var(--line); border-radius:999px; box-shadow:var(--shadow); cursor:pointer; }
+    .sb-close { display:block; position:absolute; top:12px; right:12px; width:28px; height:28px; border-radius:50%;
+      border:1px solid var(--line); background:var(--panel); color:var(--muted); font-size:15px; line-height:1;
+      cursor:pointer; font-family:inherit; }
+    .leaflet-top.leaflet-left { margin-top:44px; }
+  }
 </style>
 </head>
 <body>
 <div id="app">
+  <button class="sb-toggle" id="sb-toggle" type="button" aria-expanded="false" aria-controls="sidebar">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+    Filters
+  </button>
+  <div class="sb-backdrop" id="sb-backdrop"></div>
+
   <aside id="sidebar">
-    <h1>Cartographie HAI — Europe</h1>
-    <p class="lede">Équipes et projets européens travaillant sur la collaboration Humain-IA pour la décision en systèmes industriels et infrastructures critiques.</p>
+    <div class="sb-head">
+      <button class="sb-close" id="sb-close" type="button" aria-label="Close filters">&times;</button>
+      <h1>Human-AI Collaboration in Europe</h1>
+      <p class="lede">Teams and projects working on human-AI decision-making in industrial systems and critical infrastructure.</p>
 
-    <div class="layer-toggle">
-      <div class="subgroup-header">
-        <h3 style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#888;">Affichage</h3>
+      <div class="stats">
+        <div><strong id="stat-projects">—</strong><span>Projects</span></div>
+        <div><strong id="stat-teams">—</strong><span>Teams</span></div>
+        <div><strong id="stat-frameworks">—</strong><span>Frameworks</span></div>
+        <div><strong id="stat-countries">—</strong><span>Countries</span></div>
       </div>
-      <label><input type="checkbox" id="show-edges" checked> Liens projet ↔ équipe</label>
+      <button class="reset-btn" id="reset-all" type="button">Reset all filters</button>
     </div>
 
-    <div class="search-group">
-      <details>
-        <summary>
-          <span class="search-summary-title">Sélection projets</span>
-          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="projects" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="projects" type="button">Aucun</button></span>
-          <span class="search-count" id="sel-count-projects">0</span>
-        </summary>
-        <input type="text" class="search-input" data-target="projects" placeholder="Rechercher un projet…">
-        <div class="search-list" data-target="projects"></div>
-      </details>
+    <div class="sb-body">
 
-      <details>
-        <summary>
-          <span class="search-summary-title">Sélection équipes</span>
-          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="teams" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="teams" type="button">Aucun</button></span>
-          <span class="search-count" id="sel-count-teams">0</span>
-        </summary>
-        <input type="text" class="search-input" data-target="teams" placeholder="Rechercher une équipe…">
-        <div class="search-list" data-target="teams"></div>
-      </details>
+      <section class="sb-section filter-group">
+        <h3>Filter by domain</h3>
 
-      <details>
-        <summary>
-          <span class="search-summary-title">Sélection infrastructures</span>
-          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="infra" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="infra" type="button">Aucun</button></span>
-          <span class="search-count" id="sel-count-infra">0</span>
-        </summary>
-        <input type="text" class="search-input" data-target="infra" placeholder="Rechercher une infrastructure…">
-        <div class="search-list" data-target="infra"></div>
-      </details>
-
-      <details>
-        <summary>
-          <span class="search-summary-title">Sélection plateformes & data</span>
-          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="commons" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="commons" type="button">Aucun</button></span>
-          <span class="search-count" id="sel-count-commons">0</span>
-        </summary>
-        <input type="text" class="search-input" data-target="commons" placeholder="Rechercher une plateforme / un benchmark…">
-        <div class="search-list" data-target="commons"></div>
-      </details>
-
-      <details>
-        <summary>
-          <span class="search-summary-title">Sélection cadres méthodologiques</span>
-          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="frameworks" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="frameworks" type="button">Aucun</button></span>
-          <span class="search-count" id="sel-count-frameworks">0</span>
-        </summary>
-        <input type="text" class="search-input" data-target="frameworks" placeholder="Rechercher un cadre / framework…">
-        <div class="search-list" data-target="frameworks"></div>
-      </details>
-
-      <p class="search-note">Sélection cumulée avec les filtres par domaine (ET logique). La coche « Liens projet ↔ équipe » gouverne le lien inter-couches : cochée, une fiche sélectionnée affiche aussi ses fiches liées (équipes/projets/cadres) ; décochée, les panneaux sont indépendants (seules les fiches explicitement sélectionnées s'affichent). Rien de sélectionné = tout s'affiche.</p>
-    </div>
-
-    <div class="filter-group">
-      <h3>Domaines</h3>
-
-      <div class="filter-subgroup">
-        <div class="subgroup-header">
-          <h4>Domaines industriels</h4>
-          <span class="subgroup-actions">
-            <button class="subgroup-btn" data-action="all" type="button">Tout</button>
-            <span class="sep">·</span>
-            <button class="subgroup-btn" data-action="none" type="button">Aucun</button>
-          </span>
+        <div class="filter-subgroup">
+          <div class="subgroup-header">
+            <h4>Industrial domains</h4>
+            <span class="subgroup-actions">
+              <button class="subgroup-btn" data-action="all" type="button">All</button>
+              <span class="sep">·</span>
+              <button class="subgroup-btn" data-action="none" type="button">None</button>
+            </span>
+          </div>
+          <label><input type="checkbox" class="domain-filter" value="energy" checked> <span class="legend-dot" style="background:#f59e0b"></span> Energy / power grid</label>
+          <label><input type="checkbox" class="domain-filter" value="aviation" checked> <span class="legend-dot" style="background:#3b82f6"></span> Aviation / ATC</label>
+          <label><input type="checkbox" class="domain-filter" value="rail" checked> <span class="legend-dot" style="background:#10b981"></span> Rail</label>
+          <label><input type="checkbox" class="domain-filter" value="transport" checked> <span class="legend-dot" style="background:#84cc16"></span> Road / surface transport</label>
+          <label><input type="checkbox" class="domain-filter" value="telecom" checked> <span class="legend-dot" style="background:#06b6d4"></span> Telecom / networks</label>
+          <label><input type="checkbox" class="domain-filter" value="utility" checked> <span class="legend-dot" style="background:#92400e"></span> Water / gas</label>
+          <label><input type="checkbox" class="domain-filter" value="health" checked> <span class="legend-dot" style="background:#ef4444"></span> Health / clinical</label>
+          <label><input type="checkbox" class="domain-filter" value="manufacturing" checked> <span class="legend-dot" style="background:#8b5cf6"></span> Manufacturing / process</label>
+          <label><input type="checkbox" class="domain-filter" value="maritime" checked> <span class="legend-dot" style="background:#0891b2"></span> Maritime / ports</label>
+          <label><input type="checkbox" class="domain-filter" value="nuclear" checked> <span class="legend-dot" style="background:#a16207"></span> Nuclear</label>
+          <label><input type="checkbox" class="domain-filter" value="defense" checked> <span class="legend-dot" style="background:#475569"></span> Defence</label>
         </div>
-        <label><input type="checkbox" class="domain-filter" value="energy" checked> <span class="legend-dot" style="background:#f59e0b"></span> Énergie / réseau électrique</label>
-        <label><input type="checkbox" class="domain-filter" value="aviation" checked> <span class="legend-dot" style="background:#3b82f6"></span> Aviation / ATC</label>
-        <label><input type="checkbox" class="domain-filter" value="rail" checked> <span class="legend-dot" style="background:#10b981"></span> Ferroviaire</label>
-        <label><input type="checkbox" class="domain-filter" value="transport" checked> <span class="legend-dot" style="background:#84cc16"></span> Routes / transport sol</label>
-        <label><input type="checkbox" class="domain-filter" value="telecom" checked> <span class="legend-dot" style="background:#06b6d4"></span> Télécoms / réseaux</label>
-        <label><input type="checkbox" class="domain-filter" value="utility" checked> <span class="legend-dot" style="background:#92400e"></span> Eau / gaz</label>
-        <label><input type="checkbox" class="domain-filter" value="health" checked> <span class="legend-dot" style="background:#ef4444"></span> Santé / clinique</label>
-        <label><input type="checkbox" class="domain-filter" value="manufacturing" checked> <span class="legend-dot" style="background:#8b5cf6"></span> Manufacturing / process</label>
-        <label><input type="checkbox" class="domain-filter" value="maritime" checked> <span class="legend-dot" style="background:#0891b2"></span> Maritime / ports</label>
-        <label><input type="checkbox" class="domain-filter" value="nuclear" checked> <span class="legend-dot" style="background:#a16207"></span> Nucléaire</label>
-        <label><input type="checkbox" class="domain-filter" value="defense" checked> <span class="legend-dot" style="background:#475569"></span> Défense</label>
-      </div>
 
-      <div class="filter-subgroup">
-        <div class="subgroup-header">
-          <h4>Domaines techniques</h4>
-          <span class="subgroup-actions">
-            <button class="subgroup-btn" data-action="all" type="button">Tout</button>
-            <span class="sep">·</span>
-            <button class="subgroup-btn" data-action="none" type="button">Aucun</button>
-          </span>
+        <div class="filter-subgroup">
+          <div class="subgroup-header">
+            <h4>Research focus</h4>
+            <span class="subgroup-actions">
+              <button class="subgroup-btn" data-action="all" type="button">All</button>
+              <span class="sep">·</span>
+              <button class="subgroup-btn" data-action="none" type="button">None</button>
+            </span>
+          </div>
+          <label><input type="checkbox" class="domain-filter" value="hf" checked> <span class="legend-dot" style="background:#ec4899"></span> Human factors / cognitive</label>
+          <label><input type="checkbox" class="domain-filter" value="xai" checked> <span class="legend-dot" style="background:#6b7280"></span> XAI / trust / safety</label>
+          <label><input type="checkbox" class="domain-filter" value="multi" checked> <span class="legend-dot" style="background:#14b8a6"></span> Multi-agent / other</label>
         </div>
-        <label><input type="checkbox" class="domain-filter" value="hf" checked> <span class="legend-dot" style="background:#ec4899"></span> Human factors / cognitif</label>
-        <label><input type="checkbox" class="domain-filter" value="xai" checked> <span class="legend-dot" style="background:#6b7280"></span> XAI / trust / safety</label>
-        <label><input type="checkbox" class="domain-filter" value="multi" checked> <span class="legend-dot" style="background:#14b8a6"></span> Multi-agents / autres</label>
-      </div>
 
-      <div class="filter-subgroup">
-        <div class="subgroup-header">
-          <h4>Infrastructures de recherche & soutien IA</h4>
-          <span class="subgroup-actions">
-            <button class="subgroup-btn" data-action="all" type="button">Tout</button>
-            <span class="sep">·</span>
-            <button class="subgroup-btn" data-action="none" type="button">Aucun</button>
-          </span>
+        <div class="filter-subgroup">
+          <div class="subgroup-header">
+            <h4>Research infrastructure</h4>
+            <span class="subgroup-actions">
+              <button class="subgroup-btn" data-action="all" type="button">All</button>
+              <span class="sep">·</span>
+              <button class="subgroup-btn" data-action="none" type="button">None</button>
+            </span>
+          </div>
+          <label><input type="checkbox" class="domain-filter" value="compute" checked> <span class="legend-dot" style="background:#581c87"></span> Data centres / AI factories</label>
+          <label><input type="checkbox" class="domain-filter" value="cluster" checked> <span class="legend-dot" style="background:#4f46e5"></span> AI networks &amp; platforms</label>
+          <label><input type="checkbox" class="domain-filter" value="simulation" checked> <span class="legend-dot" style="background:#facc15"></span> Socio-technical simulation</label>
         </div>
-        <label><input type="checkbox" class="domain-filter" value="compute" checked> <span class="legend-dot" style="background:#581c87"></span> Data centers / AI Factories</label>
-        <label><input type="checkbox" class="domain-filter" value="cluster" checked> <span class="legend-dot" style="background:#4f46e5"></span> Réseaux & plateformes IA</label>
-        <label><input type="checkbox" class="domain-filter" value="simulation" checked> <span class="legend-dot" style="background:#facc15"></span> Simulation socio-technique</label>
-      </div>
 
-      <p class="legend-note">Marqueur en parts de tarte = projet multi-domaine (visible si l'un de ses domaines est coché).</p>
-    </div>
+        <p class="legend-note">A pie-slice marker is a multi-domain entity. It stays visible while any one of its domains is ticked.</p>
+      </section>
 
-    <div class="stats">
-      <div><strong id="stat-projects">—</strong> projets affichés</div>
-      <div><strong id="stat-teams">—</strong> équipes affichées</div>
-      <div><strong id="stat-frameworks">—</strong> cadres affichés</div>
-      <div><strong id="stat-countries">—</strong> pays</div>
-    </div>
+      <section class="sb-section search-group">
+        <h3>Find specific entries</h3>
 
-    <details>
-      <summary>Crédits & sources</summary>
-      <p style="margin:6px 0; font-size:11px;"><strong>Bases institutionnelles</strong></p>
+        <details>
+          <summary>
+            <span class="search-summary-title">Projects</span>
+            <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="projects" type="button">All</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="projects" type="button">None</button></span>
+            <span class="search-count" id="sel-count-projects">0</span>
+          </summary>
+          <input type="text" class="search-input" data-target="projects" placeholder="Search a project…">
+          <div class="search-list" data-target="projects"></div>
+        </details>
+
+        <details>
+          <summary>
+            <span class="search-summary-title">Teams</span>
+            <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="teams" type="button">All</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="teams" type="button">None</button></span>
+            <span class="search-count" id="sel-count-teams">0</span>
+          </summary>
+          <input type="text" class="search-input" data-target="teams" placeholder="Search a team…">
+          <div class="search-list" data-target="teams"></div>
+        </details>
+
+        <details>
+          <summary>
+            <span class="search-summary-title">Infrastructure</span>
+            <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="infra" type="button">All</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="infra" type="button">None</button></span>
+            <span class="search-count" id="sel-count-infra">0</span>
+          </summary>
+          <input type="text" class="search-input" data-target="infra" placeholder="Search infrastructure…">
+          <div class="search-list" data-target="infra"></div>
+        </details>
+
+        <details>
+          <summary>
+            <span class="search-summary-title">Platforms &amp; data</span>
+            <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="commons" type="button">All</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="commons" type="button">None</button></span>
+            <span class="search-count" id="sel-count-commons">0</span>
+          </summary>
+          <input type="text" class="search-input" data-target="commons" placeholder="Search a platform or benchmark…">
+          <div class="search-list" data-target="commons"></div>
+        </details>
+
+        <details>
+          <summary>
+            <span class="search-summary-title">Methodological frameworks</span>
+            <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="frameworks" type="button">All</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="frameworks" type="button">None</button></span>
+            <span class="search-count" id="sel-count-frameworks">0</span>
+          </summary>
+          <input type="text" class="search-input" data-target="frameworks" placeholder="Search a framework…">
+          <div class="search-list" data-target="frameworks"></div>
+        </details>
+
+        <p class="note">Selecting nothing shows everything. Selections combine with the domain filters (logical AND). With <strong>Project ↔ team links</strong> ticked, selecting one entry also reveals the entries it is linked to; unticked, each panel stands alone.</p>
+      </section>
+
+      <section class="sb-section layer-toggle">
+        <div class="subgroup-header"><h3>Display</h3></div>
+        <label><input type="checkbox" id="show-edges" checked> Project ↔ team links</label>
+      </section>
+
+      <details class="credits">
+      <summary>Credits &amp; sources</summary>
+      <p style="margin:6px 0; font-size:11px;"><strong>Institutional sources</strong></p>
       <ul style="font-size:11px; padding-left:18px;">
         <li><a href="https://cordis.europa.eu/" target="_blank">CORDIS</a> — Horizon Europe / SESAR / EuroHPC. Grants : 101119527 (AI4RealNet), 101166886 (DIALOG), 101172952 (TwinEU), 101136119 (AI-EFFECT), 101075332 (HAIKU), 101120763 (TEF-Health), 101120657 (CitCom.ai), 101120732 (agrifoodTEF), 101135437 (AI-MATTERS), 952215 (TAILOR), 951847 (ELISE), 951911 (AI4Media), 952026 (HumanE-AI-Net), 101096435 (Hexa-X-II), 101017109 (DAEMON), 101015922 (AI@EDGE), 101095171 (AI Mind), 101080148 (TRUSTroke), 952159 (BigPicture), 101055093 (ProCAncer-I), 101099924 (Water4All), 820985 (NAIADES).</li>
-        <li><a href="https://www.eurohpc-ju.europa.eu/" target="_blank">EuroHPC JU</a> — liste officielle des AI Factories (IT4LIA, JUPITER-AI, BSC, LUMI, MeluXina-AI…).</li>
-        <li><a href="https://www.sesarju.eu/" target="_blank">SESAR JU</a> — projets ER4 (MAHALO, ARTIMATION, TAPAS, AISA, HARVIS, DIALOG, HAIKU).</li>
+        <li><a href="https://www.eurohpc-ju.europa.eu/" target="_blank">EuroHPC JU</a> — official AI Factories list (IT4LIA, JUPITER-AI, BSC, LUMI, MeluXina-AI…).</li>
+        <li><a href="https://www.sesarju.eu/" target="_blank">SESAR JU</a> — ER4 projects (MAHALO, ARTIMATION, TAPAS, AISA, HARVIS, DIALOG, HAIKU).</li>
         <li><a href="https://digital-strategy.ec.europa.eu/en/activities/testing-and-experimentation-facilities" target="_blank">EU TEFs</a> — Health, Agri-food, Smart Cities (CitCom.ai), Manufacturing (AI-MATTERS).</li>
         <li><a href="https://digital-strategy.ec.europa.eu/en/policies/data-spaces" target="_blank">Common European Data Spaces</a> — EHDS, MDS, IDS-A.</li>
       </ul>
 
-      <p style="margin:6px 0; font-size:11px;"><strong>Sites des projets / réseaux</strong></p>
+      <p style="margin:6px 0; font-size:11px;"><strong>Project and network sites</strong></p>
       <ul style="font-size:11px; padding-left:18px;">
-        <li>Projets industriels : <a href="https://ai4realnet.eu/" target="_blank">ai4realnet.eu</a>, <a href="https://ai-effect.eu/" target="_blank">ai-effect.eu</a>, <a href="https://twineu.net/" target="_blank">twineu.net</a>, <a href="https://haikuproject.eu/" target="_blank">haikuproject.eu</a>, <a href="https://research.dblue.it/dialog/" target="_blank">research.dblue.it/dialog</a></li>
+        <li>Industrial projects: <a href="https://ai4realnet.eu/" target="_blank">ai4realnet.eu</a>, <a href="https://ai-effect.eu/" target="_blank">ai-effect.eu</a>, <a href="https://twineu.net/" target="_blank">twineu.net</a>, <a href="https://haikuproject.eu/" target="_blank">haikuproject.eu</a>, <a href="https://research.dblue.it/dialog/" target="_blank">research.dblue.it/dialog</a></li>
         <li>SESAR ER4 : <a href="https://mahaloproject.eu/" target="_blank">mahaloproject.eu</a>, <a href="https://artimation.eu/" target="_blank">artimation.eu</a>, <a href="https://tapas-atm.eu/" target="_blank">tapas-atm.eu</a>, <a href="https://aisa-project.eu/" target="_blank">aisa-project.eu</a>, <a href="https://harvis-project.eu/" target="_blank">harvis-project.eu</a></li>
         <li>TEFs : <a href="https://tefhealth.eu/" target="_blank">tefhealth.eu</a>, <a href="https://www.agrifoodtef.eu/" target="_blank">agrifoodtef.eu</a>, <a href="https://citcom.ai/" target="_blank">citcom.ai</a>, <a href="https://aimatters.eu/" target="_blank">aimatters.eu</a></li>
-        <li>Réseaux IA : <a href="https://ellis.eu/" target="_blank">ellis.eu</a>, <a href="https://claire-ai.org/" target="_blank">claire-ai.org</a>, <a href="https://tailor-network.eu/" target="_blank">tailor-network.eu</a>, <a href="https://www.elise-ai.eu/" target="_blank">elise-ai.eu</a>, <a href="https://www.ai4media.eu/" target="_blank">ai4media.eu</a>, <a href="https://wasp-hs.org/" target="_blank">wasp-hs.org</a>, <a href="https://adra-e.eu/" target="_blank">adra-e.eu</a>, <a href="https://aiod.eu/" target="_blank">aiod.eu</a></li>
-        <li>Télécoms : <a href="https://hexa-x-ii.eu/" target="_blank">hexa-x-ii.eu</a>, <a href="https://h2020daemon.eu/" target="_blank">h2020daemon.eu</a>, <a href="https://aiatedge.eu/" target="_blank">aiatedge.eu</a></li>
-        <li>Eau / gaz : <a href="https://www.waterforall.eu/" target="_blank">waterforall.eu</a>, <a href="https://ict4water.eu/" target="_blank">ict4water.eu</a>, <a href="https://naiades-project.eu/" target="_blank">naiades-project.eu</a>, <a href="https://www.clean-hydrogen.europa.eu/" target="_blank">clean-hydrogen.europa.eu</a></li>
-        <li>Santé : <a href="https://www.procancer-i.eu/" target="_blank">procancer-i.eu</a>, <a href="https://incisive-project.eu/" target="_blank">incisive-project.eu</a>, <a href="https://chaimeleon.eu/" target="_blank">chaimeleon.eu</a>, <a href="https://www.ai-mind.eu/" target="_blank">ai-mind.eu</a>, <a href="https://www.trustroke.eu/" target="_blank">trustroke.eu</a>, <a href="https://bigpicture.eu/" target="_blank">bigpicture.eu</a></li>
-        <li>Simulation socio-tech. : <a href="https://www.eurocontrol.int/eurocontrol-innovation-hub" target="_blank">EUROCONTROL Innovation Hub Brétigny</a>, <a href="https://liu.se/en/research/joint-cognitive-systems" target="_blank">Linköping VI / J. Lundberg</a>, <a href="https://www.powerlab.dk/" target="_blank">DTU PowerLabDK</a>, <a href="https://www.nlr.org/" target="_blank">NLR</a>, <a href="https://www.itrl.kth.se/" target="_blank">KTH ITRL</a>, <a href="https://www.chalmers.se/en/centres/revere/" target="_blank">Chalmers REVERE</a>, <a href="https://www.ircad.fr/" target="_blank">IRCAD</a></li>
+        <li>AI networks: <a href="https://ellis.eu/" target="_blank">ellis.eu</a>, <a href="https://claire-ai.org/" target="_blank">claire-ai.org</a>, <a href="https://tailor-network.eu/" target="_blank">tailor-network.eu</a>, <a href="https://www.elise-ai.eu/" target="_blank">elise-ai.eu</a>, <a href="https://www.ai4media.eu/" target="_blank">ai4media.eu</a>, <a href="https://wasp-hs.org/" target="_blank">wasp-hs.org</a>, <a href="https://adra-e.eu/" target="_blank">adra-e.eu</a>, <a href="https://aiod.eu/" target="_blank">aiod.eu</a></li>
+        <li>Telecom: <a href="https://hexa-x-ii.eu/" target="_blank">hexa-x-ii.eu</a>, <a href="https://h2020daemon.eu/" target="_blank">h2020daemon.eu</a>, <a href="https://aiatedge.eu/" target="_blank">aiatedge.eu</a></li>
+        <li>Water / gas: <a href="https://www.waterforall.eu/" target="_blank">waterforall.eu</a>, <a href="https://ict4water.eu/" target="_blank">ict4water.eu</a>, <a href="https://naiades-project.eu/" target="_blank">naiades-project.eu</a>, <a href="https://www.clean-hydrogen.europa.eu/" target="_blank">clean-hydrogen.europa.eu</a></li>
+        <li>Health: <a href="https://www.procancer-i.eu/" target="_blank">procancer-i.eu</a>, <a href="https://incisive-project.eu/" target="_blank">incisive-project.eu</a>, <a href="https://chaimeleon.eu/" target="_blank">chaimeleon.eu</a>, <a href="https://www.ai-mind.eu/" target="_blank">ai-mind.eu</a>, <a href="https://www.trustroke.eu/" target="_blank">trustroke.eu</a>, <a href="https://bigpicture.eu/" target="_blank">bigpicture.eu</a></li>
+        <li>Socio-technical simulation: <a href="https://www.eurocontrol.int/eurocontrol-innovation-hub" target="_blank">EUROCONTROL Innovation Hub Brétigny</a>, <a href="https://liu.se/en/research/joint-cognitive-systems" target="_blank">Linköping VI / J. Lundberg</a>, <a href="https://www.powerlab.dk/" target="_blank">DTU PowerLabDK</a>, <a href="https://www.nlr.org/" target="_blank">NLR</a>, <a href="https://www.itrl.kth.se/" target="_blank">KTH ITRL</a>, <a href="https://www.chalmers.se/en/centres/revere/" target="_blank">Chalmers REVERE</a>, <a href="https://www.ircad.fr/" target="_blank">IRCAD</a></li>
       </ul>
 
-      <p style="margin:6px 0; font-size:11px;"><strong>Recherche complémentaire</strong></p>
+      <p style="margin:6px 0; font-size:11px;"><strong>Additional research</strong></p>
       <ul style="font-size:11px; padding-left:18px;">
-        <li>Pages partenaires des consortiums (~180 entrées validées via sites institutionnels).</li>
-        <li>Recherche web ciblée mai 2026 — ANSPs européens, opérateurs telecom/utility, labs simulation HAI.</li>
+        <li>Consortium partner pages (~180 entries verified against institutional sites).</li>
+        <li>Targeted web research, May 2026 — European ANSPs, telecom and utility operators, HAI simulation labs.</li>
       </ul>
 
-      <p style="margin:6px 0; font-size:11px;"><strong>Données brutes & documentation</strong></p>
+      <p style="margin:6px 0; font-size:11px;"><strong>Raw data &amp; documentation</strong></p>
       <ul style="font-size:11px; padding-left:18px;">
-        <li><a href="data/README.md" target="_blank"><code>data/README.md</code></a> — schéma + index</li>
-        <li><a href="data/projects.yml" target="_blank"><code>data/projects.yml</code></a> — 55 projets/commons combinés</li>
-        <li><a href="data/teams.yml" target="_blank"><code>data/teams.yml</code></a> — 125 équipes / labs</li>
-        <li><a href="data/edges.yml" target="_blank"><code>data/edges.yml</code></a> — 135 liens projet ↔ équipe</li>
-        <li><code>data/projects/&lt;id&gt;.yml</code> et <code>data/teams/&lt;id&gt;.yml</code> — un fichier par item</li>
-        <li><a href="cartographie_HAI_documentation.docx" target="_blank"><strong>Documentation complète (.docx)</strong></a> — synthèse organisée par domaine</li>
+        <li><a href="data/README.md" target="_blank"><code>data/README.md</code></a> — schema and index</li>
+        <li><a href="data/projects.yml" target="_blank"><code>data/projects.yml</code></a> — 55 projects and commons combined</li>
+        <li><a href="data/teams.yml" target="_blank"><code>data/teams.yml</code></a> — 125 teams and labs</li>
+        <li><a href="data/edges.yml" target="_blank"><code>data/edges.yml</code></a> — 135 project ↔ team links</li>
+        <li><code>data/projects/&lt;id&gt;.yml</code> et <code>data/teams/&lt;id&gt;.yml</code> — one file per entity</li>
+        <li><a href="cartographie_HAI_documentation.docx" target="_blank"><strong>Full documentation (.docx)</strong></a> — overview organised by domain</li>
       </ul>
     </details>
 
-    <p class="footer">Carte = OpenStreetMap, fond Carto. Cliquez sur un marqueur pour voir les détails et le lien vers le site.</p>
+      <p class="footer">Basemap: OpenStreetMap, tiles by CARTO. Click any marker for details and a link to the site.</p>
+    </div>
   </aside>
   <div id="map"></div>
 </div>
@@ -770,7 +869,9 @@ const map = L.map('map', {
   maxZoom: 9,
   doubleClickZoom: false, // freed for marker dblclick toggle
 });
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+const basemapStyle = prefersDark ? 'dark_all' : 'light_all';
+L.tileLayer(`https://{s}.basemaps.cartocdn.com/${basemapStyle}/{z}/{x}/{y}{r}.png`, {
   attribution:'&copy; OpenStreetMap, &copy; CARTO',
   subdomains:'abcd',
   maxZoom:19,
@@ -823,12 +924,12 @@ const projectById = Object.fromEntries([...PROJECTS, ...COMMONS].map(p => [p.id,
 
 // Domain labels for popups + badges.
 const DOMAIN_LABELS = {
-  energy: 'énergie', aviation: 'aviation', rail: 'ferroviaire',
-  transport: 'transport sol', telecom: 'télécoms', utility: 'eau/gaz',
-  health: 'santé', manufacturing: 'manufacturing', compute: 'compute',
-  cluster: 'réseau IA', simulation: 'sim. socio-tech',
-  hf: 'human factors', xai: 'XAI', multi: 'multi/autres',
-  maritime: 'maritime', nuclear: 'nucléaire', defense: 'défense',
+  energy: 'energy', aviation: 'aviation', rail: 'rail',
+  transport: 'surface transport', telecom: 'telecom', utility: 'water/gas',
+  health: 'health', manufacturing: 'manufacturing', compute: 'compute',
+  cluster: 'AI network', simulation: 'socio-tech sim.',
+  hf: 'human factors', xai: 'XAI', multi: 'multi/other',
+  maritime: 'maritime', nuclear: 'nuclear', defense: 'defence',
 };
 
 function getDomains(data){
@@ -1059,14 +1160,14 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;',
 // Pretty labels for subsection groupings.
 const SUBSECTION_LABELS = {
   // commons
-  simulator: 'Simulateurs / environnements',
-  benchmark: 'Benchmarks / compétitions',
-  framework: 'Cadres applicatifs',
-  foundation: 'Fondations open-source',
-  stack: 'Stacks open-source',
+  simulator: 'Simulators / environments',
+  benchmark: 'Benchmarks / competitions',
+  framework: 'Applied frameworks',
+  foundation: 'Open-source foundations',
+  stack: 'Open-source stacks',
   // frameworks
-  cognitive: 'Cognitive engineering & sociotechnique',
-  design: 'Cadres design HAI',
+  cognitive: 'Cognitive engineering & socio-technical',
+  design: 'HAI design frameworks',
   standard: 'Standards & certification',
 };
 
@@ -1092,10 +1193,10 @@ function populateSearchList(target, dataArray){
       const label = SUBSECTION_LABELS[key] || (key === '__other__' ? 'Autres' : key);
       const items = groups.get(key).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
       return `<div class="search-subheader">${escapeHtml(label)}</div>` + items.map(renderItem).join('');
-    }).join('') || '<div class="search-empty">Aucun élément</div>';
+    }).join('') || '<div class="search-empty">No matches</div>';
   } else {
     const sorted = [...dataArray].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-    list.innerHTML = sorted.map(renderItem).join('') || '<div class="search-empty">Aucun élément</div>';
+    list.innerHTML = sorted.map(renderItem).join('') || '<div class="search-empty">No matches</div>';
   }
 }
 
@@ -1297,6 +1398,31 @@ subgroupBtns.forEach(btn => {
     });
     refresh();
   });
+});
+
+// Mobile drawer.
+const sbToggle = document.getElementById('sb-toggle');
+const sbClose = document.getElementById('sb-close');
+const sbBackdrop = document.getElementById('sb-backdrop');
+function setPanel(open){
+  document.body.classList.toggle('panel-open', open);
+  if (sbToggle) sbToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+if (sbToggle) sbToggle.addEventListener('click', () => setPanel(!document.body.classList.contains('panel-open')));
+if (sbClose) sbClose.addEventListener('click', () => setPanel(false));
+if (sbBackdrop) sbBackdrop.addEventListener('click', () => setPanel(false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setPanel(false); });
+
+// Reset: re-tick every domain filter and clear every selection, reusing the
+// existing "none" handlers so the selection sets stay consistent.
+const resetBtn = document.getElementById('reset-all');
+if (resetBtn) resetBtn.addEventListener('click', () => {
+  document.querySelectorAll('.select-all-btn[data-action="none"]').forEach(b => b.click());
+  document.querySelectorAll('.domain-filter').forEach(cb => { cb.checked = true; });
+  const edges = document.getElementById('show-edges');
+  if (edges) edges.checked = true;
+  document.querySelectorAll('.search-input').forEach(i => { i.value = ''; i.dispatchEvent(new Event('input')); });
+  refresh();
 });
 
 // First render.
