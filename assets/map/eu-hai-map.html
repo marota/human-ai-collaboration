@@ -40,7 +40,7 @@
   .sb-head { flex:none; padding:16px 18px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
   .sb-body { flex:1; overflow-y:auto; overscroll-behavior:contain; padding:14px 18px 22px; }
 
-  #sidebar h1 { font-size:15px; margin:0 0 3px; font-weight:650; letter-spacing:-.01em; line-height:1.25; }
+  #sidebar h1 { font-size:15px; margin:0 0 3px; padding-right:66px; font-weight:650; letter-spacing:-.01em; line-height:1.25; }
   #sidebar p.lede { color:var(--muted); font-size:12px; margin:0; line-height:1.45; }
 
   /* ---- live stats, right under the title ---- */
@@ -146,6 +146,15 @@
   details.credits ul { font-size:11px; padding-left:18px; line-height:1.55; color:var(--muted); }
   details.credits a { color:var(--accent); }
   .footer { font-size:10.5px; color:var(--faint); margin:14px 0 0; line-height:1.5; }
+
+  /* ---- on-map toggle ---- */
+  .map-toggle { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    box-shadow:var(--shadow); padding:7px 11px; }
+  .map-toggle label { display:flex; align-items:center; gap:8px; margin:0; cursor:pointer;
+    font-size:12px; font-weight:600; color:var(--ink); white-space:nowrap; }
+  .map-toggle input { margin:0; accent-color:var(--accent); }
+  .map-toggle:hover { border-color:var(--accent); }
+  @media (max-width: 820px) { .map-toggle label { font-size:11.5px; } }
 
   /* ---- mobile: sidebar becomes a drawer ---- */
   .sb-toggle, .sb-backdrop, .sb-close { display:none; }
@@ -304,12 +313,7 @@
           <div class="search-list" data-target="frameworks"></div>
         </details>
 
-        <p class="note">Selecting nothing shows everything. Selections combine with the domain filters (logical AND). With <strong>Project ↔ team links</strong> ticked, selecting one entry also reveals the entries it is linked to; unticked, each panel stands alone.</p>
-      </section>
-
-      <section class="sb-section layer-toggle">
-        <div class="subgroup-header"><h3 data-i18n="display">Display</h3></div>
-        <label><input type="checkbox" id="show-edges" checked> <span data-i18n="edges">Project ↔ team links</span></label>
+        <p class="note">Selecting nothing shows everything. Selections combine with the domain filters (logical AND). With <strong>Project ↔ team links</strong> ticked on the map, selecting one entry also reveals the entries it is linked to; unticked, each panel stands alone.</p>
       </section>
 
       <details class="credits">
@@ -879,6 +883,19 @@ const map = L.map('map', {
   maxZoom: 9,
   doubleClickZoom: false, // freed for marker dblclick toggle
 });
+// The project<->team link toggle lives on the map, where its effect is visible.
+const EdgeToggle = L.Control.extend({
+  options: { position: 'topright' },
+  onAdd: function () {
+    const div = L.DomUtil.create('div', 'map-toggle leaflet-bar');
+    div.innerHTML = '<label><input type="checkbox" id="show-edges" checked>' +
+                    '<span data-i18n="edges">Project \u2194 team links</span></label>';
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+    return div;
+  }
+});
+
 const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 const basemapStyle = prefersDark ? 'dark_all' : 'light_all';
 L.tileLayer(`https://{s}.basemaps.cartocdn.com/${basemapStyle}/{z}/{x}/{y}{r}.png`, {
@@ -886,6 +903,8 @@ L.tileLayer(`https://{s}.basemaps.cartocdn.com/${basemapStyle}/{z}/{x}/{y}{r}.pn
   subdomains:'abcd',
   maxZoom:19,
 }).addTo(map);
+
+map.addControl(new EdgeToggle());
 
 const COLORS = {
   energy: '#f59e0b',
@@ -946,7 +965,7 @@ const I18N = {
     edges:'Project ↔ team links', all:'All', none:'None',
     legendNote:'A pie-slice marker is a multi-domain entity. It stays visible while any one of its domains is ticked.',
     footer:'Basemap: OpenStreetMap, tiles by CARTO. Click any marker for details and a link to the site.',
-    note:'Selecting nothing shows everything. Selections combine with the domain filters (logical AND). With <strong>Project ↔ team links</strong> ticked, selecting one entry also reveals the entries it is linked to; unticked, each panel stands alone.',
+    note:'Selecting nothing shows everything. Selections combine with the domain filters (logical AND). With <strong>Project ↔ team links</strong> ticked on the map, selecting one entry also reveals the entries it is linked to; unticked, each panel stands alone.',
     phProject:'Search a project…', phTeam:'Search a team…', phInfra:'Search infrastructure…',
     phCommons:'Search a platform or benchmark…', phFrameworks:'Search a framework…',
     visit:'Visit →', noMatches:'No matches',
@@ -979,7 +998,7 @@ const I18N = {
     edges:'Liens projet ↔ équipe', all:'Tout', none:'Aucun',
     legendNote:'Un marqueur en parts de tarte est une entité multi-domaine. Elle reste visible tant que l’un de ses domaines est coché.',
     footer:'Fond de carte : OpenStreetMap, tuiles CARTO. Cliquez sur un marqueur pour le détail et le lien vers le site.',
-    note:'Ne rien sélectionner affiche tout. Les sélections se combinent aux filtres par domaine (ET logique). Avec <strong>Liens projet ↔ équipe</strong> coché, sélectionner une fiche affiche aussi les fiches liées ; décoché, chaque panneau est indépendant.',
+    note:'Ne rien sélectionner affiche tout. Les sélections se combinent aux filtres par domaine (ET logique). Avec <strong>Liens projet ↔ équipe</strong> coché sur la carte, sélectionner une fiche affiche aussi les fiches liées ; décoché, chaque panneau est indépendant.',
     phProject:'Rechercher un projet…', phTeam:'Rechercher une équipe…', phInfra:'Rechercher une infrastructure…',
     phCommons:'Rechercher une plateforme / un benchmark…', phFrameworks:'Rechercher un cadre…',
     visit:'Visiter →', noMatches:'Aucun élément',
@@ -1477,6 +1496,10 @@ function refresh(){
 const sidebarCheckboxes = document.querySelectorAll('#sidebar input[type="checkbox"]');
 console.log('attaching listeners to', sidebarCheckboxes.length, 'checkboxes');
 sidebarCheckboxes.forEach(el => el.addEventListener('change', refresh));
+
+// The edge toggle now lives on the map, outside #sidebar.
+const edgeToggleInput = document.getElementById('show-edges');
+if (edgeToggleInput) edgeToggleInput.addEventListener('change', refresh);
 
 // Per-subsection select-all/none buttons.
 const subgroupBtns = document.querySelectorAll('.subgroup-btn');

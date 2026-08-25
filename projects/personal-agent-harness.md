@@ -9,6 +9,18 @@ deck: >-
   verifies, one that executes — built to keep delegation legible instead of
   magical.
 status: "Local setup · scripts and configuration, not a product"
+image: /assets/img/projects/personal-agent-harness.svg
+image_alt: >-
+  Architecture in four lanes. A request reaches an orchestrator model that plans,
+  splits and delegates. Each delegated sub-task starts a fresh executor with no
+  history on a second model, and only its final summary returns. The
+  orchestrator then verifies that summary against the artefacts before
+  synthesising an answer. Both models run locally through Ollama. Alongside the
+  generic path, the orchestrator can call benchmarked local capabilities.
+image_caption: >-
+  The two things that make it a harness rather than a chatbot: the verification
+  step between summary and answer, and the capability row that lets the
+  orchestrator call a benchmarked local tool instead of reasoning from scratch.
 ---
 
 ## The problem
