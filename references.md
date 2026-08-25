@@ -45,10 +45,17 @@ deck: >-
   Not whether human decision-making is still *possible*, but whether it is still
   *necessary* — and what commitment, authority and moral judgement add to
   efficiency.
-- *Ce que l'intelligence artificielle fait de l'homme au travail. Visite
-  sociologique d'une entreprise.* — référence à confirmer.
+- **Ferguson, Y.** (2019). *Ce que l'intelligence artificielle fait de l'homme au
+  travail. Visite sociologique d'une entreprise.* In Dubet, F. (ed.), *Les
+  mutations du travail*, La Découverte, 23–42 —
+  [Cairn](https://shs.cairn.info/article/DEC_DUBET_2019_01_0023?lang=fr).
+  A sociological account from inside a single firm of what AI actually does to
+  work — valuable because it starts from observed practice rather than from the
+  technology.
 - *Deskilling, Upskilling, and Reskilling: a Case for Hybrid Intelligence.* —
-  référence à confirmer.
+  [HAL](https://hal.science/hal-04500314). Names the three outcomes a deployment
+  can have on a workforce, and argues hybrid intelligence is what decides which
+  one you get.
 
 ## Making the joint decision visible
 
@@ -101,9 +108,13 @@ deck: >-
   (2018). *[Human-Machine Teaming Systems Engineering Guide](https://www.mitre.org/sites/default/files/2021-11/prs-17-4208-human-machine-teaming-systems-engineering-guide.pdf).*
   The MITRE Corporation.
 - *Participatory design to support power grid operators in control rooms.* —
-  référence à confirmer.
+  [PhD thesis, HAL](https://theses.hal.science/tel-04577446v1). Participatory
+  design taken all the way into a real control room, rather than stopping at the
+  workshop.
 - *Framework for human and AI-assistant bidirectional interaction applied to
-  industrial system operations.* — référence à confirmer.
+  industrial system operations.* — [HAL](https://hal.science/hal-04739457v1).
+  The bidirectional framework behind InteractiveAI: the assistant is addressable,
+  not only broadcast at.
 
 ## Regulation, assurance and validation
 

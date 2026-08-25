@@ -64,6 +64,13 @@ these belong to their communities, not to me.
   IRT SystemX.
 - **[InteractiveAI](https://github.com/IRT-SystemX/InteractiveAI)** — a bidirectional
   multi-domain operator assistant framework, with IRT SystemX.
+- **[AINETUS](https://ai4realnet.eu/)** — *AI for Safety-Critical Network
+  Infrastructures.* The AI4RealNet grid-operation stack, released open source and
+  hosted by [LF Energy](https://lfenergy.org/): reinforcement-learning agents for
+  topology optimisation and redispatch, explainability and uncertainty
+  estimation, and operator-facing hypervision interfaces built so that
+  recommendations can be **interrogated** rather than only accepted. Hosting it
+  under LF Energy deliberately decouples it from any single organisation.
 
 ## Open challenges
 

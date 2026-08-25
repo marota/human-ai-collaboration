@@ -38,22 +38,6 @@ layout: default
         {%- if anchor_first != '[' %}<span class="tag">Builds on: {{ page.anchors }}</span>{% endif -%}
       {%- endif %}
     </div>
-
-    {%- if prev_p or next_p %}
-    <nav class="post-pager" aria-label="Series navigation">
-      {%- if prev_p %}
-      <a class="post-pager__link" href="{{ prev_p.url | relative_url }}" rel="prev">
-        <span aria-hidden="true">←</span> Part {{ prev_p.part }}
-      </a>
-      {%- endif %}
-      <a class="post-pager__link" href="{{ '/series/' | relative_url }}">All ten parts</a>
-      {%- if next_p %}
-      <a class="post-pager__link" href="{{ next_p.url | relative_url }}" rel="next">
-        Part {{ next_p.part }} <span aria-hidden="true">→</span>
-      </a>
-      {%- endif %}
-    </nav>
-    {%- endif %}
   </div>
 </div>
 
@@ -81,7 +65,23 @@ layout: default
   </nav>
   {%- endif -%}
 
+  {%- if prev_p or next_p %}
+  <nav class="post-pager" aria-label="Series navigation">
+    {%- if prev_p %}
+    <a class="post-pager__link" href="{{ prev_p.url | relative_url }}" rel="prev">
+      <span aria-hidden="true">←</span> Part {{ prev_p.part }}
+    </a>
+    {%- endif %}
+    <a class="post-pager__link" href="{{ '/series/' | relative_url }}">All ten parts</a>
+    {%- if next_p %}
+    <a class="post-pager__link" href="{{ next_p.url | relative_url }}" rel="next">
+      Part {{ next_p.part }} <span aria-hidden="true">→</span>
+    </a>
+    {%- endif %}
+  </nav>
+  {%- else %}
   <p class="post-outro">
     <a class="series-more" href="{{ '/series/' | relative_url }}">All ten parts <span aria-hidden="true">→</span></a>
   </p>
+  {%- endif %}
 </div>
