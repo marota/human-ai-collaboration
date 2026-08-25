@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="ttl desc">
+  <title id="ttl">Architecture du pipeline OperatorAudioScribe</title>
+  <desc id="desc">Relève audio/vidéo : ingestion des médias, ASR + diarisation + alignement temporel des mots (whisper.cpp + pyannote + wav2vec2 FR), détection et reconnaissance d'entités via la taxonomie RTE, extraction des moments (qwen3:8b), sorties et timeline.html, puis boucle humaine d'annotations qui biaise les ASR suivants ET alimente la mémoire d'entités par zone. Détection enrichie 2026-07 : tags d'entités probables (ptag) par mot avant annotation, puis doute sur mots communs confiants (locutions métier, homophones jargon, sigles épelés, tensions kV). Détection déterministe exposée comme skill tag_entities du harness d'agents. Correction audio Gemma optionnelle. Cœur du pipeline environ 5 min pour une relève de 24 min.</desc>
+
+  <rect x="0" y="0" width="1120" height="560" fill="#ffffff"/>
+
+  <!-- markers -->
+  <defs>
+    <marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b6b6b"/></marker>
+    <marker id="ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6f63d4"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c25038"/></marker>
+  </defs>
+
+  <!-- legend -->
+  <g font-size="17" fill="#3a3a3a">
+    <rect x="250" y="24" width="16" height="16" rx="3" fill="#1b6a51"/><text x="274" y="37">capture · ASR</text>
+    <rect x="430" y="24" width="16" height="16" rx="3" fill="#4a3f9c"/><text x="454" y="37">analyse (LLM)</text>
+    <rect x="632" y="24" width="16" height="16" rx="3" fill="#7c3020"/><text x="656" y="37">boucle humaine</text>
+    <rect x="852" y="24" width="16" height="16" rx="3" fill="none" stroke="#9a9a9a" stroke-dasharray="3 3"/><text x="876" y="37">optionnel</text>
+  </g>
+
+  <!-- flow arrows (main column, x=550) -->
+  <g fill="none" stroke="#6b6b6b" stroke-width="2" marker-end="url(#ag)">
+    <path d="M550,120 L550,138"/>
+    <path d="M550,196 L550,214"/>
+    <path d="M550,272 L550,290"/>
+    <path d="M550,348 L550,366"/>
+    <path d="M550,424 L550,442"/>
+  </g>
+
+  <!-- taxonomie -> détection -->
+  <path d="M812,206 L776,222" fill="none" stroke="#6b6b6b" stroke-width="2" marker-end="url(#ag)"/>
+  <text x="786" y="250" font-size="13" fill="#7a7a7a">entités</text>
+
+  <!-- correction audio dashed links -->
+  <g fill="none" stroke="#6f63d4" stroke-width="2" stroke-dasharray="5 4">
+    <path d="M772,240 L796,278" marker-end="url(#ap)"/>
+    <path d="M796,320 L774,304" marker-end="url(#ap)"/>
+  </g>
+
+  <!-- human loop (corrections -> biais ASR) -->
+  <path d="M330,472 L190,472 L190,168 L328,168" fill="none" stroke="#c25038" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ar)"/>
+  <path d="M330,486 L152,486 L152,244 L328,244" fill="none" stroke="#c25038" stroke-width="2" stroke-dasharray="2 4" marker-end="url(#ar)"/>
+  <text x="248" y="290" font-size="14" fill="#8a8a8a" text-anchor="middle">corrections</text>
+  <text x="248" y="308" font-size="14" fill="#8a8a8a" text-anchor="middle">→ biais ASR</text>
+  <text x="248" y="336" font-size="13" fill="#a06a5a" text-anchor="middle">mémoire d'entités</text>
+  <text x="248" y="352" font-size="13" fill="#a06a5a" text-anchor="middle">(même zone) → candidats</text>
+
+  <!-- main boxes -->
+  <!-- 1. ingestion (grey) -->
+  <rect x="330" y="64" width="440" height="56" rx="11" fill="#45443f"/>
+  <text x="550" y="90" text-anchor="middle" font-size="20" font-weight="700" fill="#f2f1ec">ingestion des médias</text>
+  <text x="550" y="109" text-anchor="middle" font-size="14" fill="#b7b6b0">audio → WAV 16 kHz · vidéo → mp4 · ~1 s</text>
+
+  <!-- 2. ASR + diarisation (green) -->
+  <rect x="330" y="140" width="440" height="56" rx="11" fill="#1b6a51"/>
+  <text x="550" y="166" text-anchor="middle" font-size="19" font-weight="700" fill="#eafff6">ASR + diarisation + alignement</text>
+  <text x="550" y="185" text-anchor="middle" font-size="14" fill="#83d4b7">whisper.cpp ×20 · pyannote ×26 · wav2vec2 FR ×80</text>
+
+  <!-- 3. détection d'entités (purple) -->
+  <rect x="330" y="216" width="440" height="56" rx="11" fill="#4a3f9c"/>
+  <text x="550" y="242" text-anchor="middle" font-size="19" font-weight="700" fill="#ffffff">détection + reconnaissance d'entités</text>
+  <text x="550" y="261" text-anchor="middle" font-size="12.5" fill="#bcb4ec">ptag probables · doute (acoustique + mots confiants) · gazetteer · near-miss · G2P · mémoire zone · 0,7 s</text>
+
+  <!-- 4. moments (purple) -->
+  <rect x="330" y="292" width="440" height="56" rx="11" fill="#4a3f9c"/>
+  <text x="550" y="318" text-anchor="middle" font-size="20" font-weight="700" fill="#ffffff">moments · qwen3:8b</text>
+  <text x="550" y="337" text-anchor="middle" font-size="14" fill="#bcb4ec">extraction · faits · sections · liens · synthèse · 2 min 40</text>
+
+  <!-- 5. sorties (grey) -->
+  <rect x="330" y="368" width="440" height="56" rx="11" fill="#45443f"/>
+  <text x="550" y="394" text-anchor="middle" font-size="20" font-weight="700" fill="#f2f1ec">sorties + timeline.html</text>
+  <text x="550" y="413" text-anchor="middle" font-size="14" fill="#b7b6b0">moments · transcript · html · rendu 8 ms</text>
+
+  <!-- 6. annotations (dark red) -->
+  <rect x="330" y="444" width="440" height="56" rx="11" fill="#7c3020"/>
+  <text x="550" y="470" text-anchor="middle" font-size="20" font-weight="700" fill="#ffffff">annotations.jsonl</text>
+  <text x="550" y="489" text-anchor="middle" font-size="14" fill="#e1b6a9">corrections confirmées (humain)</text>
+
+  <!-- side: taxonomie RTE (grey) -->
+  <rect x="800" y="150" width="300" height="56" rx="11" fill="#45443f"/>
+  <text x="950" y="176" text-anchor="middle" font-size="19" font-weight="700" fill="#f2f1ec">taxonomie RTE</text>
+  <text x="950" y="195" text-anchor="middle" font-size="14" fill="#b7b6b0">glossaire d'entités</text>
+
+  <!-- side: correction audio (purple, dashed = optionnel) -->
+  <rect x="800" y="262" width="300" height="74" rx="11" fill="#4a3f9c" stroke="#8a80e0" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="950" y="288" text-anchor="middle" font-size="19" font-weight="700" fill="#ffffff">correction audio</text>
+  <text x="950" y="308" text-anchor="middle" font-size="13.5" fill="#bcb4ec">Gemma · spans douteux</text>
+  <text x="950" y="326" text-anchor="middle" font-size="13.5" fill="#bcb4ec">~56 min · optionnel</text>
+
+  <!-- side: cœur du pipeline (olive badge) -->
+  <rect x="800" y="372" width="300" height="60" rx="11" fill="#33430f" stroke="#55731a" stroke-width="1.5"/>
+  <text x="950" y="399" text-anchor="middle" font-size="19" font-weight="700" fill="#dde8c0">cœur du pipeline</text>
+  <text x="950" y="419" text-anchor="middle" font-size="14" fill="#a7bc7d">≈ 5 min / relève 24 min</text>
+</svg>

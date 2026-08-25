@@ -741,6 +741,12 @@ a.series-item__inner:hover .series-item__arrow {
   border-radius: var(--radius);
   background: var(--surface);
 }
+/* Diagrams authored for a light background keep one in both themes. */
+.figure--paper img {
+  background: #ffffff;
+  padding: 1rem;
+}
+
 .figure figcaption {
   margin-top: 0.7rem;
   font-family: var(--sans);

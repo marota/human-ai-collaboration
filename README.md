@@ -51,22 +51,30 @@ et le coût marginal est faible une fois le PDF prêt.
 
 ---
 
-## 3. Les pages projets (au fil de l'eau)
+## 3. Les pages projets
 
-`projects/hermes-agent-harness.md` et `projects/ambient-ai-scribe.md` sont des
-gabarits structurés pour un lecteur qui évalue des méthodes, pas du code.
+Les quatre pages de `projects/` sont écrites :
 
-Trois niveaux possibles, par ordre de force :
-1. **Dépôt public nettoyé** — le plus convaincant.
-2. **Dépôt public contenant README, doc et protocoles, code privé** — inhabituel
-   mais parfaitement défendable, et ça montre que tu sais séparer ce qui se publie
-   de ce qui ne se publie pas.
-3. **Page publique décrivant un dépôt privé** — c'est le rôle de ces gabarits.
-   Sur un poste d'évaluateur, la méthode compte plus que l'implémentation.
+| Page | Dépôt | Statut |
+|---|---|---|
+| `co-study4grid.md` | [Co-Study4Grid](https://github.com/marota/Co-Study4Grid) | public, MPL-2.0 |
+| `ambient-ai-scribe.md` | `OperatorAudioScribe` | privé — la page **est** le livrable public |
+| `personal-agent-harness.md` | montage local (scripts + config) | non versionné |
+| `index.md` | — | sommaire : projets perso / collectifs / challenges |
 
-Pour `Ambient AI Scribe`, la section *Data governance* est la plus importante :
-des enregistrements d'opérateurs sont des données personnelles, et montrer que tu
-as arbitré ces questions vaut autant que la performance technique.
+Le parti pris : elles décrivent **ce qui est mesuré et comment**, pas le code.
+Sur un poste d'évaluateur, la méthode compte plus que l'implémentation — et pour
+un dépôt privé, c'est la seule chose publiable.
+
+Deux sections méritent d'être maintenues à jour en priorité :
+
+- **`Ambient AI Scribe` → Data governance.** Des enregistrements d'opérateurs sont
+  des données personnelles. La page décrit les garde-fous *architecturaux* (tout
+  en local, entrées privées jamais versionnées, sortie de mesure agrégée par
+  défaut) plutôt qu'une intention.
+- **Les résultats négatifs**, partout. Le « peut-on diviser le WER par 2 ? → non »
+  et la combinaison qui a *empiré* le WER valent plus, pour la crédibilité d'un
+  évaluateur, que les chiffres favorables.
 
 ---
 
@@ -83,17 +91,20 @@ as arbitré ces questions vaut autant que la performance technique.
 ├── CITATION.cff                # métadonnées de citation (GitHub l'affiche)
 ├── Gemfile · .gitignore · LICENSE
 ├── _layouts/                   # thème maison : default, home, page, post, series
-├── _includes/                  # head, header, footer, series-list
+├── _includes/                  # head, header, footer, series-list, lead-figure
 ├── _series/
-│   ├── 01-from-augmentation-to-cognitive-surrender.md   # pré-rempli
-│   └── 02..10-titre-a-remplacer.md                      # gabarits
+│   ├── 01..09-<titre>.md        # les neuf posts publiés, nettoyés
+│   └── 10-titre-a-remplacer.md  # gabarit : titre entre [ ] = « In preparation »
 ├── projects/
 │   ├── index.md
-│   ├── hermes-agent-harness.md
+│   ├── co-study4grid.md
+│   ├── personal-agent-harness.md
 │   └── ambient-ai-scribe.md
+├── map.md                      # carte de l'écosystème européen
 └── assets/
     ├── css/main.css            # toute l'apparence du site
-    └── img/favicon.svg
+    ├── map/eu-hai-map.html     # carte autonome (Leaflet, données inlinées)
+    └── img/                    # favicon, illustrations série et projets
 ```
 
 ---

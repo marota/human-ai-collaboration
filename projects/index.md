@@ -27,16 +27,16 @@ Built by me, and opened to the community where the code allows it.
     </a>
   </li>
   <li>
-    <a class="card" href="{{ '/projects/hermes-agent-harness/' | relative_url }}">
-      <h3 class="card__title">hermes-agent-harness</h3>
-      <p class="card__text">An evaluation harness for LLM-based agents.</p>
+    <a class="card" href="{{ '/projects/personal-agent-harness/' | relative_url }}">
+      <h3 class="card__title">Personal Agent Harness</h3>
+      <p class="card__text">A two-agent rig running fully offline — one model plans and verifies, one executes.</p>
       <span class="card__cta">Read the protocol <span aria-hidden="true">→</span></span>
     </a>
   </li>
   <li>
     <a class="card" href="{{ '/projects/ambient-ai-scribe/' | relative_url }}">
       <h3 class="card__title">Ambient AI Scribe</h3>
-      <p class="card__text">A speech-to-text pipeline for control-room operations.</p>
+      <p class="card__text">A shift handover turned into an annotated, seekable timeline — 100% local, flags and proposes, never silently corrects.</p>
       <span class="card__cta">Read the protocol <span aria-hidden="true">→</span></span>
     </a>
   </li>

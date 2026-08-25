@@ -4,10 +4,11 @@
     image:         /assets/img/... (required to render anything)
     image_alt:     accessible description
     image_caption: caption shown under the figure (markdown not processed)
+    image_class:   extra class on the <figure> (e.g. figure--paper)
 {%- endcomment -%}
 {%- if page.image -%}
 <div class="shell">
-  <figure class="figure figure--lead">
+  <figure class="figure figure--lead {{ page.image_class }}">
     <img src="{{ page.image | relative_url }}" alt="{{ page.image_alt | default: '' }}">
     {%- if page.image_caption %}
     <figcaption>{{ page.image_caption }}</figcaption>
