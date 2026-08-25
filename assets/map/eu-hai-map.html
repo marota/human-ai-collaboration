@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Cartographie Human-AI Collaboration — Europe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  html, body { margin:0; padding:0; height:100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  #app { display:grid; grid-template-columns: 320px 1fr; height:100vh; }
+  #sidebar { padding:18px; overflow-y:auto; background:#fafafa; border-right:1px solid #e5e5e5; }
+  #sidebar h1 { font-size:18px; margin:0 0 4px; font-weight:600; }
+  #sidebar p.lede { color:#666; font-size:13px; margin:4px 0 16px; line-height:1.4; }
+  #map { height:100vh; }
+  .layer-toggle, .filter-group { margin-bottom:14px; }
+  .layer-toggle label, .filter-group label { display:flex; align-items:center; padding:4px 0; font-size:13px; cursor:pointer; }
+  .layer-toggle input, .filter-group input { margin-right:8px; }
+  .filter-group h3 { font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#888; margin:0 0 6px; font-weight:600; }
+  .filter-subgroup { margin-top:10px; padding-top:6px; border-top:1px dashed #e5e5e5; }
+  .filter-subgroup:first-of-type { border-top:none; padding-top:0; margin-top:4px; }
+  .filter-subgroup h4 { font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:#9ca3af; margin:0 0 2px; font-weight:600; }
+  .subgroup-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .subgroup-actions { display:inline-flex; align-items:center; gap:4px; }
+  .subgroup-actions .sep { color:#d1d5db; font-size:10px; }
+  .subgroup-btn { background:none; border:none; padding:0 2px; cursor:pointer; color:#6b7280; font-size:10px; font-weight:500; font-family:inherit; }
+  .subgroup-btn:hover { color:#111; text-decoration:underline; }
+  .layer-toggle .subgroup-header h3 { margin:0; }
+  .search-group { margin-bottom:14px; }
+  .search-group details { margin:0 0 8px; padding:6px 8px; background:#fff; border:1px solid #e5e5e5; border-radius:4px; }
+  .search-group details[open] { background:#fafafa; }
+  .search-group summary { font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#444; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:8px; list-style:none; }
+  .search-group summary::-webkit-details-marker { display:none; }
+  .search-group summary::before { content:'▶'; font-size:8px; color:#9ca3af; transition:transform 0.15s; }
+  .search-group details[open] > summary::before { transform:rotate(90deg); }
+  .search-summary-title { flex:1; }
+  .search-count { font-size:10px; color:#fff; background:#9ca3af; border-radius:8px; padding:1px 7px; min-width:18px; text-align:center; font-weight:600; }
+  .search-count.has-selection { background:#3b82f6; }
+  .search-input { width:100%; padding:5px 8px; font-size:12px; border:1px solid #d1d5db; border-radius:4px; box-sizing:border-box; margin:8px 0 6px; font-family:inherit; }
+  .search-list { max-height:180px; overflow-y:auto; border:1px solid #e5e5e5; border-radius:4px; background:#fff; }
+  .search-item { display:flex; align-items:center; gap:6px; padding:3px 8px; font-size:12px; cursor:pointer; border-bottom:1px solid #f3f4f6; margin:0; }
+  .search-item:hover { background:#f3f4f6; }
+  .search-item:last-child { border-bottom:none; }
+  .search-item input { margin:0; flex-shrink:0; }
+  .search-item-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .search-item-meta { color:#9ca3af; font-size:10px; flex-shrink:0; }
+  .clear-search-btn { font-size:11px; color:#6b7280; background:none; border:none; cursor:pointer; padding:6px 0 0; font-family:inherit; }
+  .clear-search-btn:hover { color:#111; text-decoration:underline; }
+  .summary-actions { display:flex; align-items:center; gap:3px; }
+  .select-all-btn { background:none; border:none; padding:0 2px; cursor:pointer; color:#6b7280; font-size:10px; font-weight:600; font-family:inherit; }
+  .select-all-btn:hover { color:#111; text-decoration:underline; }
+  .search-note { font-size:10px; color:#9ca3af; margin:0 0 0 0; line-height:1.4; font-style:italic; }
+  .search-empty { padding:8px; font-size:11px; color:#9ca3af; font-style:italic; text-align:center; }
+  .search-subheader { padding:6px 8px 3px; font-size:9px; text-transform:uppercase; letter-spacing:0.04em; color:#6b7280; font-weight:700; background:#f9fafb; border-bottom:1px solid #e5e7eb; }
+  .search-subheader:first-child { border-top:none; }
+  .legend-dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; vertical-align:middle; border:1px solid rgba(0,0,0,0.2); }
+  .stats { margin-top:16px; padding:10px 12px; background:#fff; border:1px solid #e5e5e5; border-radius:6px; font-size:12px; color:#444; }
+  .stats strong { color:#000; }
+  .popup-title { font-weight:600; font-size:13px; margin-bottom:4px; }
+  .popup-meta { font-size:11px; color:#666; margin-bottom:6px; }
+  .popup-desc { font-size:12px; line-height:1.4; }
+  .popup-link { display:inline-block; margin-top:6px; color:#0064d2; text-decoration:none; font-size:11px; }
+  .popup-link:hover { text-decoration:underline; }
+  details { margin-top:14px; }
+  details summary { cursor:pointer; font-size:12px; color:#666; }
+  details ul { font-size:12px; padding-left:20px; line-height:1.5; }
+  .footer { font-size:11px; color:#999; margin-top:20px; line-height:1.4; }
+  .hai-marker { background:transparent; border:none; }
+  .domain-badges { margin:4px 0 6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .domain-badge { display:inline-flex; align-items:center; gap:3px; font-size:10px; color:#444; background:#f3f4f6; padding:1px 6px; border-radius:8px; }
+  .domain-badge::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c, #999); }
+  .legend-note { font-size:11px; color:#888; margin-top:6px; line-height:1.4; font-style:italic; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <h1>Cartographie HAI — Europe</h1>
+    <p class="lede">Équipes et projets européens travaillant sur la collaboration Humain-IA pour la décision en systèmes industriels et infrastructures critiques.</p>
+
+    <div class="layer-toggle">
+      <div class="subgroup-header">
+        <h3 style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#888;">Affichage</h3>
+      </div>
+      <label><input type="checkbox" id="show-edges" checked> Liens projet ↔ équipe</label>
+    </div>
+
+    <div class="search-group">
+      <details>
+        <summary>
+          <span class="search-summary-title">Sélection projets</span>
+          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="projects" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="projects" type="button">Aucun</button></span>
+          <span class="search-count" id="sel-count-projects">0</span>
+        </summary>
+        <input type="text" class="search-input" data-target="projects" placeholder="Rechercher un projet…">
+        <div class="search-list" data-target="projects"></div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="search-summary-title">Sélection équipes</span>
+          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="teams" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="teams" type="button">Aucun</button></span>
+          <span class="search-count" id="sel-count-teams">0</span>
+        </summary>
+        <input type="text" class="search-input" data-target="teams" placeholder="Rechercher une équipe…">
+        <div class="search-list" data-target="teams"></div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="search-summary-title">Sélection infrastructures</span>
+          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="infra" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="infra" type="button">Aucun</button></span>
+          <span class="search-count" id="sel-count-infra">0</span>
+        </summary>
+        <input type="text" class="search-input" data-target="infra" placeholder="Rechercher une infrastructure…">
+        <div class="search-list" data-target="infra"></div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="search-summary-title">Sélection plateformes & data</span>
+          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="commons" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="commons" type="button">Aucun</button></span>
+          <span class="search-count" id="sel-count-commons">0</span>
+        </summary>
+        <input type="text" class="search-input" data-target="commons" placeholder="Rechercher une plateforme / un benchmark…">
+        <div class="search-list" data-target="commons"></div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="search-summary-title">Sélection cadres méthodologiques</span>
+          <span class="summary-actions"><button class="select-all-btn" data-action="all" data-target="frameworks" type="button">Tout</button><span class="sep">·</span><button class="select-all-btn" data-action="none" data-target="frameworks" type="button">Aucun</button></span>
+          <span class="search-count" id="sel-count-frameworks">0</span>
+        </summary>
+        <input type="text" class="search-input" data-target="frameworks" placeholder="Rechercher un cadre / framework…">
+        <div class="search-list" data-target="frameworks"></div>
+      </details>
+
+      <p class="search-note">Sélection cumulée avec les filtres par domaine (ET logique). La coche « Liens projet ↔ équipe » gouverne le lien inter-couches : cochée, une fiche sélectionnée affiche aussi ses fiches liées (équipes/projets/cadres) ; décochée, les panneaux sont indépendants (seules les fiches explicitement sélectionnées s'affichent). Rien de sélectionné = tout s'affiche.</p>
+    </div>
+
+    <div class="filter-group">
+      <h3>Domaines</h3>
+
+      <div class="filter-subgroup">
+        <div class="subgroup-header">
+          <h4>Domaines industriels</h4>
+          <span class="subgroup-actions">
+            <button class="subgroup-btn" data-action="all" type="button">Tout</button>
+            <span class="sep">·</span>
+            <button class="subgroup-btn" data-action="none" type="button">Aucun</button>
+          </span>
+        </div>
+        <label><input type="checkbox" class="domain-filter" value="energy" checked> <span class="legend-dot" style="background:#f59e0b"></span> Énergie / réseau électrique</label>
+        <label><input type="checkbox" class="domain-filter" value="aviation" checked> <span class="legend-dot" style="background:#3b82f6"></span> Aviation / ATC</label>
+        <label><input type="checkbox" class="domain-filter" value="rail" checked> <span class="legend-dot" style="background:#10b981"></span> Ferroviaire</label>
+        <label><input type="checkbox" class="domain-filter" value="transport" checked> <span class="legend-dot" style="background:#84cc16"></span> Routes / transport sol</label>
+        <label><input type="checkbox" class="domain-filter" value="telecom" checked> <span class="legend-dot" style="background:#06b6d4"></span> Télécoms / réseaux</label>
+        <label><input type="checkbox" class="domain-filter" value="utility" checked> <span class="legend-dot" style="background:#92400e"></span> Eau / gaz</label>
+        <label><input type="checkbox" class="domain-filter" value="health" checked> <span class="legend-dot" style="background:#ef4444"></span> Santé / clinique</label>
+        <label><input type="checkbox" class="domain-filter" value="manufacturing" checked> <span class="legend-dot" style="background:#8b5cf6"></span> Manufacturing / process</label>
+        <label><input type="checkbox" class="domain-filter" value="maritime" checked> <span class="legend-dot" style="background:#0891b2"></span> Maritime / ports</label>
+        <label><input type="checkbox" class="domain-filter" value="nuclear" checked> <span class="legend-dot" style="background:#a16207"></span> Nucléaire</label>
+        <label><input type="checkbox" class="domain-filter" value="defense" checked> <span class="legend-dot" style="background:#475569"></span> Défense</label>
+      </div>
+
+      <div class="filter-subgroup">
+        <div class="subgroup-header">
+          <h4>Domaines techniques</h4>
+          <span class="subgroup-actions">
+            <button class="subgroup-btn" data-action="all" type="button">Tout</button>
+            <span class="sep">·</span>
+            <button class="subgroup-btn" data-action="none" type="button">Aucun</button>
+          </span>
+        </div>
+        <label><input type="checkbox" class="domain-filter" value="hf" checked> <span class="legend-dot" style="background:#ec4899"></span> Human factors / cognitif</label>
+        <label><input type="checkbox" class="domain-filter" value="xai" checked> <span class="legend-dot" style="background:#6b7280"></span> XAI / trust / safety</label>
+        <label><input type="checkbox" class="domain-filter" value="multi" checked> <span class="legend-dot" style="background:#14b8a6"></span> Multi-agents / autres</label>
+      </div>
+
+      <div class="filter-subgroup">
+        <div class="subgroup-header">
+          <h4>Infrastructures de recherche & soutien IA</h4>
+          <span class="subgroup-actions">
+            <button class="subgroup-btn" data-action="all" type="button">Tout</button>
+            <span class="sep">·</span>
+            <button class="subgroup-btn" data-action="none" type="button">Aucun</button>
+          </span>
+        </div>
+        <label><input type="checkbox" class="domain-filter" value="compute" checked> <span class="legend-dot" style="background:#581c87"></span> Data centers / AI Factories</label>
+        <label><input type="checkbox" class="domain-filter" value="cluster" checked> <span class="legend-dot" style="background:#4f46e5"></span> Réseaux & plateformes IA</label>
+        <label><input type="checkbox" class="domain-filter" value="simulation" checked> <span class="legend-dot" style="background:#facc15"></span> Simulation socio-technique</label>
+      </div>
+
+      <p class="legend-note">Marqueur en parts de tarte = projet multi-domaine (visible si l'un de ses domaines est coché).</p>
+    </div>
+
+    <div class="stats">
+      <div><strong id="stat-projects">—</strong> projets affichés</div>
+      <div><strong id="stat-teams">—</strong> équipes affichées</div>
+      <div><strong id="stat-frameworks">—</strong> cadres affichés</div>
+      <div><strong id="stat-countries">—</strong> pays</div>
+    </div>
+
+    <details>
+      <summary>Crédits & sources</summary>
+      <p style="margin:6px 0; font-size:11px;"><strong>Bases institutionnelles</strong></p>
+      <ul style="font-size:11px; padding-left:18px;">
+        <li><a href="https://cordis.europa.eu/" target="_blank">CORDIS</a> — Horizon Europe / SESAR / EuroHPC. Grants : 101119527 (AI4RealNet), 101166886 (DIALOG), 101172952 (TwinEU), 101136119 (AI-EFFECT), 101075332 (HAIKU), 101120763 (TEF-Health), 101120657 (CitCom.ai), 101120732 (agrifoodTEF), 101135437 (AI-MATTERS), 952215 (TAILOR), 951847 (ELISE), 951911 (AI4Media), 952026 (HumanE-AI-Net), 101096435 (Hexa-X-II), 101017109 (DAEMON), 101015922 (AI@EDGE), 101095171 (AI Mind), 101080148 (TRUSTroke), 952159 (BigPicture), 101055093 (ProCAncer-I), 101099924 (Water4All), 820985 (NAIADES).</li>
+        <li><a href="https://www.eurohpc-ju.europa.eu/" target="_blank">EuroHPC JU</a> — liste officielle des AI Factories (IT4LIA, JUPITER-AI, BSC, LUMI, MeluXina-AI…).</li>
+        <li><a href="https://www.sesarju.eu/" target="_blank">SESAR JU</a> — projets ER4 (MAHALO, ARTIMATION, TAPAS, AISA, HARVIS, DIALOG, HAIKU).</li>
+        <li><a href="https://digital-strategy.ec.europa.eu/en/activities/testing-and-experimentation-facilities" target="_blank">EU TEFs</a> — Health, Agri-food, Smart Cities (CitCom.ai), Manufacturing (AI-MATTERS).</li>
+        <li><a href="https://digital-strategy.ec.europa.eu/en/policies/data-spaces" target="_blank">Common European Data Spaces</a> — EHDS, MDS, IDS-A.</li>
+      </ul>
+
+      <p style="margin:6px 0; font-size:11px;"><strong>Sites des projets / réseaux</strong></p>
+      <ul style="font-size:11px; padding-left:18px;">
+        <li>Projets industriels : <a href="https://ai4realnet.eu/" target="_blank">ai4realnet.eu</a>, <a href="https://ai-effect.eu/" target="_blank">ai-effect.eu</a>, <a href="https://twineu.net/" target="_blank">twineu.net</a>, <a href="https://haikuproject.eu/" target="_blank">haikuproject.eu</a>, <a href="https://research.dblue.it/dialog/" target="_blank">research.dblue.it/dialog</a></li>
+        <li>SESAR ER4 : <a href="https://mahaloproject.eu/" target="_blank">mahaloproject.eu</a>, <a href="https://artimation.eu/" target="_blank">artimation.eu</a>, <a href="https://tapas-atm.eu/" target="_blank">tapas-atm.eu</a>, <a href="https://aisa-project.eu/" target="_blank">aisa-project.eu</a>, <a href="https://harvis-project.eu/" target="_blank">harvis-project.eu</a></li>
+        <li>TEFs : <a href="https://tefhealth.eu/" target="_blank">tefhealth.eu</a>, <a href="https://www.agrifoodtef.eu/" target="_blank">agrifoodtef.eu</a>, <a href="https://citcom.ai/" target="_blank">citcom.ai</a>, <a href="https://aimatters.eu/" target="_blank">aimatters.eu</a></li>
+        <li>Réseaux IA : <a href="https://ellis.eu/" target="_blank">ellis.eu</a>, <a href="https://claire-ai.org/" target="_blank">claire-ai.org</a>, <a href="https://tailor-network.eu/" target="_blank">tailor-network.eu</a>, <a href="https://www.elise-ai.eu/" target="_blank">elise-ai.eu</a>, <a href="https://www.ai4media.eu/" target="_blank">ai4media.eu</a>, <a href="https://wasp-hs.org/" target="_blank">wasp-hs.org</a>, <a href="https://adra-e.eu/" target="_blank">adra-e.eu</a>, <a href="https://aiod.eu/" target="_blank">aiod.eu</a></li>
+        <li>Télécoms : <a href="https://hexa-x-ii.eu/" target="_blank">hexa-x-ii.eu</a>, <a href="https://h2020daemon.eu/" target="_blank">h2020daemon.eu</a>, <a href="https://aiatedge.eu/" target="_blank">aiatedge.eu</a></li>
+        <li>Eau / gaz : <a href="https://www.waterforall.eu/" target="_blank">waterforall.eu</a>, <a href="https://ict4water.eu/" target="_blank">ict4water.eu</a>, <a href="https://naiades-project.eu/" target="_blank">naiades-project.eu</a>, <a href="https://www.clean-hydrogen.europa.eu/" target="_blank">clean-hydrogen.europa.eu</a></li>
+        <li>Santé : <a href="https://www.procancer-i.eu/" target="_blank">procancer-i.eu</a>, <a href="https://incisive-project.eu/" target="_blank">incisive-project.eu</a>, <a href="https://chaimeleon.eu/" target="_blank">chaimeleon.eu</a>, <a href="https://www.ai-mind.eu/" target="_blank">ai-mind.eu</a>, <a href="https://www.trustroke.eu/" target="_blank">trustroke.eu</a>, <a href="https://bigpicture.eu/" target="_blank">bigpicture.eu</a></li>
+        <li>Simulation socio-tech. : <a href="https://www.eurocontrol.int/eurocontrol-innovation-hub" target="_blank">EUROCONTROL Innovation Hub Brétigny</a>, <a href="https://liu.se/en/research/joint-cognitive-systems" target="_blank">Linköping VI / J. Lundberg</a>, <a href="https://www.powerlab.dk/" target="_blank">DTU PowerLabDK</a>, <a href="https://www.nlr.org/" target="_blank">NLR</a>, <a href="https://www.itrl.kth.se/" target="_blank">KTH ITRL</a>, <a href="https://www.chalmers.se/en/centres/revere/" target="_blank">Chalmers REVERE</a>, <a href="https://www.ircad.fr/" target="_blank">IRCAD</a></li>
+      </ul>
+
+      <p style="margin:6px 0; font-size:11px;"><strong>Recherche complémentaire</strong></p>
+      <ul style="font-size:11px; padding-left:18px;">
+        <li>Pages partenaires des consortiums (~180 entrées validées via sites institutionnels).</li>
+        <li>Recherche web ciblée mai 2026 — ANSPs européens, opérateurs telecom/utility, labs simulation HAI.</li>
+      </ul>
+
+      <p style="margin:6px 0; font-size:11px;"><strong>Données brutes & documentation</strong></p>
+      <ul style="font-size:11px; padding-left:18px;">
+        <li><a href="data/README.md" target="_blank"><code>data/README.md</code></a> — schéma + index</li>
+        <li><a href="data/projects.yml" target="_blank"><code>data/projects.yml</code></a> — 55 projets/commons combinés</li>
+        <li><a href="data/teams.yml" target="_blank"><code>data/teams.yml</code></a> — 125 équipes / labs</li>
+        <li><a href="data/edges.yml" target="_blank"><code>data/edges.yml</code></a> — 135 liens projet ↔ équipe</li>
+        <li><code>data/projects/&lt;id&gt;.yml</code> et <code>data/teams/&lt;id&gt;.yml</code> — un fichier par item</li>
+        <li><a href="cartographie_HAI_documentation.docx" target="_blank"><strong>Documentation complète (.docx)</strong></a> — synthèse organisée par domaine</li>
+      </ul>
+    </details>
+
+    <p class="footer">Carte = OpenStreetMap, fond Carto. Cliquez sur un marqueur pour voir les détails et le lien vers le site.</p>
+  </aside>
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+<script>
+// ---- DATA ----------------------------------------------------------------
+// Each item: id, name, type ('project' or 'team'), location, domain, url, desc
+// Domains: energy / aviation / rail / manufacturing / hf / xai / multi
+
+const PROJECTS = [
+  {"id": "3ia-cotedazur", "name": "3IA Côte d'Azur", "city": "Sophia Antipolis", "country": "FR", "lat": 43.616, "lon": 7.058, "domain": "health", "domains": ["multi", "health", "xai"], "url": "https://3ia.univ-cotedazur.eu/", "desc": "Coord. Univ. Côte d'Azur + Inria Sophia. IA pour santé, biologie, ingénierie systèmes.", "when": "2019–2027", "budget": ""},
+  {"id": "3ia-saclay", "name": "3IA Paris-Saclay (DataIA)", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "health", "domains": ["multi", "health", "energy", "xai"], "url": "https://www.dataia.eu/", "desc": "Institut Interdisciplinaire d'IA. Inria + CentraleSupélec + ENS + Polytechnique + Univ. Paris-Saclay. AI for healthcare, energy, sécurité.", "when": "2019–2027", "budget": ""},
+  {"id": "adra", "name": "ADRA", "city": "Bruxelles", "country": "BE", "lat": 50.844, "lon": 4.359, "domain": "multi", "domains": ["multi"], "url": "https://adra-e.eu/", "desc": "AI, Data and Robotics Association. Partenariat européen co-financé Horizon. Roadmap stratégique IA/Data/Robotique.", "when": "2021–2030", "budget": ""},
+  {"id": "agrifoodtef", "name": "agrifoodTEF", "city": "Bologna", "country": "IT", "lat": 44.494, "lon": 11.342, "domain": "manufacturing", "domains": ["multi", "manufacturing"], "url": "https://www.agrifoodtef.eu/", "desc": "TEF Agri-Food. Coord. CREA Italie + DLR Allemagne + Wageningen NL. Validation AI + robotique pour agriculture/alimentation.", "when": "2023–2027", "budget": ""},
+  {"id": "ai-edge", "name": "AI@EDGE", "city": "Pisa", "country": "IT", "lat": 43.716, "lon": 10.402, "domain": "telecom", "domains": ["telecom", "multi"], "url": "https://aiatedge.eu/", "desc": "AI-as-a-Service edge platforms. Coord. CNIT. Trustworthy AI pour télécoms + automotive.", "when": "2021–2024", "budget": ""},
+  {"id": "ai-mind", "name": "AI Mind", "city": "Aalborg", "country": "DK", "lat": 57.014, "lon": 9.984, "domain": "health", "domains": ["health", "xai"], "url": "https://www.ai-mind.eu/", "desc": "Coord. Aalborg University. AI early detection demence + clinical decision support neurologues.", "when": "2021–2026", "budget": ""},
+  {"id": "ai-sweden", "name": "AI Sweden", "city": "Göteborg", "country": "SE", "lat": 57.708, "lon": 11.974, "domain": "manufacturing", "domains": ["multi", "manufacturing", "energy", "health", "transport"], "url": "https://www.ai.se/", "desc": "Centre national IA Suède. Co-fondé Vinnova + industrie. AI Compute, Edge Lab, projets sectoriels.", "when": "2019–", "budget": ""},
+  {"id": "ai4europe", "name": "AI4Europe (platform)", "city": "Bruxelles", "country": "BE", "lat": 50.84, "lon": 4.357, "domain": "multi", "domains": ["multi"], "url": "https://www.ai4europe.eu/", "desc": "Plateforme open-source AI4Europe (héritière AI4EU). Sandbox, modèles, éducation. Hub réseau européen.", "when": "2022–", "budget": ""},
+  {"id": "ai4media", "name": "AI4Media", "city": "Athens", "country": "GR", "lat": 37.984, "lon": 23.728, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.ai4media.eu/", "desc": "AI for Media & Society. Coord. CERTH. Réseau ICT-48 — applications culturelles + désinformation.", "when": "2020–2024", "budget": ""},
+  {"id": "ai4realnet", "name": "AI4RealNet: AI for Real-world Network Operation", "city": "Porto", "country": "PT", "lat": 41.179, "lon": -8.595, "domain": "energy", "domains": ["energy", "rail", "aviation", "multi", "hf", "xai"], "url": "https://ai4realnet.eu/", "desc": "AI4REALNET addresses the application of AI-based solutions to critical systems, including electricity, railway, and air traffic management. The project focuses on how AI systems can complement and augment human abilities in traditionally human-operated networks.  A key objective is developing next-g", "when": "2024-01–2027-12", "budget": "Horizon Europe"},
+  {"id": "aieffect", "name": "AI-EFFECT — AI Experimentation Facility For the Energy seCTor", "city": "Maynooth", "country": "IE", "lat": 53.385, "lon": -6.601, "domain": "energy", "domains": ["energy", "multi", "xai"], "url": "https://ai-effect.eu/", "desc": "AI-EFFECT is the European Testing & Experimentation Facility for AI in the energy sector. It builds a federated, modular infrastructure for testing trustworthy AI on real grid use cases — congestion management, demand response, distributed energy resources — with four geographic demonstration sites.", "when": "2024-09–2027-09", "budget": "101172952"},
+  {"id": "aimatters", "name": "AI-MATTERS", "city": "Milano", "country": "IT", "lat": 45.476, "lon": 9.235, "domain": "manufacturing", "domains": ["manufacturing", "multi"], "url": "https://aimatters.eu/", "desc": "TEF Manufacturing. Coord. Politecnico di Milano. AI Marketplace and Toolbox for Trustworthy Excellent Resources for Manufacturing.", "when": "2023–2027", "budget": ""},
+  {"id": "ained", "name": "AINed", "city": "La Haye", "country": "NL", "lat": 52.08, "lon": 4.31, "domain": "manufacturing", "domains": ["multi", "manufacturing", "health", "energy"], "url": "https://www.ained.nl/", "desc": "Programme national IA Pays-Bas (Nationaal Groeifonds). Coord. NL AIC. Lab Operations Center + ELSA Labs (sociotech).", "when": "2021–2026", "budget": ""},
+  {"id": "aiod", "name": "AI-on-Demand Platform (AIoD)", "city": "Bruxelles", "country": "BE", "lat": 50.842, "lon": 4.367, "domain": "manufacturing", "domains": ["multi", "manufacturing", "health", "energy"], "url": "https://aiod.eu/", "desc": "Plateforme européenne d'IA. Catalogue ressources + experimentation. Liens TEFs + AI Factories + DIH.", "when": "2020–", "budget": ""},
+  {"id": "aisa", "name": "AISA", "city": "Bratislava", "country": "SK", "lat": 48.149, "lon": 17.107, "domain": "aviation", "domains": ["aviation"], "url": "https://aisa-project.eu/", "desc": "SESAR ER4. Coord. Slovak Univ. of Technology. AI Situational Awareness for Single-Pilot Operations. Trust + handover.", "when": "2020–2022", "budget": ""},
+  {"id": "aniti", "name": "ANITI / 3IA Toulouse", "city": "Toulouse", "country": "FR", "lat": 43.604, "lon": 1.443, "domain": "aviation", "domains": ["multi", "aviation", "transport", "xai"], "url": "https://aniti.univ-toulouse.fr/", "desc": "Artificial & Natural Intelligence Toulouse Institute. Coord. Univ. Toulouse + ISAE-SUPAERO + ONERA. IA hybride + aviation/spatial + santé.", "when": "2019–2027", "budget": ""},
+  {"id": "artimation", "name": "ARTIMATION", "city": "Västerås", "country": "SE", "lat": 59.61, "lon": 16.544, "domain": "aviation", "domains": ["aviation"], "url": "https://artimation.eu/", "desc": "SESAR ER4. Coord. Mälardalen Univ. Transparent AI for ATM via XAI + visualisation + storytelling. ATCO acceptance.", "when": "2020–2022", "budget": ""},
+  {"id": "autoship", "name": "AUTOSHIP", "city": "Trondheim", "country": "NO", "lat": 63.43, "lon": 10.395, "domain": "maritime", "domains": ["maritime", "xai", "multi"], "url": "https://cordis.europa.eu/project/id/815012", "desc": "H2020 project that built two autonomous-ship demonstrators plus the shore-control/ROC infrastructure where operators monitor and take control of vessels.", "when": "2024-01–", "budget": "815012"},
+  {"id": "aware-atc", "name": "AWARE", "city": "Zagreb", "country": "HR", "lat": 45.815, "lon": 15.982, "domain": "aviation", "domains": ["aviation", "multi"], "url": "https://sesar.eu/projects/AWARE", "desc": "SESAR exploratory project building an AI assistant with artificial situational awareness that infers controller intent to anticipate needs and cut workload.", "when": "2024-01–", "budget": "SESAR 3 JU"},
+  {"id": "bdva", "name": "BDVA / DAIRO", "city": "Bruxelles", "country": "BE", "lat": 50.846, "lon": 4.354, "domain": "manufacturing", "domains": ["multi", "manufacturing"], "url": "https://www.bdva.eu/", "desc": "Big Data Value Association. ~250 membres industrie + recherche. Co-fondateur ADRA. Data spaces.", "when": "2014–", "budget": ""},
+  {"id": "bigpicture", "name": "BigPicture", "city": "Nijmegen", "country": "NL", "lat": 51.819, "lon": 5.866, "domain": "health", "domains": ["health", "multi"], "url": "https://bigpicture.eu/", "desc": "Coord. Radboud UMC. Repository histopathologie + AI clinical decision support oncologie.", "when": "2021–2027", "budget": ""},
+  {"id": "ch-ai-center", "name": "AI Center ETH+EPFL", "city": "Zürich", "country": "CH", "lat": 47.377, "lon": 8.548, "domain": "health", "domains": ["multi", "health", "manufacturing", "xai"], "url": "https://ai.ethz.ch/", "desc": "Centre IA conjoint ETH Zurich + EPFL. ELLIS units. Recherche fondamentale + applications.", "when": "2020–", "budget": ""},
+  {"id": "chaimeleon", "name": "CHAIMELEON", "city": "Valencia", "country": "ES", "lat": 39.481, "lon": -0.347, "domain": "health", "domains": ["health", "multi", "xai"], "url": "https://chaimeleon.eu/", "desc": "Coord. UPV Valencia. Repository data cancer + plateforme AI multi-cancer (poumon, sein, prostate, colorectal).", "when": "2020–2024", "budget": ""},
+  {"id": "citcom-ai", "name": "CitCom.ai", "city": "Lyngby", "country": "DK", "lat": 55.785, "lon": 12.523, "domain": "transport", "domains": ["multi", "transport", "energy"], "url": "https://citcom.ai/", "desc": "TEF Smart Cities & Communities. Coord. DTU Compute. Mobilité, énergie urbaine, environnement. 36 partenaires.", "when": "2023–2027", "budget": ""},
+  {"id": "claire", "name": "CLAIRE", "city": "La Haye", "country": "NL", "lat": 52.08, "lon": 4.31, "domain": "multi", "domains": ["multi"], "url": "https://claire-ai.org/", "desc": "Confederation of Laboratories for AI Research in Europe. ~400 labs. Voix académique pour la stratégie IA EU.", "when": "2018–", "budget": ""},
+  {"id": "coda", "name": "CODA", "city": "Rome", "country": "IT", "lat": 41.902, "lon": 12.496, "domain": "aviation", "domains": ["aviation", "multi", "hf"], "url": "https://sesar.eu/projects/coda", "desc": "SESAR exploratory project: an adaptive assistant reads controller neurophysiological state and dynamically reallocates tasks via a Human-Machine Performance Envelope.", "when": "2024-01–", "budget": "SESAR 3 JU"},
+  {"id": "cognitwin", "name": "COGNITWIN", "city": "Trondheim", "country": "NO", "lat": 63.43, "lon": 10.395, "domain": "manufacturing", "domains": ["manufacturing", "multi"], "url": "https://www.sintef.no/en/projects/2019/cognitwin-/", "desc": "Cognitive/hybrid digital twins that learn process behaviour and surface predictions and solutions to operators in steel, aluminium and silicon plants before unwanted events occur.", "when": "2024-01–", "budget": "870130"},
+  {"id": "daemon", "name": "DAEMON", "city": "Pisa", "country": "IT", "lat": 43.716, "lon": 10.402, "domain": "telecom", "domains": ["telecom", "multi", "xai"], "url": "https://h2020daemon.eu/", "desc": "AI/ML pour gestion autonome de réseaux. Coord. Nextworks. Network Intelligence Stratum.", "when": "2021–2024", "budget": ""},
+  {"id": "dialog", "name": "DIALOG — Deciphering Intents of ATC, workLOad assessment & Gaze analysis", "city": "Trondheim", "country": "NO", "lat": 63.4305, "lon": 10.3951, "domain": "aviation", "domains": ["aviation", "multi", "hf", "xai"], "url": "https://research.dblue.it/dialog/", "desc": "DIALOG develops trustworthy human-AI collaboration in air traffic control. The project combines real-time controller workload assessment, gaze analysis, and explainable AI to support a Teamwork Assistant validated against real ATC operations. SINTEF coordinates a lean 6-partner consortium combining ", "when": "2024-09–2027-02", "budget": "101166886"},
+  {"id": "digital-water-city", "name": "Digital-Water.City", "city": "Berlin", "country": "DE", "lat": 52.52, "lon": 13.405, "domain": "utility", "domains": ["utility", "multi", "xai"], "url": "https://www.digital-water.city/", "desc": "ML-based early-warning tools (bathing-water quality, wastewater reuse) give authorities/operators real-time alerts to justify short-term decisions.", "when": "2024-01–", "budget": "Horizon Europe"},
+  {"id": "ehds", "name": "European Health Data Space", "city": "Bruxelles", "country": "BE", "lat": 50.843, "lon": 4.367, "domain": "health", "domains": ["health", "multi"], "url": "https://health.ec.europa.eu/ehealth-digital-health-and-care/european-health-data-space_en", "desc": "Espace européen des données de santé. Cadre légal + infrastructure. Décision clinique inter-pays.", "when": "2022–", "budget": ""},
+  {"id": "elise", "name": "ELISE", "city": "Saarbrücken", "country": "DE", "lat": 49.235, "lon": 6.996, "domain": "multi", "domains": ["multi"], "url": "https://www.elise-ai.eu/", "desc": "European Network of AI Excellence Centres on Learning Systems. Coord. Univ. Saarland + ELLIS.", "when": "2020–2024", "budget": ""},
+  {"id": "ellis", "name": "ELLIS", "city": "Tübingen", "country": "DE", "lat": 48.521, "lon": 9.057, "domain": "multi", "domains": ["multi"], "url": "https://ellis.eu/", "desc": "European Lab for Learning & Intelligent Systems. ~40 unités à travers l'Europe. PhD program + Networks of HC.", "when": "2018–", "budget": ""},
+  {"id": "ensemble", "name": "eNSEMBLE", "city": "Paris", "country": "FR", "lat": 48.8566, "lon": 2.35, "domain": "health", "domains": ["multi", "health", "manufacturing", "transport", "hf"], "url": "https://www.pepr-ensemble.fr/en/", "desc": "Programme français ~100 équipes. Combiner intelligence humaine et IA en configurations collaboratives.", "when": "2023–2030", "budget": ""},
+  {"id": "explain-ai-industry", "name": "EXPLAIN: Explanatory Artificial Intelligence for Industry", "city": "Linköping", "country": "SE", "lat": 58.4639, "lon": 15.7888, "domain": "manufacturing", "domains": ["manufacturing", "xai"], "url": "https://ivis.itn.liu.se/research/areas/hat.html", "desc": "The EXPLAIN project, led by the iVis Group, focuses on developing advanced Explanatory Artificial Intelligence (XAI) systems. This research aims to bridge the gap between complex AI models and human operators in industrial settings.  By providing clear, understandable justifications for automated de", "when": "2024-03–2028-02", "budget": "EXPLAIN Grant ID TBD"},
+  {"id": "fair-it", "name": "FAIR — Future AI Research", "city": "Pise", "country": "IT", "lat": 43.716, "lon": 10.402, "domain": "manufacturing", "domains": ["multi", "manufacturing", "health", "xai"], "url": "https://fondazione-fair.it/", "desc": "Partenariato Esteso italien IA. Coord. CNR. 14 spokes nationaux. Industrie 5.0, santé, robotique, climat.", "when": "2022–2026", "budget": ""},
+  {"id": "fcai", "name": "FCAI", "city": "Espoo", "country": "FI", "lat": 60.205, "lon": 24.656, "domain": "health", "domains": ["multi", "health", "manufacturing", "telecom"], "url": "https://fcai.fi/", "desc": "Finnish Center for AI. Aalto + Helsinki. \"Real AI for Real People in the Real World\".", "when": "2020–", "budget": ""},
+  {"id": "flanders-ai", "name": "Flanders AI Research Programme", "city": "Louvain", "country": "BE", "lat": 50.879, "lon": 4.7, "domain": "manufacturing", "domains": ["multi", "manufacturing", "health"], "url": "https://www.flandersai.be/", "desc": "Programme régional flamand IA. KU Leuven + UGent + UAntwerpen + VIB + imec. Industrie + santé.", "when": "2019–", "budget": ""},
+  {"id": "haiku", "name": "HAIKU — Human-AI teaming Knowledge & Understanding for aviation safety", "city": "Roma", "country": "IT", "lat": 41.9028, "lon": 12.4964, "domain": "aviation", "domains": ["aviation", "multi", "xai", "hf"], "url": "https://haikuproject.eu/", "desc": "HAIKU developed and validated 6 human-centric AI digital assistants across aviation domains — commercial cockpits, urban air mobility, drones, remote towers, ATC, airport operations. Outputs include an HAT Validation Framework, HF design guidance, and explainability/trust methods. Coordinator Deep B", "when": "2022-09–2025-08", "budget": "101075332"},
+  {"id": "harvis", "name": "HARVIS", "city": "Roma", "country": "IT", "lat": 41.91, "lon": 12.49, "domain": "aviation", "domains": ["aviation"], "url": "https://harvis-project.eu/", "desc": "SESAR ER4. Coord. Deep Blue. Digital Assistant single-pilot via VR + intent recognition. Human-Aircraft Roadmap for Virtual Intelligent System.", "when": "2020–2022", "budget": ""},
+  {"id": "hexa-x-ii", "name": "Hexa-X-II", "city": "Espoo", "country": "FI", "lat": 60.182, "lon": 24.829, "domain": "telecom", "domains": ["telecom", "multi", "xai"], "url": "https://hexa-x-ii.eu/", "desc": "Flagship 6G EU. Coord. Nokia. AI-native networks, intent-based ops, autonomous network mgmt.", "when": "2023–2025", "budget": ""},
+  {"id": "hi-paris", "name": "Hi! Paris", "city": "Palaiseau", "country": "FR", "lat": 48.713, "lon": 2.207, "domain": "health", "domains": ["multi", "health", "manufacturing", "xai"], "url": "https://www.hi-paris.fr/", "desc": "Centre interdisciplinaire IA & Sciences des Données. École Polytechnique + HEC Paris + Inria. Industrie + finance + santé.", "when": "2020–", "budget": ""},
+  {"id": "humaine", "name": "HumAIne — Human-AI Operating System for Decision Support", "city": "Berlin", "country": "DE", "lat": 52.52, "lon": 13.405, "domain": "manufacturing", "domains": ["multi", "manufacturing"], "url": "https://cordis.europa.eu/project/id/101120218", "desc": "The HumAIne project aims to develop, validate, and promote a novel operating system specifically designed for Human-AI collaboration. This OS will enable the development of advanced decision-making applications in dynamic and unstructured environments.  The goal is to enhance decision support across", "when": "2024-01–", "budget": "101120218"},
+  {"id": "humaneainet", "name": "HumanE-AI-Net", "city": "Saarbrücken", "country": "DE", "lat": 49.235, "lon": 6.996, "domain": "health", "domains": ["multi", "health", "manufacturing", "xai", "hf"], "url": "https://www.humane-ai.eu/", "desc": "Réseau européen pour l'IA centrée humain. Coord. CNR/CINI/DFKI/KU Leuven/Aalto.", "when": "2020–", "budget": ""},
+  {"id": "hydrogen-eu", "name": "Clean Hydrogen JU", "city": "Bruxelles", "country": "BE", "lat": 50.844, "lon": 4.359, "domain": "utility", "domains": ["utility", "multi", "energy"], "url": "https://www.clean-hydrogen.europa.eu/", "desc": "Joint Undertaking hydrogène. Plusieurs projets AI pour pilotage réseaux H2 + electrolyseurs (HYACINTH, ACCEPT).", "when": "2021–2027", "budget": ""},
+  {"id": "ict4water", "name": "ICT4Water Cluster", "city": "Bruxelles", "country": "BE", "lat": 50.846, "lon": 4.354, "domain": "utility", "domains": ["utility", "multi"], "url": "https://ict4water.eu/", "desc": "Cluster Commission européenne. Smart water + IA decision support. Fédère ~30 projets H2020/Horizon.", "when": "2020–", "budget": ""},
+  {"id": "ids-a", "name": "IDS Association", "city": "Dortmund", "country": "DE", "lat": 51.514, "lon": 7.465, "domain": "manufacturing", "domains": ["manufacturing", "multi"], "url": "https://internationaldataspaces.org/", "desc": "International Data Spaces Association. Architecture data sovereignty pour industrie. Catena-X partner.", "when": "2016–", "budget": ""},
+  {"id": "incisive", "name": "INCISIVE", "city": "Thessaloniki", "country": "GR", "lat": 40.572, "lon": 22.999, "domain": "health", "domains": ["health", "xai"], "url": "https://incisive-project.eu/", "desc": "Coord. CERTH. Pan-européen cancer imaging AI repository + decision support clinicien.", "when": "2021–2024", "budget": ""},
+  {"id": "inest", "name": "iNEST", "city": "Padoue", "country": "IT", "lat": 45.408, "lon": 11.873, "domain": "manufacturing", "domains": ["multi", "manufacturing", "health", "transport"], "url": "https://www.consorzioinest.it/", "desc": "Interconnected Nord-Est Innovation Ecosystem. 9 spokes (smart manufacturing, mobility, health…).", "when": "2022–2026", "budget": ""},
+  {"id": "jarvis", "name": "JARVIS", "city": "Rome", "country": "IT", "lat": 41.902, "lon": 12.496, "domain": "aviation", "domains": ["aviation", "multi", "xai"], "url": "https://www.sesarju.eu/projects/JARVIS", "desc": "SESAR 3 project building three AI digital assistants that team with pilots, controllers and airport operators; tackles trust, explainability, over-reliance and de-skilling.", "when": "2024-01–", "budget": "SESAR 3 JU"},
+  {"id": "kompaki", "name": "KompAKI / KompetenzAtlas KI", "city": "Berlin", "country": "DE", "lat": 52.52, "lon": 13.405, "domain": "manufacturing", "domains": ["multi", "manufacturing", "xai"], "url": "https://www.bmbf.de/bmbf/de/forschung/digitale-wirtschaft-und-gesellschaft/kuenstliche-intelligenz/kompetenzzentren-fuer-ki-forschung/kompetenzzentren-fuer-ki-forschung_node.html", "desc": "Réseau 6 centres compétence IA BMBF (Berlin, Tübingen, München, Dortmund, Dresden/Leipzig, Saarbrücken/Kaiserslautern).", "when": "2018–", "budget": ""},
+  {"id": "mahalo", "name": "MAHALO: Modern ATM via Human/Automation Learning Optimisation", "city": "Linköping", "country": "SE", "lat": 58.4639, "lon": 15.7888, "domain": "aviation", "domains": ["aviation", "multi"], "url": "https://ivis.itn.liu.se/research/areas/hat.html", "desc": "MAHALO focuses on developing advanced systems for Modern Air Traffic Management (ATM). The project aims to optimize ATM processes by integrating sophisticated Human/Automation Learning Optimisation techniques.  This research, led by the iVis Group and Prof. Dr. Jonas Lundberg, addresses critical cha", "when": "2024-01–2027-12", "budget": "Horizon Europe"},
+  {"id": "mds", "name": "Mobility Data Space", "city": "Munich", "country": "DE", "lat": 48.137, "lon": 11.575, "domain": "transport", "domains": ["transport", "multi"], "url": "https://mobility-dataspace.eu/", "desc": "Espace données mobilité. Coord. acatech. Données traffic, MaaS, opérations urbaines.", "when": "2022–", "budget": ""},
+  {"id": "miai", "name": "MIAI / 3IA Grenoble", "city": "Grenoble", "country": "FR", "lat": 45.187, "lon": 5.726, "domain": "health", "domains": ["multi", "health", "manufacturing", "energy"], "url": "https://miai.univ-grenoble-alpes.fr/", "desc": "Multidisciplinary Institute in AI Grenoble. Inria + UGA + CEA. IA santé, environnement, énergie, industrie 4.0.", "when": "2019–2027", "budget": ""},
+  {"id": "naiades", "name": "NAIADES", "city": "Athens", "country": "GR", "lat": 37.984, "lon": 23.728, "domain": "utility", "domains": ["utility", "multi", "xai"], "url": "https://naiades-project.eu/", "desc": "AI + IoT pour réseaux d'eau urbains. Decision support fuites + qualité. Coord. ICCS Athens.", "when": "2019–2022", "budget": ""},
+  {"id": "naval-group-thales-ai", "name": "Naval Group–Thales Sovereign Naval AI Centre", "city": "Ollioules", "country": "FR", "lat": 43.139, "lon": 5.847, "domain": "defense", "domains": ["defense", "maritime", "xai", "multi"], "url": "https://www.naval-group.com/en", "desc": "Joint sovereign-AI centre (2026) for naval combat: decision aids that cut operator cognitive load while keeping humans in control of collaborative combat.", "when": "2024-01–", "budget": "national/industry"},
+  {"id": "nlr-epilot", "name": "Royal NLR — e-Pilot (HMT agent)", "city": "Marknesse", "country": "NL", "lat": 52.33, "lon": 5.871, "domain": "defense", "domains": ["defense", "aviation", "multi", "hf"], "url": "https://www.nlr.org/", "desc": "Six-year human-machine-teaming \"e-Pilot\" digital-twin agent that augments pilot cognition, assesses operator state and supports military aviation decisions.", "when": "2024-01–", "budget": "national/industry"},
+  {"id": "norwai", "name": "NorwAI", "city": "Trondheim", "country": "NO", "lat": 63.419, "lon": 10.402, "domain": "energy", "domains": ["multi", "energy", "manufacturing"], "url": "https://www.ntnu.edu/norwai", "desc": "SFI Centre for AI Innovation. Coord. NTNU. AI pour énergie, océan, finance, manufacturing.", "when": "2020–2028", "budget": ""},
+  {"id": "pioneer-ai", "name": "Pioneer Centre for AI", "city": "Copenhague", "country": "DK", "lat": 55.682, "lon": 12.571, "domain": "health", "domains": ["multi", "health", "xai", "hf"], "url": "https://www.aicentre.dk/", "desc": "Centre national IA. Coord. KU + AAU + AU + DTU + ITU. AI for science, health, language, society.", "when": "2021–2031", "budget": ""},
+  {"id": "plattform-ls", "name": "Plattform Lernende Systeme", "city": "Munich", "country": "DE", "lat": 48.137, "lon": 11.575, "domain": "manufacturing", "domains": ["multi", "manufacturing", "health", "xai", "hf"], "url": "https://www.plattform-lernende-systeme.de/", "desc": "Plateforme nationale IA Allemagne. 9 working groups (incl. work + qualification, transport, santé). Coord. acatech.", "when": "2017–", "budget": ""},
+  {"id": "procancer-i", "name": "ProCAncer-I", "city": "Heraklion", "country": "GR", "lat": 35.339, "lon": 25.144, "domain": "health", "domains": ["health", "xai"], "url": "https://www.procancer-i.eu/", "desc": "Coord. FORTH Crète. AI imaging + decision support cancer prostate. 17 partenaires européens.", "when": "2021–2026", "budget": ""},
+  {"id": "project-bluebird", "name": "Project Bluebird", "city": "London", "country": "UK", "lat": 51.53, "lon": -0.127, "domain": "aviation", "domains": ["aviation", "multi", "xai"], "url": "https://www.turing.ac.uk/research/research-programmes/project-bluebird", "desc": "NATS, the Alan Turing Institute and the University of Exeter build a probabilistic digital twin of UK airspace where AI agents learn to advise (not replace) air traffic controllers, with live shadow trials.", "when": "2024-01–", "budget": "EPSRC EP/X02935X/1"},
+  {"id": "r2dato", "name": "R2DATO", "city": "Paris", "country": "FR", "lat": 48.857, "lon": 2.352, "domain": "rail", "domains": ["rail", "xai", "multi"], "url": "https://rail-research.europa.eu/rail-projects/fp2-r2dato/", "desc": "Europe’s Rail flagship building automatic train operation up to GoA4 including remote driving and human-supervised handling of disruptions and degraded modes.", "when": "2024-01–", "budget": "Europe's Rail JU FP2"},
+  {"id": "rewaise", "name": "REWAISE — Resilient Water Innovation", "city": "Madrid", "country": "ES", "lat": 40.417, "lon": -3.704, "domain": "utility", "domains": ["utility", "multi"], "url": "https://rewaise.eu/", "desc": "Intelligent digital framework integrating reservoirs, treatment, distribution and sewers for decentralised operational decision-making across living labs.", "when": "2024-01–", "budget": "Horizon Europe"},
+  {"id": "rheinmetall-battlesuite", "name": "Rheinmetall — Battlesuite C2", "city": "Düsseldorf", "country": "DE", "lat": 51.224, "lon": 6.776, "domain": "defense", "domains": ["defense", "multi"], "url": "https://www.rheinmetall.com/en", "desc": "Central data/decision hub using AI predictive models to boost situational awareness while keeping a human commander in control of coordinated assets.", "when": "2024-01–", "budget": "national/industry"},
+  {"id": "robust", "name": "ROBUST", "city": "Amsterdam", "country": "NL", "lat": 52.357, "lon": 4.955, "domain": "manufacturing", "domains": ["multi", "manufacturing", "xai", "hf"], "url": "https://icai.ai/robust/", "desc": "Long-term partnership ICAI. 17 ICAI labs. Trustworthy AI pour secteurs critiques. Coord. UvA + TU Delft.", "when": "2022–2032", "budget": ""},
+  {"id": "saab-project-beyond", "name": "Saab — Project Beyond / Centaur (Gripen E)", "city": "Linköping", "country": "SE", "lat": 58.41, "lon": 15.621, "domain": "defense", "domains": ["defense", "aviation", "multi", "xai"], "url": "https://www.saab.com/", "desc": "Human-machine collaboration keeping the pilot as commander while an AI agent offloads tactical tasks; live beyond-visual-range flight trials.", "when": "2024-01–", "budget": "national/industry"},
+  {"id": "sandvik-automine", "name": "Sandvik AutoMine + Boliden Kevitsa", "city": "Stockholm", "country": "SE", "lat": 59.334, "lon": 18.063, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.mining.sandvik/en/digital-solutions/automation/automine-tele-remote/", "desc": "Tele-remote and autonomous mining where one operator supervises 15-22 rigs from a control station over redundant 5G with sub-50ms safety response.", "when": "2024-01–", "budget": "Industrial deployment"},
+  {"id": "sea-traffic-management", "name": "Sea Traffic Management (STM)", "city": "Norrköping", "country": "SE", "lat": 58.587, "lon": 16.192, "domain": "maritime", "domains": ["maritime", "multi"], "url": "https://www.seatrafficmanagement.info/", "desc": "EU project testing ship-shore information sharing on 16 VTS operators to add decision support for bridge officers and VTS and cut human-related accidents.", "when": "2024-01–", "budget": "Connecting Europe Facility"},
+  {"id": "smartwaterconnect", "name": "SmartWaterConnect", "city": "Ghent", "country": "BE", "lat": 51.054, "lon": 3.717, "domain": "utility", "domains": ["utility", "multi"], "url": "https://predict.idlab.ugent.be/projects/swc/", "desc": "Hybrid-AI leak localisation fuses fixed smart-meter and mobile-sensor data to pinpoint leaks in the public network for utility crews.", "when": "2024-01–", "budget": "national/industry"},
+  {"id": "soprano", "name": "SOPRANO", "city": "Bremen", "country": "DE", "lat": 53.075, "lon": 8.807, "domain": "manufacturing", "domains": ["manufacturing", "multi", "xai"], "url": "https://www.soprano-project.org/", "desc": "Horizon Europe project on multi-human/multi-robot teaming with context awareness and cognitive-psychology trust models for agile industry.", "when": "2024-01–", "budget": "101120990"},
+  {"id": "star-ai", "name": "STAR — Trustworthy AI for manufacturing", "city": "Luxembourg", "country": "LU", "lat": 49.611, "lon": 6.131, "domain": "manufacturing", "domains": ["manufacturing", "xai"], "url": "https://star-ai.eu/", "desc": "H2020 project on trustworthy/explainable AI and human-centric digital twins for human-robot collaboration and operator trust on manufacturing lines.", "when": "2024-01–", "budget": "956573"},
+  {"id": "tada", "name": "TADA", "city": "Madrid", "country": "ES", "lat": 40.417, "lon": -3.703, "domain": "aviation", "domains": ["aviation", "xai"], "url": "https://www.sesarju.eu/projects/TADA", "desc": "SESAR exploratory project: ML on controller-interaction data gives arrival-management decision and action recommendations through a human-centric HMI.", "when": "2024-01–", "budget": "SESAR 3 JU"},
+  {"id": "tailor", "name": "TAILOR", "city": "Linköping", "country": "SE", "lat": 58.397, "lon": 15.575, "domain": "multi", "domains": ["multi", "xai", "hf"], "url": "https://tailor-network.eu/", "desc": "Trustworthy AI through Learning + Optimization + Reasoning. Coord. Linköping Univ. Réseau ICT-48.", "when": "2020–2024", "budget": ""},
+  {"id": "tapas", "name": "TAPAS", "city": "Madrid", "country": "ES", "lat": 40.434, "lon": -3.701, "domain": "aviation", "domains": ["aviation"], "url": "https://tapas-atm.eu/", "desc": "SESAR ER4. Coord. CRIDA. Towards an Automated and exPlainable ATM System. SINTEF + Deep Blue + ENAC partenaires.", "when": "2020–2022", "budget": ""},
+  {"id": "teaching", "name": "TEACHING", "city": "Pisa", "country": "IT", "lat": 43.716, "lon": 10.401, "domain": "transport", "domains": ["transport", "multi", "hf", "xai"], "url": "https://cordis.europa.eu/project/id/101034442", "desc": "Horizon project on human-centric cyber-physical systems for safety-critical autonomous transport, driven by operator physiological feedback.", "when": "2024-01–", "budget": "871385"},
+  {"id": "tef-health", "name": "TEF-Health", "city": "Berlin", "country": "DE", "lat": 52.522, "lon": 13.394, "domain": "health", "domains": ["health", "manufacturing"], "url": "https://tefhealth.eu/", "desc": "Coord. Charité / BIH Berlin. Test & validate AI/robotics for health. 51 partenaires, 9 pays. Partie du programme TEF européen.", "when": "2023–2027", "budget": ""},
+  {"id": "trail-be", "name": "TRAIL Institute", "city": "Liège", "country": "BE", "lat": 50.633, "lon": 5.567, "domain": "manufacturing", "domains": ["multi", "manufacturing", "xai", "hf"], "url": "https://trail.ac/", "desc": "Trusted AI Labs Wallonie. Coord. ULiège + UCLouvain + UNamur + UMons + ULB. Trustworthy AI industrie + santé.", "when": "2021–", "budget": ""},
+  {"id": "trustroke", "name": "TRUSTroke", "city": "Barcelona", "country": "ES", "lat": 41.404, "lon": 2.196, "domain": "health", "domains": ["health", "xai", "hf"], "url": "https://www.trustroke.eu/", "desc": "Coord. Univ. Politècnica Catalunya. Trustworthy AI decision support stroke management.", "when": "2023–2027", "budget": ""},
+  {"id": "trusty", "name": "TRUSTY", "city": "Västerås", "country": "SE", "lat": 59.611, "lon": 16.553, "domain": "aviation", "domains": ["aviation", "xai"], "url": "https://www.sesarju.eu/projects/trusty", "desc": "SESAR exploratory project making remote-digital-tower AI decisions transparent and explainable to controllers to build calibrated trust.", "when": "2024-01–", "budget": "SESAR 3 JU"},
+  {"id": "twineu", "name": "TwinEU — Pan-European Digital Twin of the EU Electricity System", "city": "Sankt Augustin", "country": "DE", "lat": 50.7766, "lon": 7.1865, "domain": "energy", "domains": ["energy", "multi"], "url": "https://twineu.net/", "desc": "TwinEU builds a pan-European digital twin of the electricity grid, combining 77 partners from 15 countries — TSOs, DSOs, research centres and technology providers. It is not a HAI project per se but provides the simulation backbone for human-AI decision support in grid operations. Five technical pil", "when": "2023-10–", "budget": "101136119"},
+  {"id": "wasp-hs", "name": "WASP-HS", "city": "Stockholm", "country": "SE", "lat": 59.347, "lon": 18.073, "domain": "multi", "domains": ["multi", "hf", "xai"], "url": "https://wasp-hs.org/", "desc": "Wallenberg AI, Autonomous Systems & Software Program — Humanities & Society. ~70 PhDs en humanités IA.", "when": "2019–2028", "budget": ""},
+  {"id": "wasp", "name": "WASP", "city": "Linköping", "country": "SE", "lat": 58.397, "lon": 15.575, "domain": "manufacturing", "domains": ["multi", "manufacturing", "transport", "health", "hf"], "url": "https://wasp-sweden.org/", "desc": "Wallenberg AI, Autonomous Systems and Software Program. Plus grand programme R&D suédois. ~600 PhDs. Linköping + KTH + Lund + Chalmers.", "when": "2017–2031", "budget": ""},
+  {"id": "water4all", "name": "Water4All", "city": "Paris", "country": "FR", "lat": 48.853, "lon": 2.349, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.waterforall.eu/", "desc": "Partenariat européen Horizon. Coord. ANR France. Sécurité hydrique + decision support gestion eau.", "when": "2022–2029", "budget": ""},
+  {"id": "waterverse", "name": "WATERVERSE — Water Data Management Ecosystem", "city": "Rome", "country": "IT", "lat": 41.903, "lon": 12.496, "domain": "utility", "domains": ["utility", "multi"], "url": "https://waterverse.eu/", "desc": "Open, modular, AI-enabled water data space (FIWARE) connecting stakeholders to make better operational decisions across utility pilots.", "when": "2024-01–", "budget": "Horizon Europe"},
+];
+
+const COMMONS = [
+  {"id": "aicrowd", "name": "AIcrowd", "city": "Lausanne", "country": "CH", "lat": 46.518, "lon": 6.567, "domain": "energy", "domains": ["multi", "energy", "rail", "aviation"], "url": "https://www.aicrowd.com/", "desc": "Plateforme compétitions ML. Spin-off EPFL. Hôte historique de Flatland (rail) et NeurIPS challenges.", "subSection": "community", "createdBy": [], "usedBy": []},
+  {"id": "bluesky-atm-simulator", "name": "BlueSky — Open Air Traffic Simulator", "city": "Delft", "country": "NL", "lat": 52.002, "lon": 4.374, "domain": "aviation", "domains": ["aviation", "multi"], "url": "https://github.com/TUDelft-CNS-ATM/bluesky", "desc": "BlueSky is the open-source ATM simulator maintained by TU Delft's CNS/ATM group. It has become the de-facto European reference for academic research on multi-agent RL in air traffic management. The companion bluesky-gym provides a gymnasium environment used in human-AI teaming experiments with secto", "subSection": "software", "createdBy": ["tudelft-cns-atm"], "usedBy": ["haiku"]},
+  {"id": "bluesky-gym", "name": "BlueSky-Gym", "city": "Delft", "country": "NL", "lat": 52.002, "lon": 4.373, "domain": "aviation", "domains": ["aviation", "multi"], "url": "https://github.com/TUDelft-CNS-ATM/bluesky-gym", "desc": "Gymnasium RL wrapper on BlueSky giving standardized ATC tasks (conflict resolution, descent) for controller decision-support research.", "subSection": "software", "createdBy": [], "usedBy": []},
+  {"id": "codabench-benchmark", "name": "Codabench — Open Benchmarking Platform", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.codabench.org/", "desc": "Codabench is the second-generation CodaLab platform for collaborative, long-term benchmarking of AI agents and ML systems. Hosted at LISN (Paris-Saclay) and led by Prof. Isabelle Guyon. Hosts EU-funded HAI competitions including HADACA and COMETH. Foundational infrastructure for community evaluation", "subSection": "software", "createdBy": [], "usedBy": []},
+  {"id": "commonroad", "name": "CommonRoad / CommonRoad-RL", "city": "Munich", "country": "DE", "lat": 48.15, "lon": 11.568, "domain": "transport", "domains": ["transport", "xai", "multi"], "url": "https://commonroad.in.tum.de/", "desc": "Motion-planning benchmarks plus an RL environment with an explicit safety layer that verifies actions before execution — a model of verifiable, human-overseeable AI.", "subSection": "benchmark", "createdBy": [], "usedBy": []},
+  {"id": "eclipse-sumo", "name": "Eclipse SUMO", "city": "Berlin", "country": "DE", "lat": 52.46, "lon": 13.3, "domain": "transport", "domains": ["transport", "multi"], "url": "https://eclipse.dev/sumo/", "desc": "Microscopic traffic simulator that is the operational backbone for traffic-management and signal-control decision systems (incl. RL via TraCI).", "subSection": "software", "createdBy": [], "usedBy": []},
+  {"id": "ellis-society", "name": "ELLIS — European Laboratory for Learning and Intelligent Systems", "city": "Tübingen", "country": "DE", "lat": 48.521, "lon": 9.057, "domain": "multi", "domains": ["xai"], "url": "https://ellis.eu/", "desc": "ELLIS is a pan-European AI research network focused on machine learning and intelligent systems, organised around ELLIS Units (host institutions), ELLIS Programs (thematic communities) and the ELLIS PhD/Postdoc Program. It serves as a coordination layer for European AI research and a community refer", "subSection": "community", "createdBy": [], "usedBy": []},
+  {"id": "eurocontrol-rd-data", "name": "EUROCONTROL R&D Data Archive", "city": "Brussels", "country": "BE", "lat": 50.85, "lon": 4.35, "domain": "aviation", "domains": ["aviation"], "url": "https://www.eurocontrol.int/dashboard/aviation-data-research", "desc": "Large open European aviation operations datasets (12M+ flights, 1s trajectories) — the data substrate for ATM decision-support and operator-performance ML.", "subSection": "dataset", "createdBy": [], "usedBy": []},
+  {"id": "flatland-railway-rl", "name": "Flatland — Multi-agent RL for Railway Traffic Management", "city": "Berne (SBB)", "country": "CH", "lat": 46.948, "lon": 7.447, "domain": "rail", "domains": ["rail", "transport", "multi"], "url": "https://www.flatland-association.org/", "desc": "Flatland is the multi-agent RL benchmark for railway traffic management, jointly maintained by Swiss Federal Railways (SBB), Deutsche Bahn, SNCF and AIcrowd. It models multi-agent path finding under uncertainty on scalable rail networks and frames human dispatchers as decision-making partners. Flatl", "subSection": "benchmark", "createdBy": [], "usedBy": ["ai4realnet"]},
+  {"id": "grid2op", "name": "Grid2Op", "city": "Paris (RTE La Défense)", "country": "FR", "lat": 48.892, "lon": 2.238, "domain": "energy", "domains": ["energy", "multi"], "url": "https://grid2op.readthedocs.io/", "desc": "Grid2Op is an open-source Python framework for studying sequential decision-making problems on power grids. It exposes a Gym-compatible environment over a power-flow simulator, lets researchers train and benchmark agents (RL, optimization, hybrid) for grid operation, and has been used in the L2RPN (", "subSection": "software", "createdBy": [], "usedBy": ["ai4realnet"]},
+  {"id": "gym-anm", "name": "Gym-ANM", "city": "Liège", "country": "BE", "lat": 50.583, "lon": 5.567, "domain": "energy", "domains": ["energy", "multi"], "url": "https://github.com/robinhenry/gym-anm", "desc": "Models the Active Network Management decisions a distribution-grid operator faces (curtailment, storage, set-points) as sequential decision-making.", "subSection": "software", "createdBy": [], "usedBy": []},
+  {"id": "interactiveai-irt-systemx", "name": "InteractiveAI / CAB — Cockpit and Bidirectional Assistant", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "energy", "domains": ["energy", "rail", "aviation", "multi"], "url": "https://www.irt-systemx.fr/en/story/revolutionizing-the-supervision-and-control-of-critical-systems/", "desc": "InteractiveAI / CAB (Cockpit and Bidirectional Assistant) is IRT SystemX's prototype platform for bi-directional virtual assistants supporting operators of critical systems. It learns continuously from operator decisions and integrates with OperatorFabric. Industrial partners include RTE (grid), SNC", "subSection": "software", "createdBy": ["irt-systemx"], "usedBy": []},
+  {"id": "lasuite-numerique", "name": "La Suite Numérique — French Sovereign Productivity Stack", "city": "Paris", "country": "FR", "lat": 48.856, "lon": 2.352, "domain": "multi", "domains": ["multi"], "url": "https://lasuite.numerique.gouv.fr/en", "desc": "La Suite Numérique is the French government's open-source productivity stack — chat, video, docs, spreadsheets, AI assistant — co-developed with the Dutch and German governments through the European Digital Infrastructure Consortium. Not a HAI-for-critical-systems product per se, but a sovereign inf", "subSection": "software", "createdBy": [], "usedBy": []},
+  {"id": "lf-energy", "name": "LF Energy — Linux Foundation Energy", "city": "Bruxelles", "country": "BE", "lat": 50.85, "lon": 4.351, "domain": "energy", "domains": ["energy", "multi"], "url": "https://lfenergy.org/", "desc": "LF Energy is the Linux Foundation's vendor-neutral umbrella for open-source power-system software. Hosts Grid2op (RTE), OperatorFabric (TSO/DSO operator console), GXF (Alliander) — all of which underpin human-AI decision support in European control rooms. Annual LF Energy Summit Europe is the main c", "subSection": "community", "createdBy": [], "usedBy": []},
+  {"id": "mosaik", "name": "mosaik (co-simulation)", "city": "Kassel", "country": "DE", "lat": 51.318, "lon": 9.493, "domain": "energy", "domains": ["energy"], "url": "https://mosaik.offis.de/", "desc": "Framework de co-simulation. Couplage modèles power+IT+market. Maintenu OFFIS / Fraunhofer IEE.", "subSection": "software", "createdBy": ["tu-dortmund-ie3", "fraunhofer-iee-sgl"], "usedBy": ["twineu", "ai4realnet", "aieffect"]},
+  {"id": "msd", "name": "Medical Segmentation Decathlon / BraTS", "city": "Heidelberg", "country": "DE", "lat": 49.418, "lon": 8.671, "domain": "health", "domains": ["health"], "url": "http://medicaldecathlon.com/", "desc": "Suite benchmarks segmentation médicale (10 tâches). Référence académique. DKFZ Heidelberg + co-organisateurs.", "subSection": "benchmark", "createdBy": ["charite-bih", "dkfz"], "usedBy": ["procancer-i", "bigpicture", "chaimeleon"]},
+  {"id": "openclsim", "name": "OpenCLSim", "city": "Delft", "country": "NL", "lat": 52.002, "lon": 4.373, "domain": "maritime", "domains": ["maritime"], "url": "https://github.com/TUDelft-CITG/OpenCLSim", "desc": "Rule-driven scheduling of cyclic maritime and port operations to compare operating strategies — planner decision-support for waterway logistics.", "subSection": "software", "createdBy": [], "usedBy": []},
+  {"id": "opensky", "name": "OpenSky Network", "city": "Burgdorf", "country": "CH", "lat": 47.058, "lon": 7.625, "domain": "aviation", "domains": ["aviation"], "url": "https://opensky-network.org/", "desc": "Données ADS-B en temps réel. Référence académique en ATM. Univ. Berne + EUROCONTROL + ETH Zurich.", "subSection": "dataset", "createdBy": ["tudelft-cns-atm", "enac-achil", "onera-dtis", "dlr-fl", "skyguide", "eurocontrol-bretigny"], "usedBy": ["dialog"]},
+  {"id": "operatorfabric", "name": "OperatorFabric", "city": "Paris (RTE)", "country": "FR", "lat": 48.892, "lon": 2.238, "domain": "energy", "domains": ["energy"], "url": "https://opfab.org/", "desc": "Cockpit modulaire pour opérateurs TSO/DSO. Notification, dashboard, intégration AI. Hosté par LF Energy.", "subSection": "software", "createdBy": ["alliander", "tennet", "elia", "rte-rd-grid-ai"], "usedBy": []},
+  {"id": "osrd", "name": "OSRD — Open Source Railway Designer", "city": "Paris", "country": "FR", "lat": 48.856, "lon": 2.352, "domain": "rail", "domains": ["rail"], "url": "https://osrd.fr/", "desc": "Plateforme open-source pour conception et exploitation ferroviaire. Coord. SNCF Réseau. Stack open de référence.", "subSection": "software", "createdBy": ["db-netz", "sbb", "sncf-ir"], "usedBy": []},
+  {"id": "pandapower", "name": "pandapower", "city": "Dortmund", "country": "DE", "lat": 51.514, "lon": 7.465, "domain": "energy", "domains": ["energy"], "url": "https://www.pandapower.org/", "desc": "Bibliothèque Python pour analyse réseau électrique. Power flow, optimal PF, courts-circuits. TU Dortmund + IEE.", "subSection": "software", "createdBy": ["rte-rd-grid-ai", "tennet", "rwth-acs", "tu-dortmund-ie3", "fraunhofer-iee-sgl"], "usedBy": ["aieffect", "ai4realnet"]},
+];
+
+const TEAMS = [
+  {"id": "aalto-dt", "name": "Aalto — Digital Twins", "city": "Espoo", "country": "FI", "lat": 60.205, "lon": 24.656, "domain": "multi", "domains": ["multi"], "url": "https://www.aalto.fi/", "desc": "Digital twins industriels. Partie de FCAI."},
+  {"id": "abb-cr", "name": "ABB Corporate Research", "city": "Västerås", "country": "SE", "lat": 59.616, "lon": 16.553, "domain": "manufacturing", "domains": ["manufacturing", "energy", "multi"], "url": "https://global.abb/group/en/technology/corporate-research", "desc": "Process industries + grid automation + water. ABB Ability + AI ops."},
+  {"id": "ait-energy", "name": "AIT — Center for Energy", "city": "Vienna", "country": "AT", "lat": 48.211, "lon": 16.372, "domain": "energy", "domains": ["energy", "xai", "multi"], "url": "https://www.ait.ac.at/en/about-the-ait/center/center-for-energy", "desc": "Develops human-in-the-loop AI assistants for grid operators (Grid State Observer plus policy-guided search presenting ranked remedial actions), preserving human control."},
+  {"id": "alan-turing-institute", "name": "Alan Turing Institute", "city": "London", "country": "UK", "lat": 51.53, "lon": -0.127, "domain": "aviation", "domains": ["aviation", "defense", "multi", "xai"], "url": "https://www.turing.ac.uk/", "desc": "UK national institute for AI and data science. Runs Project Bluebird (decision support for air traffic controllers) and defence decision-support programmes, explicitly framed as complementing rather than replacing human experts."},
+  {"id": "alliander", "name": "Alliander", "city": "Arnhem", "country": "NL", "lat": 51.985, "lon": 5.899, "domain": "energy", "domains": ["energy"], "url": "https://www.alliander.com/", "desc": "DSO néerlandais. Maintainer GXF (LF Energy). TwinEU."},
+  {"id": "aphp-dsi", "name": "AP-HP — Health Data Hub", "city": "Paris", "country": "FR", "lat": 48.857, "lon": 2.356, "domain": "health", "domains": ["health"], "url": "https://www.aphp.fr/", "desc": "AP-HP + Health Data Hub. Décision clinique + données massives."},
+  {"id": "aqualia", "name": "Aqualia — Smart Water", "city": "Madrid", "country": "ES", "lat": 40.456, "lon": -3.687, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.aqualia.com/", "desc": "Opérateur eau. Smart networks + IA détection pertes."},
+  {"id": "arcelormittal-rd", "name": "ArcelorMittal — Global R&D Process & Control", "city": "Maizières-lès-Metz", "country": "FR", "lat": 49.211, "lon": 6.16, "domain": "manufacturing", "domains": ["manufacturing"], "url": "https://corporate.arcelormittal.com/research-and-development", "desc": "Process-and-control group using digital twins and cognitive automation to help operators optimize steel production, quality and energy."},
+  {"id": "asfinag", "name": "ASFINAG", "city": "Vienne", "country": "AT", "lat": 48.211, "lon": 16.366, "domain": "transport", "domains": ["transport"], "url": "https://www.asfinag.at/", "desc": "Opérateur autoroutes Autriche. Centre de contrôle + AI alertes."},
+  {"id": "austrocontrol", "name": "Austro Control", "city": "Vienne", "country": "AT", "lat": 48.22, "lon": 16.563, "domain": "aviation", "domains": ["aviation"], "url": "https://www.austrocontrol.at/", "desc": "ANSP autrichien. Partenaire DIALOG, SESAR."},
+  {"id": "avinor", "name": "Avinor ANS", "city": "Oslo", "country": "NO", "lat": 59.913, "lon": 10.752, "domain": "aviation", "domains": ["aviation"], "url": "https://avinor.no/", "desc": "ANSP norvégien. Remote tower pioneer. AI flight data integration."},
+  {"id": "bae-tempest", "name": "BAE Systems — Tempest / GCAP HMT", "city": "Warton", "country": "UK", "lat": 53.745, "lon": -2.881, "domain": "defense", "domains": ["defense", "aviation", "multi", "hf"], "url": "https://www.baesystems.com/en/what-we-do/air/combat-air", "desc": "\"Virtual co-pilot\" and cognitive-load-management research so crews can make split-second decisions and manage multiple uncrewed assets."},
+  {"id": "bast", "name": "BASt — Bundesanst. f. Straßenwesen", "city": "Bergisch Gladbach", "country": "DE", "lat": 50.992, "lon": 7.131, "domain": "transport", "domains": ["transport"], "url": "https://www.bast.de/", "desc": "Institut fédéral routier allemand. Recherche conduite automatisée + HMI."},
+  {"id": "berliner-wasser", "name": "Berliner Wasserbetriebe — Digital Twin", "city": "Berlin", "country": "DE", "lat": 52.52, "lon": 13.405, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.bwb.de/en/", "desc": "Full-scale wastewater digital twin (with Siemens & TU Berlin) predicts blockages and faults, supporting operators in proactively running the network."},
+  {"id": "bosch-cr-ai", "name": "Bosch — Center for AI", "city": "Renningen", "country": "DE", "lat": 48.762, "lon": 8.939, "domain": "manufacturing", "domains": ["manufacturing"], "url": "https://www.bosch-ai.com/", "desc": "Industrial AI. Driver assistance, manufacturing. Programme HAI Decision."},
+  {"id": "bristol-robotics-trustworthy", "name": "Bristol Robotics Lab — Trustworthy Systems", "city": "Bristol", "country": "UK", "lat": 51.5, "lon": -2.547, "domain": "multi", "domains": ["multi", "xai", "hf"], "url": "https://www.bristol.ac.uk/engineering/research/robots-and-autonomy/", "desc": "Work on verification, validation and human-robot trust for safe autonomous decision-making in industry, emergency response and surgery."},
+  {"id": "bsc", "name": "Barcelona Supercomputing Center", "city": "Barcelona", "country": "ES", "lat": 41.389, "lon": 2.114, "domain": "multi", "domains": ["multi", "compute"], "url": "https://www.bsc.es/", "desc": "MareNostrum 5. Host BSC AI Factory. AI for science + climate + health."},
+  {"id": "canal-isabel-ii", "name": "Canal de Isabel II — Digital Twins", "city": "Madrid", "country": "ES", "lat": 40.417, "lon": -3.704, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.canaldeisabelsegunda.es/", "desc": "Self-updating real-time drinking-water and sewer models with rainfall anticipation help control-room operators identify problems and optimise interventions."},
+  {"id": "cea-list-interactive-robotics", "name": "CEA-List — Interactive Robotics & AI Decision Support", "city": "Palaiseau", "country": "FR", "lat": 48.713, "lon": 2.198, "domain": "manufacturing", "domains": ["manufacturing", "multi"], "url": "https://list.cea.fr/en/", "desc": "Cobotics and exoskeletons with force/haptic/vision operator assistance plus AI-for-decision-making on the SMART interactive-robotics platform."},
+  {"id": "ceadar", "name": "CeADAR — Ireland’s Centre for Applied AI", "city": "Dublin", "country": "IE", "lat": 53.309, "lon": -6.224, "domain": "manufacturing", "domains": ["manufacturing", "multi", "xai"], "url": "https://ceadar.ie/", "desc": "National applied-AI centre developing tools that enable organisations and industries to use AI for better decision-making, with 90+ industry members."},
+  {"id": "centralesup-l2s", "name": "CentraleSupélec — L2S", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "multi", "domains": ["multi"], "url": "https://l2s.centralesupelec.fr/", "desc": "Signaux et systèmes. Décision en systèmes critiques."},
+  {"id": "ceps-ics", "name": "ČEPS + ICS CAS — Grid AI & Ethics", "city": "Prague", "country": "CZ", "lat": 50.081, "lon": 14.43, "domain": "energy", "domains": ["energy", "xai", "multi"], "url": "https://www.ceps.cz/en/", "desc": "Czech TSO deploying situational-intelligence grid visualization and AI load-forecasting, paired with an explicit ethical framework governing operator use of AI."},
+  {"id": "certh-iti", "name": "CERTH-ITI", "city": "Thessaloniki", "country": "GR", "lat": 40.572, "lon": 22.999, "domain": "aviation", "domains": ["aviation"], "url": "https://www.iti.gr/", "desc": "Information Technologies Institute. Partenaire HAIKU."},
+  {"id": "cetaqua", "name": "Cetaqua — Water Technology Centre", "city": "Barcelona", "country": "ES", "lat": 41.385, "lon": 2.173, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.cetaqua.com/en/", "desc": "Digital twins of pumping stations show operators real-time pump status, efficiency and criticality metrics to guide operational decisions."},
+  {"id": "chalmers-dhf", "name": "Chalmers — Design & Human Factors", "city": "Göteborg", "country": "SE", "lat": 57.708, "lon": 11.974, "domain": "multi", "domains": ["multi", "hf"], "url": "https://www.chalmers.se/", "desc": "HMS sûrs en process industries, médical."},
+  {"id": "chalmers-revere", "name": "Chalmers — REVERE", "city": "Göteborg", "country": "SE", "lat": 57.692, "lon": 11.974, "domain": "transport", "domains": ["multi", "transport", "hf", "simulation"], "url": "https://www.chalmers.se/en/centres/revere/", "desc": "Resource for vehicle research. Driving simulator + V2X testbed. Auto/heavy vehicles HAI."},
+  {"id": "chalmers-safer", "name": "SAFER — Vehicle and Traffic Safety Center", "city": "Göteborg", "country": "SE", "lat": 57.708, "lon": 11.974, "domain": "transport", "domains": ["multi", "transport", "hf", "simulation"], "url": "https://www.saferresearch.com/", "desc": "Centre sécurité routière + véhicules. ~30 partenaires (Volvo, Zenseact, Chalmers, VTI)."},
+  {"id": "charite-bih", "name": "Charité — BIH", "city": "Berlin", "country": "DE", "lat": 52.524, "lon": 13.378, "domain": "health", "domains": ["health"], "url": "https://www.bihealth.org/", "desc": "Coord. TEF-Health. Berlin Institute of Health. AI clinique + decision support."},
+  {"id": "ciirc-cvut", "name": "CIIRC CTU", "city": "Prague", "country": "CZ", "lat": 50.104, "lon": 14.388, "domain": "manufacturing", "domains": ["manufacturing", "energy", "multi"], "url": "https://www.ciirc.cvut.cz/en/", "desc": "Czech AI and Industry-4.0 institute (coordinates RICAIP) with explicit human-robot cooperation in manufacturing plus energy and health pillars."},
+  {"id": "cineca", "name": "CINECA", "city": "Bologna", "country": "IT", "lat": 44.519, "lon": 11.331, "domain": "multi", "domains": ["multi", "compute"], "url": "https://www.cineca.it/", "desc": "Leonardo HPC. Host IT4LIA AI Factory. Consortium universitaire italien."},
+  {"id": "cini-elsa-defense", "name": "CINI-AIIS — ELSA Defense node", "city": "Rome", "country": "IT", "lat": 41.893, "lon": 12.495, "domain": "defense", "domains": ["defense", "xai"], "url": "https://www.consorzio-cini.it/index.php/en/", "desc": "Academic node in the EU ELSA network developing safe/secure/responsible AI with a defense thread emphasising human-in-the-loop decision-making."},
+  {"id": "circe", "name": "CIRCE", "city": "Zaragoza", "country": "ES", "lat": 41.649, "lon": -0.886, "domain": "energy", "domains": ["energy"], "url": "https://www.fcirce.es/en/", "desc": "Recherche énergie. Partenaire TwinEU."},
+  {"id": "cranfield-dartec", "name": "Cranfield — DARTeC / Safety & Human Factors", "city": "Cranfield", "country": "UK", "lat": 52.073, "lon": -0.628, "domain": "aviation", "domains": ["aviation", "hf"], "url": "https://www.cranfield.ac.uk/academic-disciplines/human-factors", "desc": "Digital Aviation Research & Technology Centre plus Safety and Human Factors group researching AI assistants, virtual ATC towers and pilot decision-making in highly automated aviation."},
+  {"id": "crida", "name": "CRIDA", "city": "Madrid", "country": "ES", "lat": 40.464, "lon": -3.581, "domain": "aviation", "domains": ["aviation"], "url": "https://www.crida.es/", "desc": "Reference Center R&D ATM. Coord. TAPAS. Joint venture ENAIRE + INECO + UPM."},
+  {"id": "csc-finland", "name": "CSC — IT Center for Science", "city": "Espoo", "country": "FI", "lat": 60.187, "lon": 24.823, "domain": "multi", "domains": ["multi", "compute"], "url": "https://www.csc.fi/", "desc": "LUMI consortium. Host LUMI AI Factory. Coopération nordique."},
+  {"id": "dassault-aviation", "name": "Dassault Aviation — MUM-T & Cognitive Decision Aiding", "city": "Saint-Cloud", "country": "FR", "lat": 48.846, "lon": 2.219, "domain": "defense", "domains": ["defense", "aviation", "multi", "xai"], "url": "https://www.dassault-aviation.com/en/", "desc": "AI as a \"cockpit multiplier\" plus a Cognitive Decisions Aiding System combining human decision-making with AI-driven UAV execution for manned-unmanned teaming."},
+  {"id": "db-netz", "name": "DB Netz / Digital Rail", "city": "Berlin", "country": "DE", "lat": 52.52, "lon": 13.405, "domain": "rail", "domains": ["rail"], "url": "https://www.deutschebahn.com/", "desc": "Co-fondateur Flatland. Partenaire AI4RealNet."},
+  {"id": "deep-blue-roma", "name": "Deep Blue — Human Factors & Safety in Aviation", "city": "Roma", "country": "IT", "lat": 41.9028, "lon": 12.4964, "domain": "aviation", "domains": ["aviation", "multi", "hf", "xai"], "url": "https://dblue.it/en/", "desc": "Deep Blue is a Roman SME specialised in human factors, safety and validation for safety-critical domains. It coordinates HAIKU (Human-AI teaming for aviation safety) and is consortium partner in DIALOG, making it a central hub of Italian and European aviation HAI work. Authored the Italian thread of"},
+  {"id": "demokritos-iit", "name": "NCSR Demokritos — IIT", "city": "Athens", "country": "GR", "lat": 38.0, "lon": 23.819, "domain": "telecom", "domains": ["multi", "telecom", "xai"], "url": "https://www.iit.demokritos.gr/", "desc": "Greece’s largest multidisciplinary research centre; AI, IoT, 5G and cybersecurity research with critical-infrastructure and network-security applications."},
+  {"id": "dfki-trustworthy-ai", "name": "DFKI — Trustworthy AI", "city": "Kaiserslautern", "country": "DE", "lat": 49.4401, "lon": 7.7491, "domain": "aviation", "domains": ["aviation", "multi", "manufacturing", "xai"], "url": "https://www.dfki.de/en/web/research/projects-and-publications/project/humane-ai-net", "desc": "DFKI runs a long-standing programme on Trustworthy AI — test criteria, certification, formal guarantees for ML evaluations. Partner of HAIKU, HumanE-AI-Net, and key German node on the human-centric AI axis. Multi-site (Kaiserslautern, Berlin, Saarbrücken, Bremen, Darmstadt)."},
+  {"id": "dfs", "name": "DFS Deutsche Flugsicherung", "city": "Langen", "country": "DE", "lat": 49.989, "lon": 8.668, "domain": "aviation", "domains": ["aviation"], "url": "https://www.dfs.de/", "desc": "ANSP allemand. Partenaire DIALOG."},
+  {"id": "dkfz", "name": "DKFZ — Computational Oncology", "city": "Heidelberg", "country": "DE", "lat": 49.418, "lon": 8.671, "domain": "health", "domains": ["health"], "url": "https://www.dkfz.de/", "desc": "Cancer AI. Decision support oncologie. Membre TEF-Health."},
+  {"id": "dlr-fl", "name": "DLR — Institute of Flight Guidance", "city": "Braunschweig", "country": "DE", "lat": 52.319, "lon": 10.557, "domain": "aviation", "domains": ["aviation"], "url": "https://www.dlr.de/fl", "desc": "AI/automation pour ATM, drones, U-space. Partenaire SESAR multiple."},
+  {"id": "dlr-ts", "name": "DLR — Inst. Transportation Systems", "city": "Braunschweig", "country": "DE", "lat": 52.276, "lon": 10.52, "domain": "transport", "domains": ["transport"], "url": "https://www.dlr.de/ts", "desc": "Trafic + automation routière. Centre de contrôle trafic + HMI cognitif."},
+  {"id": "dlr-zfb", "name": "DLR — Air Traffic Validation Centre", "city": "Braunschweig", "country": "DE", "lat": 52.319, "lon": 10.557, "domain": "aviation", "domains": ["multi", "aviation", "hf", "simulation"], "url": "https://www.dlr.de/en/fl/about-us/research-infrastructure/air-traffic-validation-center", "desc": "Simulation ATC + drones + U-space. Tower simulator + en-route. SESAR validations."},
+  {"id": "dnv-control-room-hf", "name": "DNV — Human Factors / Operations Control Room", "city": "Høvik", "country": "NO", "lat": 59.888, "lon": 10.519, "domain": "maritime", "domains": ["multi", "maritime", "hf", "xai"], "url": "https://www.dnv.com/services/operations-control-room-3941/", "desc": "Human-reliability analysis, workload/HMI and alarm-system reviews to validate control centres for safe handling of normal and safety-critical operations."},
+  {"id": "dsna-ai-programme", "name": "DSNA — AI Programme & ATC Research Simulators", "city": "Paris", "country": "FR", "lat": 48.8566, "lon": 2.3522, "domain": "aviation", "domains": ["aviation", "multi", "xai"], "url": "https://www.ecologie.gouv.fr/direction-services-navigation-aerienne-dsna", "desc": "DSNA — the French air navigation service provider — runs an internal AI programme providing ASR/NLU capabilities and operates ATC research simulators used by the DIALOG project for real-world validation of human-AI teaming methods. Operational anchor for French ATC HAI work."},
+  {"id": "dstl-hmt", "name": "Dstl — Defence AI & Human-Machine Teaming", "city": "Salisbury", "country": "UK", "lat": 51.117, "lon": -1.704, "domain": "defense", "domains": ["defense", "multi", "xai"], "url": "https://www.gov.uk/government/organisations/defence-science-and-technology-laboratory", "desc": "UK MoD science lab (part of the Defence AI Centre) developing human-machine teaming and AI decision aids with explicit focus on human factors, ethics and retained human authority."},
+  {"id": "dt-tlabs", "name": "Deutsche Telekom T-Labs", "city": "Berlin", "country": "DE", "lat": 52.508, "lon": 13.33, "domain": "telecom", "domains": ["telecom"], "url": "https://www.t-labs.tu-berlin.de/", "desc": "Lab partagé TU Berlin + DT. Network AI, edge AI, autonomous ops."},
+  {"id": "dtu-crea", "name": "DTU — Control, Robotics and Embodied AI (CREA)", "city": "Lyngby", "country": "DK", "lat": 55.7861, "lon": 12.5239, "domain": "energy", "domains": ["energy", "transport", "manufacturing", "multi", "xai"], "url": "https://electro.dtu.dk/", "desc": "DTU's CREA group works at the intersection of control, robotics and embodied AI — including human-centered AI for autonomous transport and certification of trustworthy AI. Leads WP1 of AI-EFFECT."},
+  {"id": "dtu-powerlab", "name": "DTU — PowerLabDK / SYSLAB", "city": "Roskilde", "country": "DK", "lat": 55.696, "lon": 12.103, "domain": "energy", "domains": ["multi", "energy", "simulation"], "url": "https://www.powerlab.dk/", "desc": "Smart-grid experimental facility. Hardware-in-the-loop. Évaluation operator dashboards + AI contrôle réseau."},
+  {"id": "easa-ai", "name": "EASA — AI Programme", "city": "Cologne", "country": "DE", "lat": 50.937, "lon": 6.96, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.easa.europa.eu/en/domains/research-innovation/ai", "desc": "Régulateur aviation. AI Concept Paper L1/L2/L3. Roadmap certification AI."},
+  {"id": "edf-rd-hf", "name": "EDF R&D — Human Factors (EPR / MERMOS)", "city": "Palaiseau", "country": "FR", "lat": 48.713, "lon": 2.211, "domain": "nuclear", "domains": ["nuclear", "energy", "hf", "xai"], "url": "https://www.edf.fr/en/the-edf-group/who-we-are/activities/research-and-development", "desc": "Human-factors team behind EDF’s decade-long HFE evaluation programme for the EPR control room and the MERMOS human-reliability/operator-cooperation method."},
+  {"id": "eles-digi", "name": "ELES — DIGI-ELES / SINCRO.GRID", "city": "Ljubljana", "country": "SI", "lat": 46.051, "lon": 14.506, "domain": "energy", "domains": ["energy"], "url": "https://www.eles.si/en", "desc": "Slovenian TSO programme (IoT, digital twins, AI) feeding operator dashboards and a data lake for faster informed control decisions, incl. cross-border SINCRO.GRID."},
+  {"id": "elia", "name": "Elia", "city": "Bruxelles", "country": "BE", "lat": 50.85, "lon": 4.351, "domain": "energy", "domains": ["energy"], "url": "https://www.elia.be/", "desc": "TSO belge. Partenaire TwinEU."},
+  {"id": "enac-achil", "name": "ENAC — ACHIL Lab", "city": "Toulouse", "country": "FR", "lat": 43.565, "lon": 1.481, "domain": "aviation", "domains": ["aviation"], "url": "https://achil.recherche.enac.fr/", "desc": "Aeronautical Computer Human Interactions. Mind-wandering ATC, automation impact."},
+  {"id": "enac-simu", "name": "ENAC — Centre de Simulation", "city": "Toulouse", "country": "FR", "lat": 43.565, "lon": 1.481, "domain": "aviation", "domains": ["multi", "aviation", "hf", "simulation"], "url": "https://www.enac.fr/fr/recherche/centres-techniques", "desc": "Simulateurs ATC + cockpit. Évaluation HMI nouvelles tours/IA. Partenariats SESAR multiples."},
+  {"id": "enagas", "name": "Enagás", "city": "Madrid", "country": "ES", "lat": 40.477, "lon": -3.713, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.enagas.es/", "desc": "TSO gaz espagnol. Centre de dispatching + AI optimisation flux."},
+  {"id": "enav", "name": "ENAV", "city": "Roma", "country": "IT", "lat": 41.901, "lon": 12.488, "domain": "aviation", "domains": ["aviation"], "url": "https://www.enav.it/", "desc": "ANSP italien. Partenaire SESAR. AI + ATC tools."},
+  {"id": "enel", "name": "ENEL", "city": "Roma", "country": "IT", "lat": 41.903, "lon": 12.496, "domain": "energy", "domains": ["energy"], "url": "https://www.enel.com/", "desc": "Utility italien. ENEL Grids partenaire TwinEU + AI-EFFECT."},
+  {"id": "energinet", "name": "Energinet — Digital Drift Planning", "city": "Fredericia", "country": "DK", "lat": 55.566, "lon": 9.753, "domain": "utility", "domains": ["utility", "energy", "multi", "xai"], "url": "https://en.energinet.dk/", "desc": "Danish gas+electricity TSO; AI balancing platform automates cost-efficient balancing at 15-min resolution with explainable predictions keeping operator trust central."},
+  {"id": "enliteai", "name": "EnliteAI", "city": "Vienna", "country": "AT", "lat": 48.208, "lon": 16.374, "domain": "multi", "domains": ["multi"], "url": "https://enlite.ai/", "desc": "SME AI partenaire AI4RealNet, AI-EFFECT."},
+  {"id": "ericsson-rd", "name": "Ericsson Research", "city": "Kista", "country": "SE", "lat": 59.404, "lon": 17.943, "domain": "telecom", "domains": ["telecom"], "url": "https://www.ericsson.com/research", "desc": "Cognitive networks, intent-based ops, AI radio. Lab principal Kista."},
+  {"id": "eth-ivia", "name": "ETH Zurich — IVIA Lab (Interactive Visualization & Intelligence Augmentation)", "city": "Zurich", "country": "CH", "lat": 47.3769, "lon": 8.5417, "domain": "multi", "domains": ["multi", "xai"], "url": "https://ivia.ch/", "desc": "IVIA Lab at ETH Zurich, led by Prof. Mennatallah El-Assady, bridges human and AI intelligence through interactive visualization, computational linguistics and explainable AI. Focus on co-adaptive human-AI collaboration interfaces for problem-solving and decision-making — intelligence augmentation ra"},
+  {"id": "eth-resilience", "name": "ETH — Critical Infra Resilience", "city": "Zurich", "country": "CH", "lat": 47.377, "lon": 8.542, "domain": "energy", "domains": ["energy"], "url": "https://ai.ethz.ch/", "desc": "Prof. Sansavini. HAI smart grid resilience."},
+  {"id": "ethz-esc", "name": "ETH — Energy Science Center / Resilience Lab", "city": "Zürich", "country": "CH", "lat": 47.377, "lon": 8.542, "domain": "energy", "domains": ["multi", "energy", "xai", "simulation"], "url": "https://esc.ethz.ch/", "desc": "Power system control sim + cyber-physical resilience. Couplé avec eth-resilience."},
+  {"id": "eurocontrol-bretigny", "name": "EUROCONTROL Innovation Hub (EEC)", "city": "Brétigny-sur-Orge", "country": "FR", "lat": 48.625, "lon": 2.305, "domain": "aviation", "domains": ["multi", "aviation", "hf", "simulation"], "url": "https://www.eurocontrol.int/eurocontrol-innovation-hub", "desc": "Experimental Centre. Simulateurs ATC temps-réel iFACTS/eDEP. Validation HAI + facteurs humains. Site historique HAIKU/MAHALO/SESAR."},
+  {"id": "ffi-hat", "name": "FFI — Human-Autonomy Teaming", "city": "Kjeller", "country": "NO", "lat": 59.973, "lon": 11.046, "domain": "defense", "domains": ["defense", "multi", "xai"], "url": "https://www.ffi.no/en", "desc": "Human-autonomy teaming design for military operations — levels of automation, mixed-initiative, coactive design and trust calibration."},
+  {"id": "fhnw-applied-psychology", "name": "FHNW — School of Applied Psychology", "city": "Olten", "country": "CH", "lat": 47.352, "lon": 7.9081, "domain": "energy", "domains": ["energy", "multi", "hf", "xai"], "url": "https://www.fhnw.ch/en/about-fhnw/schools/applied-psychology", "desc": "FHNW's School of Applied Psychology contributes the human factors and human-AI interaction angle to AI4RealNet, focusing on operator trust calibration, mental models and the cognitive ergonomics of AI assistants in control rooms."},
+  {"id": "fincantieri", "name": "Fincantieri — Survivability Advisory System", "city": "Trieste", "country": "IT", "lat": 45.649, "lon": 13.776, "domain": "defense", "domains": ["defense", "maritime", "xai"], "url": "https://www.fincantieri.com/en/", "desc": "System-of-systems naval combat architecture with a Survivability Advisory System coordinating onboard systems to improve operator decision-making in action."},
+  {"id": "fluxys", "name": "Fluxys — Hydrogen Network Operator", "city": "Brussels", "country": "BE", "lat": 50.85, "lon": 4.352, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.fluxys.com/en/", "desc": "Gas/H2 transmission operator developing Belgium’s hydrogen backbone with real-time flow-data services supporting shipper/operator decisions."},
+  {"id": "foi-c3-hf", "name": "FOI — C3 and Human Factors", "city": "Stockholm", "country": "SE", "lat": 59.35, "lon": 18.0, "domain": "defense", "domains": ["defense", "hf"], "url": "https://www.foi.se/en/foi/research/c3-and-human-factors.html", "desc": "Balances humans, technology and organisation in command and control; develops decision-support systems and human-autonomy research for total defence."},
+  {"id": "framatome-hfe", "name": "Framatome — HFE & Control Room Design", "city": "Lyon", "country": "FR", "lat": 45.764, "lon": 4.835, "domain": "nuclear", "domains": ["nuclear", "hf", "xai"], "url": "https://www.framatome.com/en/expertise/instrumentation-and-control/", "desc": "Operator-centred control-room modernization and human-factors engineering (HMI usability, V&V) across the digital I&C lifecycle for PWR/VVER fleets."},
+  {"id": "fraunhofer-cml", "name": "Fraunhofer CML — Sea Traffic & Nautical Solutions", "city": "Hamburg", "country": "DE", "lat": 53.551, "lon": 9.993, "domain": "maritime", "domains": ["maritime", "xai", "multi"], "url": "https://www.cml.fraunhofer.de/en/fields-of-activity/sea-traffic-and-nautical-solutions-.html", "desc": "Builds shore-based AI decision support with an HMI that makes the automation’s intentions legible to the human operator (LEAS project); AI vessel-traffic monitoring."},
+  {"id": "fraunhofer-fit-digital-energy", "name": "Fraunhofer FIT — Center for Digital Energy", "city": "Sankt Augustin", "country": "DE", "lat": 50.7766, "lon": 7.1865, "domain": "energy", "domains": ["energy", "multi"], "url": "https://www.digitale-energie.fraunhofer.de/en/", "desc": "Fraunhofer FIT's Center for Digital Energy coordinates TwinEU, the largest European digital-twin-of-the-grid project, and leads laboratory setup for AI-EFFECT. The centre operates a distribution-system laboratory used for congestion management with distributed energy resources and HAI-based decision"},
+  {"id": "fraunhofer-fkie-mms", "name": "Fraunhofer FKIE — Human Systems Engineering", "city": "Wachtberg", "country": "DE", "lat": 50.617, "lon": 7.13, "domain": "defense", "domains": ["defense", "multi", "hf"], "url": "https://www.fkie.fraunhofer.de/en/departments/mms.html", "desc": "Builds joint human-machine systems with hybrid intelligence, dynamic task allocation and decision support for control centres."},
+  {"id": "fraunhofer-iais", "name": "Fraunhofer IAIS — Safe AI & AI Assessment", "city": "Sankt Augustin", "country": "DE", "lat": 50.7766, "lon": 7.1865, "domain": "manufacturing", "domains": ["multi", "manufacturing", "health", "xai"], "url": "https://www.iais.fraunhofer.de/en/", "desc": "Fraunhofer IAIS develops methods for AI certification and explainability in regulated and safety-critical domains. Authors of the AI Assessment Catalog. Hybrid AI work for industrial quality assurance positions IAIS as a key European node on the trust/safety axis of HAI."},
+  {"id": "fraunhofer-iao-hti", "name": "Fraunhofer IAO — Human-Technology Interaction", "city": "Stuttgart", "country": "DE", "lat": 48.7758, "lon": 9.1829, "domain": "manufacturing", "domains": ["manufacturing", "hf", "multi"], "url": "https://www.iao.fraunhofer.de/en/research/research-units/human-technology-interaction.html", "desc": "Fraunhofer IAO's Human-Technology Interaction unit designs intuitive, user-friendly technology for digitalization and human-machine optimization in industrial settings — including the NIKA project on context-sensitive robot interaction."},
+  {"id": "fraunhofer-iee-sgl", "name": "Fraunhofer IEE — SmartGrid Lab Hessen", "city": "Kassel", "country": "DE", "lat": 51.318, "lon": 9.493, "domain": "energy", "domains": ["multi", "energy", "simulation"], "url": "https://www.iee.fraunhofer.de/en.html", "desc": "Lab grid operations. Co-simulation Mosaik (créé par IEE). Cas d'usage pour TwinEU/AI4RealNet."},
+  {"id": "fraunhofer-iff", "name": "Fraunhofer IFF", "city": "Magdeburg", "country": "DE", "lat": 52.121, "lon": 11.628, "domain": "manufacturing", "domains": ["manufacturing"], "url": "https://www.iff.fraunhofer.de/", "desc": "Sûreté human-robot collaboration en production."},
+  {"id": "fraunhofer-iosb-hai", "name": "Fraunhofer IOSB — Human-AI Interaction & C2", "city": "Karlsruhe", "country": "DE", "lat": 49.011, "lon": 8.425, "domain": "defense", "domains": ["defense", "multi", "xai"], "url": "https://www.iosb.fraunhofer.de/en/competences/image-exploitation/human-ai-interaction.html", "desc": "Department (2024) on trustworthy human-AI collaboration; its defence unit builds AI situation pictures and mission planning to support commander decisions."},
+  {"id": "fraunhofer-ipk", "name": "Fraunhofer IPK", "city": "Berlin", "country": "DE", "lat": 52.52, "lon": 13.405, "domain": "manufacturing", "domains": ["manufacturing"], "url": "https://www.ipk.fraunhofer.de/", "desc": "Industry 4.0, HRC sécurité, interfaces de contrôle."},
+  {"id": "gaiax", "name": "Gaia-X AISBL", "city": "Bruxelles", "country": "BE", "lat": 50.846, "lon": 4.354, "domain": "multi", "domains": ["multi", "cluster"], "url": "https://gaia-x.eu/", "desc": "Federated cloud/data infrastructure européenne. Sovereignty pour AI factories."},
+  {"id": "gasgrid-finland", "name": "Gasgrid Finland — National Hydrogen Network", "city": "Kouvola", "country": "FI", "lat": 60.868, "lon": 26.704, "domain": "utility", "domains": ["utility", "multi"], "url": "https://gasgrid.fi/en/", "desc": "State gas TSO building a multi-gas/hydrogen transmission platform with a disruption-free operation mandate and operator-facing market information."},
+  {"id": "gasunie", "name": "Gasunie", "city": "Groningen", "country": "NL", "lat": 53.221, "lon": 6.567, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.gasunie.nl/", "desc": "TSO gaz NL/DE. Hydrogen backbone. Salle de contrôle + AI."},
+  {"id": "genci-idris", "name": "GENCI / IDRIS", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "multi", "domains": ["multi", "compute"], "url": "https://www.genci.fr/", "desc": "Jean Zay supercomputer (CNRS-IDRIS). HPC national français. AI4Science."},
+  {"id": "gmv-defence", "name": "GMV — ABIDE (AI for C4ISR)", "city": "Tres Cantos", "country": "ES", "lat": 40.605, "lon": -3.708, "domain": "defense", "domains": ["defense", "multi"], "url": "https://www.gmv.com/en/sectors/defense-and-security", "desc": "EDA-awarded work applying AI/Big-Data to C4ISR to cut decision-maker workload via situation assessment and course-of-action support."},
+  {"id": "grs-hf", "name": "GRS — Human Factors & ATLAS Simulator", "city": "Garching", "country": "DE", "lat": 48.249, "lon": 11.651, "domain": "nuclear", "domains": ["nuclear", "multi", "hf", "xai"], "url": "https://www.grs.de/en/research-and-assessment/reactor-safety", "desc": "Germany’s central nuclear-safety technical support organisation; its ATLAS analysis simulator is used for human-factors studies of operator communication and error."},
+  {"id": "grtgaz", "name": "GRTgaz — Research", "city": "Bois-Colombes", "country": "FR", "lat": 48.917, "lon": 2.261, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.grtgaz.com/", "desc": "TSO gaz français. Dispatching national + IA détection fuites."},
+  {"id": "hensoldt", "name": "HENSOLDT — Sensor-Fusion C2", "city": "Taufkirchen", "country": "DE", "lat": 48.046, "lon": 11.624, "domain": "defense", "domains": ["defense", "multi"], "url": "https://www.hensoldt.net/", "desc": "AI-supported operational picture from fused multispectral sensors that accelerates situational awareness and decreases the burden on decision-makers."},
+  {"id": "hungarocontrol-rd", "name": "HungaroControl — ATM R&D / CRDS", "city": "Budapest", "country": "HU", "lat": 47.439, "lon": 19.252, "domain": "aviation", "domains": ["aviation", "multi", "hf"], "url": "https://en.hungarocontrol.hu/", "desc": "Hungarian ANSP running SESAR validation, multiple-remote-tower trials and controller-role research framed around AI augmenting air traffic controllers."},
+  {"id": "ideas-ncbr", "name": "IDEAS NCBR", "city": "Warsaw", "country": "PL", "lat": 52.231, "lon": 21.006, "domain": "multi", "domains": ["multi"], "url": "https://ideas-ncbr.pl/en/", "desc": "Poland’s flagship applied-AI centre (intelligent algorithms, RL, learned data structures) bridging academia and industry; hosts Poland’s first ELLIS unit."},
+  {"id": "ideko", "name": "Ideko — Smart Manufacturing & HRI", "city": "Elgoibar", "country": "ES", "lat": 43.213, "lon": -2.413, "domain": "manufacturing", "domains": ["manufacturing", "hf"], "url": "https://www.ideko.es/en/", "desc": "Machine-tool research centre developing robotics, human-machine interaction and adaptive intelligent machine tools (Coroma, Chameleon)."},
+  {"id": "ihu-paris", "name": "PariSanté Campus — Simu", "city": "Paris", "country": "FR", "lat": 48.838, "lon": 2.29, "domain": "health", "domains": ["multi", "health", "xai", "simulation"], "url": "https://www.parisantecampus.fr/", "desc": "Campus AI santé. Simulation clinique + Health Data Hub + INSERM AI Health."},
+  {"id": "iiia-csic-multiagent", "name": "IIIA-CSIC — Multiagent Systems Group", "city": "Barcelona (Bellaterra)", "country": "ES", "lat": 41.5006, "lon": 2.0916, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.iiia.csic.es/en-us/research/groups/multiagent-systems/", "desc": "The Multiagent Systems group at IIIA-CSIC, led by Carles Sierra, works on negotiation, control, organization, trust and reputation in agent-human collaboration. Recent EVASAI project on theory of mind in agents brings value-aligned reasoning to industrial multi-agent systems."},
+  {"id": "imdea-networks", "name": "IMDEA Networks", "city": "Madrid", "country": "ES", "lat": 40.341, "lon": -3.762, "domain": "telecom", "domains": ["telecom"], "url": "https://www.networks.imdea.org/", "desc": "Network science, 5G/6G, distributed AI for telecom ops."},
+  {"id": "imperial-safe-ai", "name": "Imperial — Verification of Autonomous Systems", "city": "London", "country": "UK", "lat": 51.499, "lon": -0.179, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.imperial.ac.uk/computing/research/artificial-intelligence/", "desc": "Research on verification, certified learning and assurance of autonomous systems, plus human-centred and meaningful-control initiatives."},
+  {"id": "indra-defence", "name": "Indra — IndraMind / AIDA C2", "city": "Madrid", "country": "ES", "lat": 40.452, "lon": -3.732, "domain": "defense", "domains": ["defense", "multi"], "url": "https://www.indracompany.com/en", "desc": "Sovereign AI platform plus EDF \"AIDA\" agents that aid the human operator’s decision-making and shorten command-and-control decision cycles."},
+  {"id": "inesc-tec-cpes", "name": "INESC TEC — CPES", "city": "Porto", "country": "PT", "lat": 41.179, "lon": -8.595, "domain": "energy", "domains": ["energy"], "url": "https://www.inesctec.pt/", "desc": "Coordinateur AI4RealNet. Power & Energy Systems."},
+  {"id": "inserm-ai", "name": "Inserm — AI Health", "city": "Paris", "country": "FR", "lat": 48.844, "lon": 2.358, "domain": "health", "domains": ["health"], "url": "https://www.inserm.fr/", "desc": "PariSanté Campus. AI for clinical research + biomedical decision."},
+  {"id": "ircad-strasbourg", "name": "IRCAD — Strasbourg", "city": "Strasbourg", "country": "FR", "lat": 48.575, "lon": 7.749, "domain": "health", "domains": ["multi", "health", "simulation"], "url": "https://www.ircad.fr/", "desc": "Recherche contre cancers digestifs. Simulateurs chirurgicaux + AI surgical decision support. WebSurg formation."},
+  {"id": "irsn-asnr-hof", "name": "ASNR (ex-IRSN) — Human & Organizational Factors", "city": "Fontenay-aux-Roses", "country": "FR", "lat": 48.788, "lon": 2.291, "domain": "nuclear", "domains": ["nuclear", "multi", "hf", "xai"], "url": "https://research-assessment.asnr.fr/about-us", "desc": "National nuclear-safety expert body (IRSN merged into ASNR on 1 Jan 2025) assessing human and organizational factors and human reliability across reactor operation."},
+  {"id": "irt-saint-exupery", "name": "IRT Saint Exupéry — Trustworthy AI (DEEL)", "city": "Toulouse", "country": "FR", "lat": 43.604, "lon": 1.444, "domain": "defense", "domains": ["defense", "aviation", "xai", "multi"], "url": "https://www.irt-saintexupery.com/", "desc": "Certifiable/explainable AI for critical aero-defense systems; the PEP_HITE platform evaluates human–autonomous-agent collaboration in military aeronautics."},
+  {"id": "irt-systemx", "name": "IRT SystemX", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "energy", "domains": ["multi", "energy", "rail", "aviation", "telecom"], "url": "https://www.irt-systemx.fr/", "desc": "Maintainer InteractiveAI / CAB. Partenariats RTE (énergie), SNCF (rail), Dassault (aviation/défense), Orange (télécoms)."},
+  {"id": "italgas", "name": "Italgas — Smart Gas Grids", "city": "Milan", "country": "IT", "lat": 45.464, "lon": 9.19, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.italgas.it/en/", "desc": "Branch-level digital twin + AI analytics drive condition-based maintenance and gas-flow simulation, presented to operators via the command-and-control centre."},
+  {"id": "iww-water", "name": "IWW Water Centre", "city": "Mülheim an der Ruhr", "country": "DE", "lat": 51.428, "lon": 6.883, "domain": "utility", "domains": ["utility", "multi"], "url": "https://iww-online.de/en/", "desc": "Research on asset management, digitisation and decision-support tools for water networks at the technology/environment/economics interface."},
+  {"id": "joanneum-robotics", "name": "Joanneum Research — ROBOTICS", "city": "Klagenfurt", "country": "AT", "lat": 46.624, "lon": 14.308, "domain": "manufacturing", "domains": ["manufacturing", "hf"], "url": "https://www.joanneum.at/robotics/en/", "desc": "Human-robot collaboration and robotics-safety institute building workstations where machines adapt to the human operator (SAFEIVERSE)."},
+  {"id": "jsc-julich", "name": "Jülich Supercomputing Centre", "city": "Jülich", "country": "DE", "lat": 50.911, "lon": 6.413, "domain": "multi", "domains": ["multi", "compute"], "url": "https://www.fz-juelich.de/jsc", "desc": "JUPITER exascale. AI Factory hub. R&D HPC + AI co-design."},
+  {"id": "jsi-ailab", "name": "Jožef Stefan Institute — AI Laboratory", "city": "Ljubljana", "country": "SI", "lat": 46.042, "lon": 14.488, "domain": "multi", "domains": ["multi", "xai"], "url": "https://ailab.ijs.si/", "desc": "One of Europe’s largest AI labs; real-time analytics, decision support and explainability work, and host of UNESCO-backed IRCAI for public/critical decision-making."},
+  {"id": "karolinska-mai", "name": "Karolinska Institutet — MedAI", "city": "Stockholm", "country": "SE", "lat": 59.347, "lon": 18.027, "domain": "health", "domains": ["health"], "url": "https://ki.se/en", "desc": "AI for clinical decision-making. Partenaire AI Sweden + WASP-HS."},
+  {"id": "kios-cyprus", "name": "KIOS Center of Excellence", "city": "Nicosia", "country": "CY", "lat": 35.1856, "lon": 33.3823, "domain": "energy", "domains": ["energy", "utility", "multi"], "url": "https://www.kios.ucy.ac.cy/", "desc": "KIOS Center of Excellence at the University of Cyprus focuses on intelligent monitoring and management of critical infrastructure systems — power, water, transport. Partner in TwinEU and active on cascading-failure analysis and AI for situational awareness in control rooms."},
+  {"id": "kongsberg-defence", "name": "Kongsberg Defence & Aerospace — CMS", "city": "Kongsberg", "country": "NO", "lat": 59.667, "lon": 9.65, "domain": "defense", "domains": ["defense", "maritime", "multi"], "url": "https://www.kongsberg.com/kda/", "desc": "Combat-management systems co-designed with NDRE for faster operator decision support across anti-submarine/surface/air warfare."},
+  {"id": "kongsberg-maritime", "name": "Kongsberg Maritime — Autonomous & Remote Vessels", "city": "Kongsberg", "country": "NO", "lat": 59.674, "lon": 9.654, "domain": "maritime", "domains": ["maritime", "xai", "multi"], "url": "https://www.kongsberg.com/maritime/", "desc": "Builds autonomous-ship technology and Remote Operations Centres where shore operators monitor and can take control of vessels."},
+  {"id": "kongsberg-norcontrol-vts", "name": "Kongsberg Norcontrol — Vessel Traffic Services", "city": "Horten", "country": "NO", "lat": 59.417, "lon": 10.483, "domain": "maritime", "domains": ["maritime", "multi"], "url": "https://www.kongsberg.com/discovery/maritime-surveillance/vessel-traffic-services/", "desc": "Fuses radar, AIS and CCTV into one interface giving shore VTS operators decision support and situational awareness; K-Sim VTS trains operators."},
+  {"id": "kth-itrl", "name": "KTH — Integrated Transport Research Lab", "city": "Stockholm", "country": "SE", "lat": 59.35, "lon": 18.071, "domain": "transport", "domains": ["multi", "transport", "simulation"], "url": "https://www.itrl.kth.se/", "desc": "Centre transport intégré. Simulateurs traffic + véhicules autonomes. Smart city."},
+  {"id": "kwr-water", "name": "KWR Water Research Institute", "city": "Nieuwegein", "country": "NL", "lat": 52.03, "lon": 5.083, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.kwrwater.nl/en/", "desc": "Agentic-AI orchestration of monitoring tools to detect contamination events and propose isolation actions, aiding operator decision-making in real networks."},
+  {"id": "leonardo-labs", "name": "Leonardo Labs — AI for Decision-making", "city": "Rome", "country": "IT", "lat": 41.806, "lon": 12.252, "domain": "defense", "domains": ["defense", "aviation", "multi"], "url": "https://www.leonardo.com/en/innovation-technology/leonardo-labs", "desc": "Dedicated AI research building systems that support forecasting and decision-making and human-machine teaming for ISR and pilot assistance."},
+  {"id": "lfv", "name": "LFV", "city": "Norrköping", "country": "SE", "lat": 58.589, "lon": 16.19, "domain": "aviation", "domains": ["aviation"], "url": "https://www.lfv.se/", "desc": "ANSP suédois. Partenaire HAIKU."},
+  {"id": "linkoping-ras", "name": "Linköping University — Robotics & Autonomous Systems", "city": "Linköping", "country": "SE", "lat": 58.4108, "lon": 15.6214, "domain": "aviation", "domains": ["aviation", "defense", "transport", "multi", "xai"], "url": "https://liu.se/en/research/robotics-and-autonomous-systems", "desc": "Linköping University's Robotics & Autonomous Systems group works on UAVs, active automotive safety, fighter aircraft navigation — research conducted in close collaboration with industry. Partner of AI4RealNet. Linköping is also home to Jonas Lundberg's Joint Cognitive Systems work (already in the re"},
+  {"id": "linkoping-vi", "name": "The iVis Group / Human-AI Teaming Research Group", "city": "Linköping", "country": "SE", "lat": 58.4639, "lon": 15.7888, "domain": "aviation", "domains": ["aviation", "multi", "hf", "xai", "simulation"], "url": "https://ivis.itn.liu.se/research/areas/hat.html", "desc": "The iVis Group focuses on Human-AI Teaming, investigating how humans and autonomous systems can collaborate effectively in complex environments. Their research spans human factors, cobots, and shared situational awareness across various critical domains.  Key initiatives include HAIKU, which address"},
+  {"id": "litgrid-agc", "name": "Litgrid — AGC / Baltic Synchronization", "city": "Vilnius", "country": "LT", "lat": 54.687, "lon": 25.28, "domain": "energy", "domains": ["energy", "xai"], "url": "https://www.litgrid.eu", "desc": "Lithuanian TSO automatic generation/frequency control and IT/power automatics for continental synchronization, with operators supervising automated balancing."},
+  {"id": "lrz", "name": "LRZ — Leibniz Supercomputing", "city": "Garching", "country": "DE", "lat": 48.262, "lon": 11.668, "domain": "multi", "domains": ["multi", "compute"], "url": "https://www.lrz.de/", "desc": "SuperMUC-NG. Host BavarianAI initiatives."},
+  {"id": "lund-aviation", "name": "Lund — Aviation HF", "city": "Lund", "country": "SE", "lat": 55.712, "lon": 13.191, "domain": "aviation", "domains": ["aviation"], "url": "https://www.humanfactors.lth.se/", "desc": "Prof. Rogier Woltjer. HAT requirements aviation."},
+  {"id": "lund-hfss", "name": "Lund — HFSS", "city": "Lund", "country": "SE", "lat": 55.712, "lon": 13.191, "domain": "multi", "domains": ["multi", "hf"], "url": "https://www.humanfactors.lth.se/", "desc": "Sidney Dekker, Woltjer. FRAM, STAMP, résilience."},
+  {"id": "luxprovide", "name": "LuxProvide", "city": "Bissen", "country": "LU", "lat": 49.787, "lon": 6.067, "domain": "multi", "domains": ["multi", "compute"], "url": "https://luxprovide.lu/", "desc": "MeluXina HPC + AI. Host MeluXina-AI Factory."},
+  {"id": "lvnl", "name": "LVNL", "city": "Schiphol", "country": "NL", "lat": 52.31, "lon": 4.768, "domain": "aviation", "domains": ["aviation"], "url": "https://www.lvnl.nl/", "desc": "ANSP néerlandais. Partenaire SESAR. Innovation Hub Schiphol."},
+  {"id": "maastricht-cai", "name": "Maastricht UMC+ — CARRIER", "city": "Maastricht", "country": "NL", "lat": 50.844, "lon": 5.687, "domain": "health", "domains": ["health"], "url": "https://www.maastrichtuniversity.nl/", "desc": "Clinical AI decision support, eXplainable diagnostics, prevention."},
+  {"id": "malardalen", "name": "Mälardalen Univ. — IDT", "city": "Västerås", "country": "SE", "lat": 59.61, "lon": 16.544, "domain": "aviation", "domains": ["aviation"], "url": "https://www.mdu.se/", "desc": "Coord. ARTIMATION. XAI + storytelling pour ATM."},
+  {"id": "massterly", "name": "Massterly — Shore Control Centre", "city": "Horten", "country": "NO", "lat": 59.417, "lon": 10.483, "domain": "maritime", "domains": ["maritime", "xai", "multi"], "url": "https://www.massterly.com/", "desc": "World-leading shore-based Remote Operations Centre where an operator monitors and controls autonomous vessels (including Yara Birkeland) across navigation, maintenance and safety."},
+  {"id": "maynooth-ais", "name": "Maynooth Univ. — AISG", "city": "Maynooth", "country": "IE", "lat": 53.385, "lon": -6.601, "domain": "aviation", "domains": ["aviation"], "url": "https://www.maynoothuniversity.ie/", "desc": "AI & Sociotechnical Group. Coord. MAHALO. Hybrid AI tactical ATC."},
+  {"id": "mpi-cogeng", "name": "MPI Bio. Cybernetics — Cog. Eng.", "city": "Tübingen", "country": "DE", "lat": 48.521, "lon": 9.057, "domain": "multi", "domains": ["multi", "hf"], "url": "https://www.kyb.tuebingen.mpg.de/", "desc": "HMI optimization, modélisation cognitive."},
+  {"id": "nask", "name": "NASK — National Research Institute", "city": "Warsaw", "country": "PL", "lat": 52.213, "lon": 21.011, "domain": "telecom", "domains": ["multi", "telecom", "xai"], "url": "https://en.nask.pl/", "desc": "Polish national cybersecurity/CERT body applying ML to ICS/IoT and critical-infrastructure threat detection feeding human incident-response analysts."},
+  {"id": "national-gas-uk", "name": "National Gas — AI Route Planning & FutureGrid", "city": "Warwick", "country": "UK", "lat": 52.282, "lon": -1.585, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.nationalgas.com/", "desc": "AI ranks millions of pipeline-routing options against engineering/environmental/cost criteria for human planners; FutureGrid tests the network for hydrogen."},
+  {"id": "nats-rd", "name": "NATS — Research & Development", "city": "Whiteley", "country": "UK", "lat": 50.853, "lon": -1.259, "domain": "aviation", "domains": ["aviation", "multi"], "url": "https://www.nats.aero/about-us/research/", "desc": "R&D arm of the UK air navigation service provider. Co-runs Project Bluebird and an airspace digital twin, framing AI as decision support for controllers on the operations floor."},
+  {"id": "nav-portugal", "name": "NAV Portugal", "city": "Lisboa", "country": "PT", "lat": 38.722, "lon": -9.139, "domain": "aviation", "domains": ["aviation"], "url": "https://www.nav.pt/", "desc": "Air navigation services. Partenaire AI4RealNet."},
+  {"id": "naviair", "name": "Naviair", "city": "Copenhague", "country": "DK", "lat": 55.617, "lon": 12.656, "domain": "aviation", "domains": ["aviation"], "url": "https://www.naviair.dk/", "desc": "ANSP danois. Partenaire HAIKU. Digital tower + AI assistance."},
+  {"id": "neso", "name": "NESO — National Energy System Operator", "city": "Wokingham", "country": "UK", "lat": 51.411, "lon": -0.834, "domain": "energy", "domains": ["energy", "multi"], "url": "https://www.neso.energy/", "desc": "UK public electricity system operator (independent since 1 Oct 2024). Its control-room programme uses adaptive AI for forecasting, optimised dispatch and operator situational awareness while balancing the grid."},
+  {"id": "network-rail-digital", "name": "Network Rail — Digital Railway", "city": "Milton Keynes", "country": "UK", "lat": 52.04, "lon": -0.76, "domain": "rail", "domains": ["rail", "multi"], "url": "https://www.networkrail.co.uk/", "desc": "National rail infrastructure manager deploying automated traffic-management and AI tools that support (not replace) signallers and controllers in slot allocation and traffic control."},
+  {"id": "nlr-mosaic", "name": "NLR — Mosaic Lab", "city": "Amsterdam", "country": "NL", "lat": 52.314, "lon": 4.94, "domain": "aviation", "domains": ["multi", "aviation", "hf", "simulation"], "url": "https://www.nlr.org/", "desc": "Royal Netherlands Aerospace Centre. Multi-cockpit + ATC simulator. HAI évaluation pilotes/contrôleurs."},
+  {"id": "nokia-bell-be", "name": "Nokia Bell Labs Antwerp", "city": "Anvers", "country": "BE", "lat": 51.184, "lon": 4.401, "domain": "telecom", "domains": ["telecom"], "url": "https://www.bell-labs.com/", "desc": "Network AI / autonomous networks. AIOps pour 5G/6G. Centre Bell Labs Belgique."},
+  {"id": "nokia-bell-de", "name": "Nokia Bell Labs Stuttgart", "city": "Stuttgart", "country": "DE", "lat": 48.794, "lon": 9.182, "domain": "telecom", "domains": ["telecom"], "url": "https://www.bell-labs.com/", "desc": "Wireless + AI research. Self-organising networks."},
+  {"id": "nottingham-hfrg", "name": "Human Factors Research Group", "city": "Nottingham", "country": "UK", "lat": 52.939, "lon": -1.197, "domain": "manufacturing", "domains": ["multi", "manufacturing", "hf", "xai"], "url": "https://www.nottingham.ac.uk/research/groups/human-factors-research-group/", "desc": "Long-standing human factors group (with the Cobot Maker Space) researching human-autonomy teaming, real-time trust inference and adjustable autonomy in safety-critical contexts."},
+  {"id": "npl-ai-measurement", "name": "NPL — Centre for AI Measurement", "city": "Teddington", "country": "UK", "lat": 51.425, "lon": -0.345, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.npl.co.uk/research/data-science-and-ai/trustworthy-ai", "desc": "UK metrology centre (launched Jan 2026) building measurement-based AI assurance — uncertainty, interpretability and evaluation — for trustworthy AI in safety-critical use."},
+  {"id": "ntnu-csl", "name": "NTNU — Cyber Security Lab + AMOS Marine", "city": "Trondheim", "country": "NO", "lat": 63.419, "lon": 10.402, "domain": "transport", "domains": ["multi", "transport", "simulation"], "url": "https://www.ntnu.edu/amos", "desc": "Marine + offshore + cyber-physical sim. AMOS Centre + maritime full-bridge simulators. Coupé DIALOG ANSP work."},
+  {"id": "ofai-vienna", "name": "OFAI — Austrian Research Institute for Artificial Intelligence", "city": "Vienna", "country": "AT", "lat": 48.2082, "lon": 16.3738, "domain": "manufacturing", "domains": ["manufacturing", "multi", "hf"], "url": "https://www.ofai.at/", "desc": "OFAI is one of Europe's oldest AI research institutes. 35+ years of research on human-computer and human-robot interaction, dialogue systems, embodied artificial agents that interpret and learn from human behavior. Active in industrial / robotic settings."},
+  {"id": "onera-dtis", "name": "ONERA — DTIS", "city": "Toulouse", "country": "FR", "lat": 43.567, "lon": 1.472, "domain": "aviation", "domains": ["aviation", "defense"], "url": "https://www.onera.fr/en", "desc": "Autonomous systems, tele-operation, multi-robot, BVLOS UAS."},
+  {"id": "orange-innov", "name": "Orange Innovation", "city": "Châtillon", "country": "FR", "lat": 48.808, "lon": 2.298, "domain": "telecom", "domains": ["telecom"], "url": "https://hellofuture.orange.com/", "desc": "Network AI, AIOps, IA générative pour SI. Sites Châtillon + Lannion + Belfort."},
+  {"id": "pansa-utm", "name": "PANSA — PansaUTM / U-space", "city": "Warsaw", "country": "PL", "lat": 52.166, "lon": 20.967, "domain": "aviation", "domains": ["aviation", "multi", "xai"], "url": "https://www.pansa.pl/en/pansautm/", "desc": "First operational European drone-flight coordination system: real-time deconfliction with a controller in the loop and non-verbal controller-drone datalink across civil and military towers."},
+  {"id": "patria", "name": "Patria — C2 & Situational Awareness", "city": "Helsinki", "country": "FI", "lat": 60.192, "lon": 24.946, "domain": "defense", "domains": ["defense", "multi"], "url": "https://www.patriagroup.com/", "desc": "Builds C2 and situational-awareness systems (real-time recognized picture) and leads the EU AI-WASP project on manned-unmanned adaptive operations."},
+  {"id": "philips-research", "name": "Philips Research", "city": "Eindhoven", "country": "NL", "lat": 51.411, "lon": 5.46, "domain": "health", "domains": ["health"], "url": "https://www.philips.com/a-w/research/home.html", "desc": "Healthcare AI. Imaging decision support + workflow."},
+  {"id": "polimi-bio", "name": "Politecnico di Milano — Bioeng. AI", "city": "Milano", "country": "IT", "lat": 45.479, "lon": 9.227, "domain": "health", "domains": ["health"], "url": "https://www.deib.polimi.it/", "desc": "Bioengineering + AI. Coord. AI-MATTERS. Clinical AI partnerships."},
+  {"id": "port-antwerp-apica", "name": "Port of Antwerp-Bruges — APICA", "city": "Antwerp", "country": "BE", "lat": 51.26, "lon": 4.401, "domain": "maritime", "domains": ["maritime", "multi"], "url": "https://www.portofantwerpbruges.com/en", "desc": "Real-time digital-twin coordination assistant that forecasts hazards and congestion and recommends targeted actions to port operators."},
+  {"id": "port-rotterdam-dt", "name": "Port of Rotterdam — Digital Twin", "city": "Rotterdam", "country": "NL", "lat": 51.949, "lon": 4.143, "domain": "maritime", "domains": ["maritime"], "url": "https://www.portofrotterdam.com/en", "desc": "Port digital twin plus Pronto/PortXchange decision-support services for operations planning and just-in-time vessel calls."},
+  {"id": "profactor", "name": "Profactor — Industrial Assistive Systems", "city": "Steyr", "country": "AT", "lat": 48.038, "lon": 14.418, "domain": "manufacturing", "domains": ["manufacturing", "hf"], "url": "https://www.profactor.at/en/research/", "desc": "Industrial assistance systems fusing human expertise with machine perception and cognition for safe, ergonomic human-robot collaboration (DrapeBot, FELICE)."},
+  {"id": "qinetiq-hmt", "name": "QinetiQ — Human-Machine Teaming", "city": "Farnborough", "country": "UK", "lat": 51.275, "lon": -0.76, "domain": "defense", "domains": ["defense", "multi", "xai"], "url": "https://www.qinetiq.com/", "desc": "Develops adjustable-autonomy and AI decision-support concepts letting a few operators task and supervise uncrewed systems; ran a European-first crewed-uncrewed teaming trial."},
+  {"id": "radboud", "name": "Radboud University", "city": "Nijmegen", "country": "NL", "lat": 51.819, "lon": 5.866, "domain": "aviation", "domains": ["aviation"], "url": "https://www.ru.nl/en", "desc": "Cognition / décision. Partenaire DIALOG."},
+  {"id": "ree", "name": "Red Eléctrica de España", "city": "Madrid", "country": "ES", "lat": 40.417, "lon": -3.703, "domain": "energy", "domains": ["energy"], "url": "https://www.ree.es/en", "desc": "TSO espagnol. Partenaire TwinEU."},
+  {"id": "roke", "name": "Roke Manor Research — STARTLE", "city": "Romsey", "country": "UK", "lat": 50.989, "lon": -1.498, "domain": "defense", "domains": ["defense", "multi"], "url": "https://www.roke.co.uk/", "desc": "AI/ISR sensing (STARTLE) recognises threat-behaviour patterns and cues/confirms threats to the officer-in-charge for rapid human decision."},
+  {"id": "romatsa-remote-tower", "name": "ROMATSA — Remote Digital Tower", "city": "Bucharest", "country": "RO", "lat": 44.572, "lon": 26.085, "domain": "aviation", "domains": ["aviation", "multi", "xai"], "url": "https://www.romatsa.ro/en/", "desc": "South-East Europe’s first remote/virtual tower (controlling Brașov from ~450 km), keeping controllers in the loop via digitalized situational displays."},
+  {"id": "rte-rd-grid-ai", "name": "RTE — R&D Grid AI (Réseau de Transport d'Électricité)", "city": "Paris (La Défense)", "country": "FR", "lat": 48.8924, "lon": 2.2381, "domain": "energy", "domains": ["energy", "multi"], "url": "http://opensource.rte-france.com/", "desc": "RTE's R&D Grid AI team runs the Grid2op ecosystem — the European reference RL benchmark for power grid operation — together with L2RPN competitions, Grid2game (human-as-agent) and LearningToAlert (AI suggests alerts to operator). Industrial partner of AI4RealNet, AI-EFFECT, InteractiveAI."},
+  {"id": "rwth-acs", "name": "RWTH Aachen — E.ON ERC, Advanced Control Systems (ACS)", "city": "Aachen", "country": "DE", "lat": 50.7753, "lon": 6.0839, "domain": "energy", "domains": ["energy", "xai"], "url": "https://www.acs.eonerc.rwth-aachen.de/", "desc": "RWTH Aachen's Advanced Control Systems group at the E.ON Energy Research Center develops the VILLAS framework for distributed real-time co-simulation of power systems. Leads testing infrastructure (WP2) of AI-EFFECT and is partner of TwinEU. Strong on hardware-in-the-loop validation that supports HA"},
+  {"id": "rwth-iaw-coop-hms", "name": "RWTH Aachen — IAW Cooperative Human-Machine Systems", "city": "Aachen", "country": "DE", "lat": 50.7753, "lon": 6.0839, "domain": "manufacturing", "domains": ["manufacturing", "transport", "multi", "hf"], "url": "https://www.iaw.rwth-aachen.de/cms/IAW/Forschung/Forschungsfelder/Systemergonomie/~pbckk/Kooperative-Mensch-Maschine-Systeme/", "desc": "IAW's Cooperative Human-Machine Systems group at RWTH Aachen studies holistic design of cooperative HMS — interaction patterns, intent mediation between operators and co-automation in tactical/operational modes. Applications in Industry 4.0 and partially automated driving."},
+  {"id": "sbb", "name": "SBB — Innovation Lab", "city": "Berne", "country": "CH", "lat": 46.948, "lon": 7.447, "domain": "rail", "domains": ["rail"], "url": "https://www.sbb.ch/", "desc": "Co-fondateur Flatland. Partenaire AI4RealNet."},
+  {"id": "schneider-ai", "name": "Schneider Electric — AI Hub", "city": "Grenoble", "country": "FR", "lat": 45.187, "lon": 5.726, "domain": "manufacturing", "domains": ["manufacturing", "energy", "multi"], "url": "https://www.se.com/", "desc": "EcoStruxure + AI. Decision support énergie + water + buildings + industrie."},
+  {"id": "seafar", "name": "Seafar", "city": "Antwerp", "country": "BE", "lat": 51.221, "lon": 4.401, "domain": "maritime", "domains": ["maritime", "xai", "multi"], "url": "https://seafar.eu/", "desc": "Operates a Shore Control Centre for semi-autonomous inland and coastal vessels — one shore operator monitors and controls multiple ships via sensor feeds."},
+  {"id": "siemens-ct", "name": "Siemens — Technology", "city": "Munich", "country": "DE", "lat": 48.169, "lon": 11.585, "domain": "manufacturing", "domains": ["manufacturing", "rail", "energy"], "url": "https://www.siemens.com/global/en/company/innovation.html", "desc": "Industrial Edge + Industrial Copilot. AI dans cockpits opérateurs (rail, énergie, factory)."},
+  {"id": "sintef-digipro", "name": "SINTEF — Process Digitalisation (DigiPro)", "city": "Trondheim", "country": "NO", "lat": 63.43, "lon": 10.395, "domain": "manufacturing", "domains": ["manufacturing", "multi"], "url": "https://www.sintef.no/en/", "desc": "National hub for process-industry digitalisation building digital twins for real-time prediction, control and operator decision-making in process plants."},
+  {"id": "sintef-hf", "name": "SINTEF — Human Factors in Control (HFC)", "city": "Trondheim", "country": "NO", "lat": 63.4305, "lon": 10.3951, "domain": "aviation", "domains": ["aviation", "maritime", "multi", "hf", "xai"], "url": "https://www.sintef.no/en/expert-list/sintef-technology-and-society/human-factors/", "desc": "SINTEF's Human Factors group runs the long-standing HFC (Human Factors in Control) network and coordinates the SESAR 3 DIALOG project on human-AI collaboration in air traffic control. Research themes include sensemaking in safety-critical systems, meaningful human control over autonomous systems, an"},
+  {"id": "sintef-ocean", "name": "SINTEF Ocean — Autonomous-ship Decision Support", "city": "Trondheim", "country": "NO", "lat": 63.435, "lon": 10.412, "domain": "maritime", "domains": ["maritime", "xai"], "url": "https://www.sintef.no/en/ocean/", "desc": "Develops operator-support frameworks and decision-support tools keeping humans in the loop for autonomous ships run from Onshore Operation Centers."},
+  {"id": "skyguide", "name": "skyguide", "city": "Genève", "country": "CH", "lat": 46.226, "lon": 6.11, "domain": "aviation", "domains": ["aviation"], "url": "https://www.skyguide.ch/", "desc": "ANSP suisse. AI@skyguide programme. Trajectory prediction + complexity."},
+  {"id": "slovak-tech", "name": "Slovak Univ. of Technology", "city": "Bratislava", "country": "SK", "lat": 48.149, "lon": 17.107, "domain": "aviation", "domains": ["aviation"], "url": "https://www.stuba.sk/", "desc": "Coord. AISA. Single-pilot AI Situational Awareness."},
+  {"id": "snam", "name": "Snam", "city": "Milano", "country": "IT", "lat": 45.481, "lon": 9.124, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.snam.it/", "desc": "TSO gaz italien. Hub gaz européen. AI maintenance prédictive + dispatch."},
+  {"id": "sncf-ir", "name": "SNCF — Innovation & Recherche", "city": "Paris", "country": "FR", "lat": 48.856, "lon": 2.352, "domain": "rail", "domains": ["rail"], "url": "https://www.sncf.com/", "desc": "Co-fondateur Flatland. Partenaire InteractiveAI."},
+  {"id": "solent-warsash-mass", "name": "Warsash MASS Research Centre", "city": "Southampton", "country": "UK", "lat": 50.903, "lon": -1.404, "domain": "maritime", "domains": ["maritime", "hf"], "url": "https://www.solent.ac.uk/research/research-areas/environment-and-engineering/warsash-maritime-autonomous-surface-ships-mass-research-centre", "desc": "Researches the human elements of working in tandem with smart ships and ports using the UK’s largest maritime simulation centre."},
+  {"id": "southampton-cmi", "name": "Centre for Machine Intelligence", "city": "Southampton", "country": "UK", "lat": 50.937, "lon": -1.396, "domain": "maritime", "domains": ["maritime", "multi", "hf", "xai"], "url": "https://www.cmi.ecs.soton.ac.uk/", "desc": "Researches human-in-the-loop teaming, resilient trust in human-machine teaming and explainable AI for maritime autonomous-ship decision support and remote control centres."},
+  {"id": "suez-smart", "name": "SUEZ Smart Solutions", "city": "Paris", "country": "FR", "lat": 48.886, "lon": 2.244, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.smartsolutions.suez.com/", "desc": "Aquadvanced (eau) + Optimal (déchets). PC opérateur AI-augmenté."},
+  {"id": "surf", "name": "SURF", "city": "Amsterdam", "country": "NL", "lat": 52.357, "lon": 4.955, "domain": "multi", "domains": ["multi", "compute"], "url": "https://www.surf.nl/", "desc": "Snellius supercomputer. National compute Pays-Bas. Partenaire LUMI-AI."},
+  {"id": "sztaki-emi", "name": "HUN-REN SZTAKI — Production Informatics", "city": "Budapest", "country": "HU", "lat": 47.479, "lon": 19.057, "domain": "manufacturing", "domains": ["manufacturing", "transport"], "url": "https://sztaki.hun-ren.hu/en", "desc": "Digital-twin and AI for manufacturing and process control with a collaborative-assembly (human-robot) pilot lab and engineering-decision focus."},
+  {"id": "taltech-maritime-cyber", "name": "TalTech — Maritime Cyber Security & Autonomous Systems", "city": "Tallinn", "country": "EE", "lat": 59.395, "lon": 24.665, "domain": "maritime", "domains": ["maritime", "multi", "xai"], "url": "https://taltech.ee/en/", "desc": "ERA-Chair Centre for Maritime Cyber Security plus safety-assurance of critical autonomous systems and autonomous-vessel research with a human-oversight focus."},
+  {"id": "tampere-automation", "name": "Tampere University — Automation Science & Engineering", "city": "Tampere", "country": "FI", "lat": 61.45, "lon": 23.857, "domain": "manufacturing", "domains": ["manufacturing", "multi", "hf"], "url": "https://www.tuni.fi/en/research/process-automation", "desc": "Research on interactive human-machine collaboration, operator monitoring/safety and model-based control where human operators still monitor automated processes."},
+  {"id": "telefonica-rd", "name": "Telefónica Innovation", "city": "Madrid", "country": "ES", "lat": 40.453, "lon": -3.7, "domain": "telecom", "domains": ["telecom"], "url": "https://www.telefonica.com/innovation/", "desc": "TID Innovation. Network AI, fraud detection, network ops digital twins."},
+  {"id": "tennet", "name": "TenneT TSO", "city": "Arnhem", "country": "NL", "lat": 51.985, "lon": 5.899, "domain": "energy", "domains": ["energy"], "url": "https://www.tennet.eu/", "desc": "TSO néerlandais. Partenaire AI4RealNet, AI-EFFECT, TwinEU."},
+  {"id": "terega", "name": "Teréga — IMPULSE Digital Twin", "city": "Pau", "country": "FR", "lat": 43.295, "lon": -0.371, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.terega.fr/en/", "desc": "Cloud digital twin + field data collection underpins an intelligent multi-energy transport network, giving operators applications built on live grid data."},
+  {"id": "thales-cortaix", "name": "Thales — cortAIx", "city": "Palaiseau", "country": "FR", "lat": 48.715, "lon": 2.234, "domain": "defense", "domains": ["defense", "multi", "aviation", "transport", "energy"], "url": "https://www.thalesgroup.com/", "desc": "Center of Excellence AI. Defense, aviation, transport, identity. Decision systems critiques."},
+  {"id": "thames-water", "name": "Thames Water — AI Leak Detection", "city": "London", "country": "UK", "lat": 51.507, "lon": -0.128, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.thameswater.co.uk/", "desc": "Operationalised AI satellite + acoustic leak detection feeds the leakage team a prioritised list of pinpointed leaks for field crews to act on."},
+  {"id": "tim-research", "name": "TIM — Innovation", "city": "Torino", "country": "IT", "lat": 45.071, "lon": 7.66, "domain": "telecom", "domains": ["telecom"], "url": "https://www.gruppotim.it/", "desc": "Network AIOps. Olivetti AI Center liaison. Italian critical comms."},
+  {"id": "tno-hmt", "name": "TNO — Human-Machine Teaming", "city": "The Hague", "country": "NL", "lat": 52.078, "lon": 4.33, "domain": "defense", "domains": ["defense", "multi", "xai"], "url": "https://www.tno.nl/en/", "desc": "Dedicated Human-Machine Teaming department (Human-AI-Robot-Teaming) leading the NL MoD HMT programme and chairing a NATO group on meaningful human control."},
+  {"id": "tno-transport", "name": "TNO — Smart Mobility", "city": "Helmond", "country": "NL", "lat": 51.481, "lon": 5.661, "domain": "transport", "domains": ["transport"], "url": "https://www.tno.nl/", "desc": "Connected & automated driving. Traffic management AI."},
+  {"id": "transelectrica-smartgrid", "name": "Transelectrica — Smart Grid / SCADA", "city": "Bucharest", "country": "RO", "lat": 44.435, "lon": 26.103, "domain": "energy", "domains": ["energy"], "url": "https://www.transelectrica.ro/en/", "desc": "Romanian TSO modernizing EMS/SCADA with AI-driven forecasting and digital substations, with a joint SCADA training lab at Politehnica Bucharest."},
+  {"id": "tu-berlin-dai", "name": "TU Berlin — DAI-Labor", "city": "Berlin", "country": "DE", "lat": 52.52, "lon": 13.405, "domain": "multi", "domains": ["multi"], "url": "https://dai-labor.de/", "desc": "Prof. Albayrak. Agents distribués. Industrial automation."},
+  {"id": "tu-dortmund-ie3", "name": "TU Dortmund — IE3", "city": "Dortmund", "country": "DE", "lat": 51.514, "lon": 7.465, "domain": "energy", "domains": ["energy"], "url": "https://www.ie3.tu-dortmund.de/", "desc": "Power systems digital twin. Partenaire TwinEU."},
+  {"id": "tudelft-cns-atm", "name": "TU Delft — CNS/ATM", "city": "Delft", "country": "NL", "lat": 52.002, "lon": 4.374, "domain": "aviation", "domains": ["aviation"], "url": "https://cs.lr.tudelft.nl/atm/", "desc": "Maintainer BlueSky. Prof. Hoekstra. Multi-agent RL en ATM."},
+  {"id": "tudortmund-trust", "name": "TU Dortmund — Research Center Trustworthy Data Science & Security", "city": "Dortmund", "country": "DE", "lat": 51.5136, "lon": 7.4653, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.tu-dortmund.de/", "desc": "TU Dortmund's Research Center Trustworthy Data Science and Security studies trust calibration in explainable AI for safety-critical applications, uncertainty awareness, and the Trust Calibration Maturity Model. Adjacent to TU Dortmund IE3 which is partner of TwinEU."},
+  {"id": "tum-mirmi", "name": "TUM — MIRMI", "city": "Munich", "country": "DE", "lat": 48.135, "lon": 11.582, "domain": "multi", "domains": ["multi"], "url": "https://www.mirmi.tum.de/", "desc": "Robotics + ML. AI in Society programme."},
+  {"id": "tzw-dvgw", "name": "TZW — DVGW Water Technology Centre", "city": "Karlsruhe", "country": "DE", "lat": 49.007, "lon": 8.404, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.tzw.de/en/", "desc": "R&D on AI, smart control and decision management (predictive/network analytics, IoT sensing) for water suppliers’ operations."},
+  {"id": "uisce-eireann", "name": "Uisce Éireann — Leakage AI", "city": "Dublin", "country": "IE", "lat": 53.35, "lon": -6.26, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.water.ie/", "desc": "Acoustic + AI analytics on thousands of km of trunk mains give network operators faster, better-informed leak-repair prioritisation."},
+  {"id": "unikassel", "name": "Univ. Kassel — Power Systems", "city": "Kassel", "country": "DE", "lat": 51.318, "lon": 9.493, "domain": "energy", "domains": ["energy"], "url": "https://www.uni-kassel.de/", "desc": "Sustainable Electrical Energy Systems. AI4RealNet."},
+  {"id": "uppsala-hmi", "name": "Uppsala — HMI / HTO", "city": "Uppsala", "country": "SE", "lat": 59.858, "lon": 17.638, "domain": "multi", "domains": ["multi", "hf"], "url": "https://www.uu.se/en/", "desc": "Anders Arweström Jansson. Workplace tech, transport, healthcare."},
+  {"id": "veolia-rd", "name": "Veolia — R&I", "city": "Maisons-Laffitte", "country": "FR", "lat": 48.948, "lon": 2.144, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.veolia.com/en/innovation", "desc": "Eau, déchets, énergie. Hubgrade centres de pilotage à distance."},
+  {"id": "vinci-auto", "name": "VINCI Autoroutes", "city": "Rueil-Malmaison", "country": "FR", "lat": 48.879, "lon": 2.18, "domain": "transport", "domains": ["transport"], "url": "https://corporate.vinci-autoroutes.com/", "desc": "Concessionnaire. PC trafic + IA détection incidents."},
+  {"id": "vitens", "name": "Vitens — INFRA2025 Digital Twins", "city": "Leeuwarden", "country": "NL", "lat": 53.201, "lon": 5.8, "domain": "utility", "domains": ["utility", "multi"], "url": "https://www.vitens.nl/", "desc": "Control-centre digital twins (OPIR/SLIMM) let operators pre-compute scenarios and water-quality/demand predictions before emergencies."},
+  {"id": "vti", "name": "VTI — Swedish Road & Transport", "city": "Linköping", "country": "SE", "lat": 58.397, "lon": 15.575, "domain": "transport", "domains": ["transport"], "url": "https://www.vti.se/", "desc": "Centre national recherche transport. Simulateurs + HF véhicules + traffic ops."},
+  {"id": "vtt-nuclear-hf", "name": "VTT — Nuclear Safety & Human Factors", "city": "Espoo", "country": "FI", "lat": 60.181, "lon": 24.829, "domain": "nuclear", "domains": ["nuclear", "multi", "hf", "xai"], "url": "https://www.vttresearch.com/en/ourservices/nuclear-newbuilds", "desc": "Technical support body to the Finnish nuclear regulator; ran integrated control-room validation of OL3’s fully digital HMI and operator-crew safety studies."},
+  {"id": "wartsila-voyage", "name": "Wärtsilä Voyage — Smart Marine / Smart Autonomy", "city": "Helsinki", "country": "FI", "lat": 60.169, "lon": 24.938, "domain": "maritime", "domains": ["maritime", "multi"], "url": "https://www.wartsila.com/marine/products/marine-navigation-solutions", "desc": "Uses AI for situational awareness and on-bridge or ashore decision support (anti-collision, assisted docking) with the crew retaining decision authority."},
+  {"id": "wendy-mackay-human-ai-collaboration", "name": "Human-AI Collaboration Lab (Wendy Mackay Group)", "city": "Saclay", "country": "FR", "lat": 48.711, "lon": 2.167, "domain": "multi", "domains": ["multi", "hf", "xai"], "url": "https://www.lisn.upsaclay.fr/research/research-departments/interaction-with-human/", "desc": "This lab is a pioneer in Human-Computer Interaction (HCI), focusing on the complex dynamics of Human-Computer Partnerships. The research revolutionizes how AI is perceived and integrated into interactive systems, moving beyond simple automation to true partnership.  Key areas include developing user"},
+  {"id": "wmu", "name": "World Maritime University", "city": "Malmö", "country": "SE", "lat": 55.614, "lon": 12.99, "domain": "maritime", "domains": ["maritime", "hf", "xai"], "url": "https://www.wmu.se/", "desc": "Researches the human element of autonomous ships — operator skills, monitoring roles and maritime education for supervised autonomous operations."},
+  {"id": "zhaw-cai", "name": "ZHAW — CAI", "city": "Winterthur", "country": "CH", "lat": 47.498, "lon": 8.724, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.zhaw.ch/cai", "desc": "Trustworthy AI, decision support. Partenaire AI4RealNet."},
+  {"id": "amrc-sheffield", "name": "AMRC — Advanced Manufacturing Research Centre", "city": "Sheffield", "country": "UK", "lat": 53.38, "lon": -1.47, "domain": "simulation", "domains": ["simulation", "manufacturing", "hf"], "url": "https://www.amrc.co.uk/", "desc": "Develops cobotic workstations and operator-recognition systems that keep humans making strategic decisions while delegating repetitive tasks, tested on real production lines."},
+  {"id": "bsc-ai", "name": "BSC AI Factory", "city": "Barcelona", "country": "ES", "lat": 41.389, "lon": 2.114, "domain": "compute", "domains": ["compute", "multi", "energy", "health"], "url": "https://www.bsc.es/", "desc": "AI Factory au Barcelona Supercomputing Center. MareNostrum 5 + GPU partition. AI for energy/climate/health."},
+  {"id": "eurohpc-ju", "name": "EuroHPC Joint Undertaking", "city": "Luxembourg City", "country": "LU", "lat": 49.6116, "lon": 6.1319, "domain": "cluster", "domains": ["cluster", "multi"], "url": "https://eurohpc-ju.europa.eu/", "desc": "The EuroHPC Joint Undertaking is the European public-private body that pools resources from the EU, member states, and private partners to procure and operate world-class supercomputers (LUMI, Leonardo, MareNostrum 5, JUPITER, …). Beyond the iron, EuroHPC sets access policies via peer-reviewed calls"},
+  {"id": "hartree-centre", "name": "Hartree Centre", "city": "Daresbury", "country": "UK", "lat": 53.347, "lon": -2.641, "domain": "compute", "domains": ["compute", "multi"], "url": "https://www.hartree.stfc.ac.uk/", "desc": "UK industry-facing supercomputing centre building AI and digital twins of grids, telecoms and water networks for real-time climate-resilience decision optimisation."},
+  {"id": "ife-halden-hto", "name": "IFE Halden — HAMMLAB / OECD NEA Halden HTO", "city": "Halden", "country": "NO", "lat": 59.129, "lon": 11.388, "domain": "simulation", "domains": ["simulation", "nuclear", "energy", "multi", "hf", "xai"], "url": "https://ife.no/en/halden-human-technology-organisation-hto/", "desc": "World-renowned nuclear control-room human-factors lab: HAMMLAB hosts three full-scale NPP control-room research simulators. Studies operator performance, human-automation interaction, alarms and computerized procedures under the OECD NEA Halden HTO Project."},
+  {"id": "it4lia", "name": "IT4LIA AI Factory", "city": "Bologna", "country": "IT", "lat": 44.519, "lon": 11.331, "domain": "compute", "domains": ["compute", "multi", "health", "manufacturing", "energy"], "url": "https://www.eurohpc-ju.europa.eu/", "desc": "AI Factory hébergée par CINECA Italie. GPU cluster pour PMI/recherche. 1 des 13 AI Factories EuroHPC."},
+  {"id": "jupiter-ai", "name": "JUPITER AI Factory", "city": "Jülich", "country": "DE", "lat": 50.911, "lon": 6.413, "domain": "compute", "domains": ["compute", "multi", "health", "energy", "manufacturing"], "url": "https://www.fz-juelich.de/jsc", "desc": "AI Factory au Jülich Supercomputing Centre. JUPITER exascale system. GenAI4EU + EuroHPC."},
+  {"id": "lumi-ai", "name": "LUMI AI Factory", "city": "Kajaani", "country": "FI", "lat": 64.226, "lon": 27.728, "domain": "compute", "domains": ["compute", "multi", "health", "telecom"], "url": "https://www.lumi-supercomputer.eu/", "desc": "AI Factory consortium 11 pays. LUMI hébergé par CSC Finland. Coopération nordique + Bénélux."},
+  {"id": "lumi-supercomputer", "name": "LUMI — EuroHPC pre-exascale system", "city": "Kajaani", "country": "FI", "lat": 64.2273, "lon": 27.7285, "domain": "compute", "domains": ["compute", "multi"], "url": "https://www.lumi-supercomputer.eu/", "desc": "LUMI is one of the EuroHPC Joint Undertaking's pre-exascale systems, hosted by the LUMI consortium of 11 European countries at CSC's data centre in Kajaani, Finland. It serves European public-sector research, including AI training workloads — both via standard EuroHPC calls and the dedicated EuroHPC"},
+  {"id": "marin", "name": "MARIN — Maritime Research Institute Netherlands", "city": "Wageningen", "country": "NL", "lat": 51.969, "lon": 5.665, "domain": "simulation", "domains": ["simulation", "maritime", "hf"], "url": "https://www.marin.nl/en", "desc": "Full-mission bridge simulators studying operator performance and human-machine interfacing for autonomous-ship testing and safety-critical decision-making."},
+  {"id": "meluxina-ai", "name": "MeluXina-AI Factory", "city": "Bissen", "country": "LU", "lat": 49.787, "lon": 6.067, "domain": "compute", "domains": ["compute", "multi", "manufacturing", "telecom"], "url": "https://luxprovide.lu/", "desc": "AI Factory hébergée par LuxProvide. Cluster MeluXina-AI. Focus PMI + secteur public."},
+  {"id": "psnc", "name": "PSNC — Poznań Supercomputing & Networking Center", "city": "Poznań", "country": "PL", "lat": 52.408, "lon": 16.931, "domain": "compute", "domains": ["compute", "energy", "multi"], "url": "https://www.psnc.pl", "desc": "Runs the PIAST AI factory and a Digital-Twin Lab for the regional energy transition, supporting planning and decision-making."},
+  {"id": "strathclyde-pndc", "name": "PNDC — Power Networks Demonstration Centre", "city": "Glasgow", "country": "UK", "lat": 55.945, "lon": -3.992, "domain": "simulation", "domains": ["simulation", "energy"], "url": "https://pndc.co.uk/", "desc": "Live HV/LV grid testbed where novel monitoring/control and operator decision-support techniques for future smart grids are trialled before utility adoption."},
+];
+
+// Methodological frameworks used by HAI teams/projects for expert decision-making.
+// Each framework is anchored at its primary European reference institution.
+const FRAMEWORKS = [
+  {"id": "amlas", "name": "AMLAS — Assurance of ML for Autonomous Systems", "city": "York", "country": "UK", "lat": 53.946, "lon": -1.052, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.york.ac.uk/assuring-autonomy/guidance/amlas/", "desc": "Safety-case patterns plus a six-stage process to assure the ML components of autonomous systems.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "cab-framework", "name": "CAB — Cockpit & Bidirectional Assistant", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "energy", "domains": ["multi", "energy", "rail", "aviation", "telecom", "xai"], "url": "https://github.com/IRT-SystemX/InteractiveAI", "desc": "IRT SystemX. Cadre interaction bidirectionnelle humain ↔ assistant IA pour systèmes industriels.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "cwa", "name": "Cognitive Work Analysis (CWA)", "city": "Delft", "country": "NL", "lat": 52.002, "lon": 4.374, "domain": "multi", "domains": ["multi", "hf"], "url": "https://en.wikipedia.org/wiki/Cognitive_work_analysis", "desc": "Vicente. Analyse design sociotechnique : domaines, tâches, stratégies, social, compétences.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "easa-ai-cp", "name": "EASA AI Concept Paper L1/L2/L3", "city": "Cologne", "country": "DE", "lat": 50.937, "lon": 6.96, "domain": "aviation", "domains": ["aviation", "xai"], "url": "https://www.easa.europa.eu/en/document-library/general-publications/easa-artificial-intelligence-concept-paper-issue-2", "desc": "Régulateur aviation. Roadmap certification ML : niveau 1 (assistance), 2 (collaboration), 3 (autonomie).", "subSection": "standard", "createdBy": [], "usedBy": []},
+  {"id": "ecological-interface-design", "name": "Ecological Interface Design (Vicente & Rasmussen, 1992)", "city": "Roskilde", "country": "DK", "lat": 55.653, "lon": 12.085, "domain": "nuclear", "domains": ["nuclear", "multi", "hf", "xai"], "url": "https://doi.org/10.1109/21.156574", "desc": "Display-design framework (Abstraction Hierarchy plus SRK) so operators can supervise automation in complex sociotechnical systems.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "eda-trustworthy-ai", "name": "EDA — Trustworthy AI / HMT Action Plan", "city": "Brussels", "country": "BE", "lat": 50.844, "lon": 4.38, "domain": "defense", "domains": ["defense", "xai"], "url": "https://eda.europa.eu/", "desc": "EDA white paper and AI Action Plan on responsible/explainable AI requiring meaningful human control and operator-challengeable decision tools in defense.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "eocvm", "name": "EOCVM", "city": "Brétigny-sur-Orge", "country": "FR", "lat": 48.625, "lon": 2.305, "domain": "aviation", "domains": ["aviation", "hf"], "url": "https://www.eurocontrol.int/publication/european-operational-concept-validation-methodology-eocvm", "desc": "EUROCONTROL — méthodologie de validation des concepts opérationnels ATM, à toutes les phases R&D.", "subSection": "standard", "createdBy": [], "usedBy": []},
+  {"id": "eu-ai-act", "name": "EU AI Act (Regulation 2024/1689)", "city": "Bruxelles", "country": "BE", "lat": 50.844, "lon": 4.359, "domain": "health", "domains": ["multi", "health", "transport", "defense", "xai"], "url": "https://artificialintelligenceact.eu/", "desc": "The EU AI Act is the first comprehensive horizontal regulation of AI systems in the world. It introduces a risk-based classification — banning some uses, imposing strict obligations on high-risk systems (transparency, human oversight, data quality, post-market monitoring), and lighter rules for limi", "subSection": "regulation", "createdBy": [], "usedBy": []},
+  {"id": "fram", "name": "FRAM (Functional Resonance Analysis Method)", "city": "Lund", "country": "SE", "lat": 55.712, "lon": 13.191, "domain": "multi", "domains": ["multi", "hf", "xai"], "url": "https://functionalresonance.com/", "desc": "Hollnagel. Modélisation systèmes sociotechniques complexes en variabilité fonctionnelle.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "generative-theories", "name": "Generative Theories of Interaction", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "multi", "domains": ["multi", "hf"], "url": "https://exsitu.lri.fr/publications/2017/generative-theories-of-interaction/", "desc": "Beaudouin-Lafon, Bødker & Mackay. Théories génératives : décrire + expliquer + créer. Pivot pour partenariats humain-IA.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "hcai", "name": "Human-Centered AI (Shneiderman)", "city": "Saarbrücken", "country": "DE", "lat": 49.235, "lon": 6.996, "domain": "multi", "domains": ["multi", "hf", "xai"], "url": "https://hcil.umd.edu/human-centered-ai-book/", "desc": "Shneiderman. 2x2 contrôle humain/automation. Référence design HAI.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "hcp", "name": "Human-Computer Partnerships", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "multi", "domains": ["multi", "hf"], "url": "https://exsitu.lri.fr/research/human-computer-partnerships/", "desc": "Wendy Mackay (Inria). L'IA comme partenaire négocié plutôt qu'outil ou agent autonome. Co-adaptation, contrôle réciproque.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "hyp-driven", "name": "Hypothesis-Driven Decision Support", "city": "Stuttgart", "country": "DE", "lat": 48.776, "lon": 9.183, "domain": "multi", "domains": ["multi", "xai", "hf"], "url": "https://arxiv.org/abs/2302.12389", "desc": "Miller, Streule et al. XAI redéfini : l'IA propose des hypothèses, le décideur évalue.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "instrumental", "name": "Instrumental Interaction", "city": "Saclay", "country": "FR", "lat": 48.715, "lon": 2.165, "domain": "multi", "domains": ["multi", "hf"], "url": "https://www.lri.fr/~mbl/INSITU/instrumental.pdf", "desc": "Michel Beaudouin-Lafon. Modèle d'interaction par instruments réifiés. Manipulation directe étendue.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "ironies", "name": "Ironies of Automation (Bainbridge)", "city": "Lund", "country": "SE", "lat": 55.712, "lon": 13.191, "domain": "multi", "domains": ["multi", "hf"], "url": "https://www.complexcognition.co.uk/papers/Bainbridge_1983.pdf", "desc": "Bainbridge 1983. Plus l'automation est forte, plus le rôle humain devient critique en cas de défaillance. Classique.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "iso-iec-42001", "name": "ISO/IEC 42001:2023 — AI management systems", "city": "Geneva", "country": "CH", "lat": 46.225, "lon": 6.139, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.iso.org/standard/81230.html", "desc": "ISO/IEC 42001 is the first international management-system standard for AI. It specifies requirements for an AI Management System (AIMS) — analogous to ISO 9001 for quality or ISO 27001 for security — covering policy, leadership, risk assessment, lifecycle controls, and continual improvement. Often ", "subSection": "standard", "createdBy": [], "usedBy": []},
+  {"id": "jcs", "name": "Joint Cognitive Systems", "city": "Linköping", "country": "SE", "lat": 58.397, "lon": 15.575, "domain": "multi", "domains": ["multi", "hf", "xai"], "url": "https://en.wikipedia.org/wiki/Joint_Cognitive_Systems", "desc": "Hollnagel & Woods. Opérateur + IA = système cognitif conjoint. Fondement du HAI. Tradition portée par Linköping (ITN/Norrköping campus) et Lund.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "joint-control", "name": "Joint-Control Framework", "city": "Linköping", "country": "SE", "lat": 58.397, "lon": 15.575, "domain": "aviation", "domains": ["aviation", "rail", "hf"], "url": "https://liu.se/en/research/joint-cognitive-systems", "desc": "Lundberg, Johansson et al. (Linköping Univ., ITN/Campus Norrköping). Modélisation du contrôle opérateur à travers domaines (ATM, rail, énergie).", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "ndm", "name": "Naturalistic Decision Making (NDM / RPD)", "city": "Linköping", "country": "SE", "lat": 58.397, "lon": 15.575, "domain": "multi", "domains": ["multi", "hf"], "url": "https://en.wikipedia.org/wiki/Recognition-primed_decision", "desc": "Klein. Recognition-Primed Decision : experts décident par reconnaissance de patterns. Référence pour décision humaine en contexte stressant.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "nist-ai-rmf", "name": "NIST AI Risk Management Framework", "city": "Sankt Augustin", "country": "DE", "lat": 50.777, "lon": 7.187, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.nist.gov/itl/ai-risk-management-framework", "desc": "NIST (US, largement utilisé en EU). Cadre gestion risques IA : govern/map/measure/manage.", "subSection": "standard", "createdBy": [], "usedBy": []},
+  {"id": "pd", "name": "Participatory Design (Scandinavian tradition)", "city": "Aarhus", "country": "DK", "lat": 56.169, "lon": 10.207, "domain": "multi", "domains": ["multi", "hf"], "url": "https://en.wikipedia.org/wiki/Participatory_design", "desc": "Bødker, Ehn et al. Co-design avec utilisateurs/opérateurs. Source du Codesign / Co-creation moderne.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "rasmussen-srk", "name": "Rasmussen SRK Framework (1983)", "city": "Roskilde", "country": "DK", "lat": 55.653, "lon": 12.085, "domain": "multi", "domains": ["multi", "hf"], "url": "https://doi.org/10.1109/TSMC.1983.6313160", "desc": "Skill/Rule/Knowledge levels of cognitive control underpinning error analysis and decision-support/interface design in safety-critical systems.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "resilience-eng", "name": "Resilience Engineering", "city": "Lund", "country": "SE", "lat": 55.712, "lon": 13.191, "domain": "multi", "domains": ["multi", "hf", "xai"], "url": "https://en.wikipedia.org/wiki/Resilience_engineering", "desc": "Hollnagel, Woods, Leveson. Étude des systèmes qui maintiennent la sécurité face à la variabilité. Source de FRAM.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "sa-model", "name": "Situation Awareness Model (Endsley)", "city": "Lund", "country": "SE", "lat": 55.712, "lon": 13.191, "domain": "aviation", "domains": ["aviation", "hf"], "url": "https://en.wikipedia.org/wiki/Situation_awareness", "desc": "Endsley. SA niveaux 1-2-3 : perception, compréhension, projection. Référence aviation.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "sace", "name": "SACE — Safety Assurance of Autonomous Systems", "city": "York", "country": "UK", "lat": 53.946, "lon": -1.052, "domain": "multi", "domains": ["multi", "xai"], "url": "https://www.york.ac.uk/assuring-autonomy/", "desc": "Eight-stage process for a system-level safety case for autonomous systems including human-oversight assumptions (sits above AMLAS).", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "stpa", "name": "STAMP / STPA", "city": "Zürich", "country": "CH", "lat": 47.377, "lon": 8.542, "domain": "multi", "domains": ["multi", "xai", "hf"], "url": "http://psas.scripts.mit.edu/home/", "desc": "Leveson (MIT). Systems-Theoretic Process Analysis. Sécurité des systèmes complexes incl. IA.", "subSection": "standard", "createdBy": [], "usedBy": []},
+  {"id": "supportive-ai", "name": "Supportive AI Framework", "city": "Maastricht", "country": "NL", "lat": 50.844, "lon": 5.687, "domain": "health", "domains": ["health", "xai", "hf"], "url": "https://arxiv.org/abs/2407.12175", "desc": "Cadre conceptuel : passer de l'IA prescriptive à l'IA qui supporte le raisonnement humain.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+  {"id": "vsd", "name": "Value-Sensitive Design", "city": "Delft", "country": "NL", "lat": 52.002, "lon": 4.374, "domain": "multi", "domains": ["multi", "xai", "hf"], "url": "https://vsdesign.org/", "desc": "Friedman et al. Concevoir en explicitant les valeurs (autonomie, équité, transparence). Très utilisé en EU pour IA éthique.", "subSection": "guideline", "createdBy": [], "usedBy": []},
+];
+
+// Edges from frameworks to the teams/projects that use them.
+// Generated automatically from each framework’s `usedBy` list further down.
+
+const EDGES = [
+  {"project": "ai4realnet", "team": "inesc-tec-cpes"},
+  {"project": "ai4realnet", "team": "tudelft-cns-atm"},
+  {"project": "ai4realnet", "team": "rte-rd-grid-ai"},
+  {"project": "ai4realnet", "team": "unikassel"},
+  {"project": "ai4realnet", "team": "sbb"},
+  {"project": "ai4realnet", "team": "db-netz"},
+  {"project": "ai4realnet", "team": "zhaw-cai"},
+  {"project": "ai4realnet", "team": "fhnw-applied-psychology"},
+  {"project": "ai4realnet", "team": "linkoping-ras"},
+  {"project": "ai4realnet", "team": "tennet"},
+  {"project": "ai4realnet", "team": "enliteai"},
+  {"project": "ai4realnet", "team": "nav-portugal"},
+  {"project": "dialog", "team": "sintef-hf"},
+  {"project": "dialog", "team": "dsna-ai-programme"},
+  {"project": "dialog", "team": "onera-dtis"},
+  {"project": "dialog", "team": "dfs"},
+  {"project": "dialog", "team": "radboud"},
+  {"project": "dialog", "team": "deep-blue-roma"},
+  {"project": "aieffect", "team": "rwth-acs"},
+  {"project": "aieffect", "team": "fraunhofer-fit-digital-energy"},
+  {"project": "aieffect", "team": "dtu-crea"},
+  {"project": "aieffect", "team": "tennet"},
+  {"project": "aieffect", "team": "irt-systemx"},
+  {"project": "aieffect", "team": "inesc-tec-cpes"},
+  {"project": "aieffect", "team": "enliteai"},
+  {"project": "aieffect", "team": "enel"},
+  {"project": "twineu", "team": "fraunhofer-fit-digital-energy"},
+  {"project": "twineu", "team": "rwth-acs"},
+  {"project": "twineu", "team": "tu-dortmund-ie3"},
+  {"project": "twineu", "team": "kios-cyprus"},
+  {"project": "twineu", "team": "circe"},
+  {"project": "twineu", "team": "tennet"},
+  {"project": "twineu", "team": "alliander"},
+  {"project": "twineu", "team": "elia"},
+  {"project": "twineu", "team": "ree"},
+  {"project": "twineu", "team": "enel"},
+  {"project": "haiku", "team": "deep-blue-roma"},
+  {"project": "haiku", "team": "enac-achil"},
+  {"project": "haiku", "team": "eurocontrol-bretigny"},
+  {"project": "haiku", "team": "lfv"},
+  {"project": "haiku", "team": "certh-iti"},
+  {"project": "haiku", "team": "dfki-trustworthy-ai"},
+  {"project": "haiku", "team": "naviair"},
+  {"project": "mahalo", "team": "maynooth-ais"},
+  {"project": "mahalo", "team": "eurocontrol-bretigny"},
+  {"project": "mahalo", "team": "deep-blue-roma"},
+  {"project": "artimation", "team": "malardalen"},
+  {"project": "artimation", "team": "enac-achil"},
+  {"project": "artimation", "team": "eurocontrol-bretigny"},
+  {"project": "tapas", "team": "crida"},
+  {"project": "tapas", "team": "sintef-hf"},
+  {"project": "tapas", "team": "deep-blue-roma"},
+  {"project": "tapas", "team": "enac-achil"},
+  {"project": "aisa", "team": "slovak-tech"},
+  {"project": "aisa", "team": "malardalen"},
+  {"project": "harvis", "team": "deep-blue-roma"},
+  {"project": "harvis", "team": "enac-achil"},
+  {"project": "dialog", "team": "dlr-fl"},
+  {"project": "haiku", "team": "dlr-fl"},
+  {"project": "dialog", "team": "austrocontrol"},
+  {"project": "tef-health", "team": "charite-bih"},
+  {"project": "tef-health", "team": "dkfz"},
+  {"project": "tef-health", "team": "karolinska-mai"},
+  {"project": "tef-health", "team": "maastricht-cai"},
+  {"project": "tef-health", "team": "philips-research"},
+  {"project": "agrifoodtef", "team": "cineca"},
+  {"project": "citcom-ai", "team": "dtu-crea"},
+  {"project": "citcom-ai", "team": "aalto-dt"},
+  {"project": "aimatters", "team": "polimi-bio"},
+  {"project": "aimatters", "team": "fraunhofer-ipk"},
+  {"project": "hexa-x-ii", "team": "nokia-bell-be"},
+  {"project": "hexa-x-ii", "team": "nokia-bell-de"},
+  {"project": "hexa-x-ii", "team": "ericsson-rd"},
+  {"project": "hexa-x-ii", "team": "orange-innov"},
+  {"project": "hexa-x-ii", "team": "telefonica-rd"},
+  {"project": "daemon", "team": "imdea-networks"},
+  {"project": "daemon", "team": "tim-research"},
+  {"project": "ai-edge", "team": "nokia-bell-be"},
+  {"project": "ai-edge", "team": "tim-research"},
+  {"project": "water4all", "team": "suez-smart"},
+  {"project": "water4all", "team": "veolia-rd"},
+  {"project": "water4all", "team": "aqualia"},
+  {"project": "naiades", "team": "aqualia"},
+  {"project": "hydrogen-eu", "team": "snam"},
+  {"project": "hydrogen-eu", "team": "gasunie"},
+  {"project": "hydrogen-eu", "team": "enagas"},
+  {"project": "procancer-i", "team": "dkfz"},
+  {"project": "procancer-i", "team": "charite-bih"},
+  {"project": "incisive", "team": "certh-iti"},
+  {"project": "incisive", "team": "maastricht-cai"},
+  {"project": "chaimeleon", "team": "philips-research"},
+  {"project": "chaimeleon", "team": "dkfz"},
+  {"project": "ai-mind", "team": "karolinska-mai"},
+  {"project": "trustroke", "team": "iiia-csic-multiagent"},
+  {"project": "bigpicture", "team": "radboud"},
+  {"project": "bigpicture", "team": "dkfz"},
+  {"project": "aiod", "team": "dfki-trustworthy-ai"},
+  {"project": "aiod", "team": "cineca"},
+  {"project": "aiod", "team": "aalto-dt"},
+  {"project": "haiku", "team": "eurocontrol-bretigny"},
+  {"project": "mahalo", "team": "eurocontrol-bretigny"},
+  {"project": "tapas", "team": "eurocontrol-bretigny"},
+  {"project": "dialog", "team": "linkoping-vi"},
+  {"project": "haiku", "team": "enac-simu"},
+  {"project": "mahalo", "team": "nlr-mosaic"},
+  {"project": "haiku", "team": "nlr-mosaic"},
+  {"project": "haiku", "team": "dlr-zfb"},
+  {"project": "twineu", "team": "fraunhofer-iee-sgl"},
+  {"project": "ai4realnet", "team": "dtu-powerlab"},
+  {"project": "ai4realnet", "team": "fraunhofer-iee-sgl"},
+  {"project": "aieffect", "team": "dtu-powerlab"},
+  {"project": "aieffect", "team": "ethz-esc"},
+  {"project": "tef-health", "team": "ircad-strasbourg"},
+  {"project": "tef-health", "team": "ihu-paris"},
+  {"project": "ellis", "team": "mpi-cogeng"},
+  {"project": "ellis", "team": "eth-ivia"},
+  {"project": "ellis", "team": "aalto-dt"},
+  {"project": "tailor", "team": "linkoping-vi"},
+  {"project": "tailor", "team": "tudortmund-trust"},
+  {"project": "tailor", "team": "iiia-csic-multiagent"},
+  {"project": "elise", "team": "dfki-trustworthy-ai"},
+  {"project": "ai4media", "team": "certh-iti"},
+  {"project": "wasp-hs", "team": "karolinska-mai"},
+  {"project": "adra", "team": "fraunhofer-iais"},
+  {"project": "ai4europe", "team": "dfki-trustworthy-ai"},
+  {"project": "ehds", "team": "charite-bih"},
+  {"project": "ehds", "team": "aphp-dsi"},
+  {"project": "mds", "team": "dlr-ts"},
+  {"project": "ids-a", "team": "fraunhofer-ipk"},
+];
+
+// VERSION 13 — more commons + frameworks + national programmes (3IA, WASP, AINed, FAIR…). Build: 2026-05-06.
+console.log('cartographie HAI — script v13 starting');
+
+// ---- MAP -----------------------------------------------------------------
+const map = L.map('map', {
+  center: [50.5, 9.5],
+  zoom: 4,
+  minZoom: 3,
+  maxZoom: 9,
+  doubleClickZoom: false, // freed for marker dblclick toggle
+});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution:'&copy; OpenStreetMap, &copy; CARTO',
+  subdomains:'abcd',
+  maxZoom:19,
+}).addTo(map);
+
+const COLORS = {
+  energy: '#f59e0b',
+  aviation: '#3b82f6',
+  rail: '#10b981',
+  transport: '#84cc16',
+  telecom: '#06b6d4',
+  utility: '#92400e',
+  health: '#ef4444',
+  manufacturing: '#8b5cf6',
+  compute: '#581c87',
+  cluster: '#4f46e5',
+  simulation: '#facc15',
+  hf: '#ec4899',
+  xai: '#6b7280',
+  multi: '#14b8a6',
+  maritime: '#0891b2',
+  nuclear: '#a16207',
+  defense: '#475569',
+};
+
+// jitter co-located markers slightly so they don't perfectly overlap
+function jitter(items) {
+  const groups = {};
+  items.forEach(it => {
+    const key = it.lat.toFixed(2)+','+it.lon.toFixed(2);
+    (groups[key] = groups[key] || []).push(it);
+  });
+  Object.values(groups).forEach(g => {
+    if (g.length === 1) return;
+    const r = 0.18;
+    g.forEach((it, i) => {
+      const angle = (2*Math.PI*i)/g.length;
+      it.lat += r * Math.sin(angle);
+      it.lon += r * Math.cos(angle);
+    });
+  });
+  return items;
+}
+jitter([...PROJECTS, ...COMMONS]);
+jitter(TEAMS);
+jitter(FRAMEWORKS);
+
+const teamById = Object.fromEntries(TEAMS.map(t => [t.id, t]));
+const projectById = Object.fromEntries([...PROJECTS, ...COMMONS].map(p => [p.id, p]));
+
+// Domain labels for popups + badges.
+const DOMAIN_LABELS = {
+  energy: 'énergie', aviation: 'aviation', rail: 'ferroviaire',
+  transport: 'transport sol', telecom: 'télécoms', utility: 'eau/gaz',
+  health: 'santé', manufacturing: 'manufacturing', compute: 'compute',
+  cluster: 'réseau IA', simulation: 'sim. socio-tech',
+  hf: 'human factors', xai: 'XAI', multi: 'multi/autres',
+  maritime: 'maritime', nuclear: 'nucléaire', defense: 'défense',
+};
+
+function getDomains(data){
+  return (data.domains && data.domains.length) ? data.domains : [data.domain];
+}
+
+function popupHtml(item, isProject){
+  const meta = [item.city, item.country].filter(Boolean).join(', ');
+  const extras = isProject && (item.budget || item.when) ? `<div class="popup-meta">${[item.when,item.budget].filter(Boolean).join(' • ')}</div>` : '';
+  const domains = getDomains(item);
+  const badges = domains.map(d => `<span class="domain-badge" style="--c:${COLORS[d] || '#999'}">${DOMAIN_LABELS[d] || d}</span>`).join('');
+  return `<div class="popup-title">${item.name}</div>
+          <div class="popup-meta">${meta}</div>
+          ${extras}
+          <div class="domain-badges">${badges}</div>
+          <div class="popup-desc">${item.desc || ''}</div>
+          ${item.url ? `<a href="${item.url}" class="popup-link" target="_blank">Visiter →</a>` : ''}`;
+}
+
+// Build a divIcon. Shape is 'circle' (projects/teams) or 'square' (frameworks).
+function makePieIcon(domains, opts){
+  const r = opts.radius;
+  const stroke = opts.stroke;
+  const strokeWidth = opts.strokeWidth;
+  const dash = opts.dash || '';
+  const shape = opts.shape || 'circle';
+  const size = (r * 2) + (strokeWidth * 2) + 2;
+  const cx = size/2, cy = size/2;
+  let inner = '';
+
+  if (shape === 'square') {
+    // Rounded square split into vertical bands per domain.
+    const x0 = cx - r, y0 = cy - r;
+    const w = 2 * r;
+    if (domains.length === 1) {
+      inner = `<rect x="${x0}" y="${y0}" width="${w}" height="${w}" rx="2" ry="2" fill="${COLORS[domains[0]] || '#999'}" stroke="${stroke}" stroke-width="${strokeWidth}" fill-opacity="${opts.fillOpacity}"/>`;
+    } else {
+      const bandW = w / domains.length;
+      const bands = domains.map((d, i) => {
+        const x = x0 + i * bandW;
+        return `<rect x="${x.toFixed(2)}" y="${y0}" width="${bandW.toFixed(2)}" height="${w}" fill="${COLORS[d] || '#999'}" fill-opacity="${opts.fillOpacity}" stroke="none"/>`;
+      }).join('');
+      const ring = `<rect x="${x0}" y="${y0}" width="${w}" height="${w}" rx="2" ry="2" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+      inner = bands + ring;
+    }
+  } else {
+    // Circle (default): one or pie slices per domain.
+    if (domains.length === 1) {
+      inner = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${COLORS[domains[0]] || '#999'}" stroke="${stroke}" stroke-width="${strokeWidth}" ${dash ? `stroke-dasharray="${dash}"` : ''} fill-opacity="${opts.fillOpacity}"/>`;
+    } else {
+      const slices = domains.map((d, i) => {
+        const a1 = (2*Math.PI*i)/domains.length - Math.PI/2;
+        const a2 = (2*Math.PI*(i+1))/domains.length - Math.PI/2;
+        const x1 = cx + r * Math.cos(a1);
+        const y1 = cy + r * Math.sin(a1);
+        const x2 = cx + r * Math.cos(a2);
+        const y2 = cy + r * Math.sin(a2);
+        const largeArc = (a2 - a1) > Math.PI ? 1 : 0;
+        return `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${largeArc},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${COLORS[d] || '#999'}" fill-opacity="${opts.fillOpacity}" stroke="none"/>`;
+      }).join('');
+      const ring = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
+      inner = slices + ring;
+    }
+  }
+
+  return L.divIcon({
+    html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display:block">${inner}</svg>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+    className: 'hai-marker',
+  });
+}
+
+// Each entry: { marker, kind: 'project'|'team', domains, country, onMap: bool }
+const items = [];
+const itemById = {};
+
+// Map a subKind to the search-target key used by SEL_SETS / panels.
+function searchTargetForSubKind(subKind) {
+  if (subKind === 'project') return 'projects';
+  if (subKind === 'team') return 'teams';
+  if (subKind === 'commons') return 'commons';
+  if (subKind === 'framework') return 'frameworks';
+  return null;
+}
+
+function buildItem(data, kind){
+  const domains = getDomains(data);
+  let markerOpts;
+  if (kind === 'team') {
+    markerOpts = { radius: 5, stroke:'#fff', strokeWidth: 1, fillOpacity: 0.95 };
+  } else if (kind === 'commons') {
+    markerOpts = { radius: 9, stroke:'#000', strokeWidth: 2, fillOpacity: 0.85, dash:'2,2' };
+  } else if (kind === 'framework') {
+    markerOpts = { radius: 7, stroke:'#000', strokeWidth: 1.5, fillOpacity: 0.85, shape:'square' };
+  } else {
+    markerOpts = { radius: 12, stroke:'#000', strokeWidth: 2, fillOpacity: 0.9 };
+  }
+  const m = L.marker([data.lat, data.lon], { icon: makePieIcon(domains, markerOpts) })
+    .bindPopup(popupHtml(data, kind !== 'team' && kind !== 'framework'));
+  // internal kind drives layer toggle + selection logic
+  let internalKind;
+  if (kind === 'team') internalKind = 'team';
+  else if (kind === 'framework') internalKind = 'framework';
+  else internalKind = 'project'; // 'project' covers projects + commons
+  const entry = { marker: m, kind: internalKind, subKind: kind, domains, country: data.country, id: data.id, onMap: false };
+
+  // Double-click toggles selection in the matching search panel.
+  m.on('dblclick', (ev) => {
+    if (ev.originalEvent) {
+      ev.originalEvent.preventDefault?.();
+      ev.originalEvent.stopPropagation?.();
+    }
+    const target = searchTargetForSubKind(kind);
+    if (!target) return;
+    toggleSelection(target, data.id);
+  });
+
+  items.push(entry);
+  itemById[data.id] = entry;
+  return entry;
+}
+
+// Toggle a selection by id (programmatic equivalent of clicking the checkbox).
+function toggleSelection(target, id) {
+  const set = SEL_SETS[target];
+  if (!set) return;
+  const cb = document.querySelector(`.search-list[data-target="${target}"] input[type="checkbox"][data-id="${id}"]`);
+  if (set.has(id)) {
+    set.delete(id);
+    if (cb) cb.checked = false;
+  } else {
+    set.add(id);
+    if (cb) cb.checked = true;
+  }
+  updateSelectionUI();
+  refresh();
+}
+
+PROJECTS.forEach(p => buildItem(p, 'project'));
+COMMONS.forEach(p => buildItem(p, 'commons'));
+TEAMS.forEach(t => buildItem(t, 'team'));
+FRAMEWORKS.forEach(f => buildItem(f, 'framework'));
+
+const edgeLines = [];          // project ↔ team partnership lines (no arrow)
+const directionalLines = [];   // createdBy / usedBy lines for commons + frameworks
+// Adjacency maps built from EDGES — used by selection logic to expand selection
+// across the project↔team graph (e.g. "show only teams related to selected project").
+const teamsByProject = new Map(); // projectId -> Set<teamId>
+const projectsByTeam = new Map(); // teamId -> Set<projectId>
+const usersByFramework = new Map(); // frameworkId/commonsId -> Set<itemId>
+const frameworksByUser = new Map(); // itemId -> Set<frameworkId/commonsId>
+
+EDGES.forEach(e => {
+  const p = projectById[e.project];
+  const t = teamById[e.team];
+  if (!p || !t) return;
+  const line = L.polyline([[p.lat, p.lon], [t.lat, t.lon]], {
+    color: COLORS[p.domain] || '#999', weight: 0.8, opacity: 0.35,
+  });
+  edgeLines.push({ line, project: e.project, team: e.team, onMap: false });
+  if (!teamsByProject.has(e.project)) teamsByProject.set(e.project, new Set());
+  teamsByProject.get(e.project).add(e.team);
+  if (!projectsByTeam.has(e.team)) projectsByTeam.set(e.team, new Set());
+  projectsByTeam.get(e.team).add(e.project);
+});
+
+// Build directional createdBy / usedBy lines for commons + frameworks.
+// Direction encodes "creation" (creator → asset) or "reuse" (asset → user) and
+// is shown via an arrowhead at the head of the line.
+function makeArrowDecorator(line, color) {
+  return L.polylineDecorator(line, {
+    patterns: [{
+      offset: '100%', repeat: 0,
+      symbol: L.Symbol.arrowHead({
+        pixelSize: 8, polygon: false,
+        pathOptions: { color, weight: 1.5, opacity: 0.7 }
+      })
+    }]
+  });
+}
+function lookupAnchor(id){ return projectById[id] || teamById[id]; }
+
+function addDirectional(asset, role /* 'createdBy' | 'usedBy' */){
+  const ids = Array.isArray(asset[role]) ? asset[role] : [];
+  ids.forEach(uid => {
+    const other = lookupAnchor(uid);
+    if (!other) return;
+    const color = COLORS[asset.domain] || '#888';
+    let from, to;
+    let style;
+    if (role === 'createdBy') {
+      // arrow comes INTO the asset: line from creator → asset
+      from = [other.lat, other.lon];
+      to   = [asset.lat, asset.lon];
+      style = { color, weight: 1.0, opacity: 0.55, dashArray: null };
+    } else {
+      // arrow goes OUT of the asset: line from asset → user
+      from = [asset.lat, asset.lon];
+      to   = [other.lat, other.lon];
+      style = { color, weight: 0.8, opacity: 0.35, dashArray: '3,4' };
+    }
+    const line = L.polyline([from, to], style);
+    const arrow = makeArrowDecorator(line, color);
+    directionalLines.push({ line, arrow, role, asset: asset.id, other: uid, onMap: false });
+    // adjacency for selection-implication: asset ↔ user
+    if (!usersByFramework.has(asset.id)) usersByFramework.set(asset.id, new Set());
+    usersByFramework.get(asset.id).add(uid);
+    if (!frameworksByUser.has(uid)) frameworksByUser.set(uid, new Set());
+    frameworksByUser.get(uid).add(asset.id);
+  });
+}
+
+[...COMMONS, ...FRAMEWORKS].forEach(asset => {
+  addDirectional(asset, 'createdBy');
+  addDirectional(asset, 'usedBy');
+});
+
+// ---- SELECTION (search + multi-select) ----------------------------------
+const selectedProjects = new Set();
+const selectedTeams = new Set();
+const selectedCommons = new Set();
+const selectedFrameworks = new Set();
+const selectedInfra = new Set();
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Pretty labels for subsection groupings.
+const SUBSECTION_LABELS = {
+  // commons
+  simulator: 'Simulateurs / environnements',
+  benchmark: 'Benchmarks / compétitions',
+  framework: 'Cadres applicatifs',
+  foundation: 'Fondations open-source',
+  stack: 'Stacks open-source',
+  // frameworks
+  cognitive: 'Cognitive engineering & sociotechnique',
+  design: 'Cadres design HAI',
+  standard: 'Standards & certification',
+};
+
+function populateSearchList(target, dataArray){
+  const list = document.querySelector(`.search-list[data-target="${target}"]`);
+  if (!list) return;
+  const renderItem = it => {
+    const meta = [it.city, it.country].filter(Boolean).join(', ');
+    return `<label class="search-item" data-name="${escapeHtml((it.name||'').toLowerCase())}" data-city="${escapeHtml((it.city||'').toLowerCase())}" data-country="${escapeHtml((it.country||'').toLowerCase())}"><input type="checkbox" data-id="${escapeHtml(it.id)}" data-target="${target}"><span class="search-item-name">${escapeHtml(it.name)}</span><span class="search-item-meta">${escapeHtml(meta)}</span></label>`;
+  };
+
+  // If items have subSection field, group them; otherwise just sort flat.
+  const hasSubSections = dataArray.some(it => it.subSection);
+  if (hasSubSections) {
+    const groups = new Map(); // subSection -> items
+    const order = [];
+    dataArray.forEach(it => {
+      const key = it.subSection || '__other__';
+      if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+      groups.get(key).push(it);
+    });
+    list.innerHTML = order.map(key => {
+      const label = SUBSECTION_LABELS[key] || (key === '__other__' ? 'Autres' : key);
+      const items = groups.get(key).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+      return `<div class="search-subheader">${escapeHtml(label)}</div>` + items.map(renderItem).join('');
+    }).join('') || '<div class="search-empty">Aucun élément</div>';
+  } else {
+    const sorted = [...dataArray].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    list.innerHTML = sorted.map(renderItem).join('') || '<div class="search-empty">Aucun élément</div>';
+  }
+}
+
+populateSearchList('projects', PROJECTS);
+populateSearchList('teams', TEAMS);
+populateSearchList('commons', COMMONS);
+populateSearchList('frameworks', FRAMEWORKS);
+// Infrastructures = items (project OR team) with simulation or compute in their domains.
+const INFRA_ITEMS = [...PROJECTS, ...TEAMS].filter(it => {
+  const ds = (it.domains && it.domains.length) ? it.domains : [it.domain];
+  return ds.some(d => d === 'simulation' || d === 'compute');
+});
+populateSearchList('infra', INFRA_ITEMS);
+
+// Live search filter on the visible list.
+document.querySelectorAll('.search-input').forEach(input => {
+  input.addEventListener('input', () => {
+    const target = input.dataset.target;
+    const q = input.value.toLowerCase().trim();
+    document.querySelectorAll(`.search-list[data-target="${target}"] .search-item`).forEach(el => {
+      const matches = !q || el.dataset.name.includes(q) || el.dataset.city.includes(q) || el.dataset.country.includes(q);
+      el.style.display = matches ? '' : 'none';
+    });
+  });
+});
+
+// Map a search-target name to its selection Set.
+const SEL_SETS = {
+  projects: selectedProjects,
+  teams: selectedTeams,
+  commons: selectedCommons,
+  frameworks: selectedFrameworks,
+  infra: selectedInfra,
+};
+
+// Checkbox toggle within search lists.
+document.querySelectorAll('.search-list').forEach(list => {
+  list.addEventListener('change', e => {
+    if (!(e.target instanceof HTMLInputElement) || e.target.type !== 'checkbox') return;
+    const id = e.target.dataset.id;
+    const target = e.target.dataset.target;
+    const set = SEL_SETS[target];
+    if (!set) return;
+    if (e.target.checked) set.add(id); else set.delete(id);
+    updateSelectionUI();
+    refresh();
+  });
+});
+
+// Clear-selection buttons.
+document.querySelectorAll('.clear-search-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.target;
+    const set = SEL_SETS[target];
+    if (!set) return;
+    set.clear();
+    document.querySelectorAll(`.search-list[data-target="${target}"] input[type="checkbox"]`).forEach(cb => { cb.checked = false; });
+    updateSelectionUI();
+    refresh();
+  });
+});
+
+// Per-section "Tout / Aucun" — select / deselect every item of one panel.
+document.querySelectorAll('.select-all-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation(); // keep the <details> from toggling
+    const target = btn.dataset.target;
+    const action = btn.dataset.action; // 'all' | 'none'
+    const set = SEL_SETS[target];
+    if (!set) return;
+    document.querySelectorAll(`.search-list[data-target="${target}"] input[type="checkbox"]`).forEach(cb => {
+      cb.checked = (action === 'all');
+      if (action === 'all') set.add(cb.dataset.id); else set.delete(cb.dataset.id);
+    });
+    updateSelectionUI();
+    refresh();
+  });
+});
+
+function updateSelectionUI(){
+  for (const target of Object.keys(SEL_SETS)) {
+    const el = document.getElementById('sel-count-' + target);
+    if (!el) continue;
+    const set = SEL_SETS[target];
+    el.textContent = set.size;
+    el.classList.toggle('has-selection', set.size > 0);
+  }
+}
+updateSelectionUI();
+
+// ---- FILTERS -------------------------------------------------------------
+function refresh(){
+  try {
+    const showEdges = document.getElementById('show-edges').checked;
+    const allowedDomains = new Set(
+      Array.from(document.querySelectorAll('.domain-filter:checked')).map(el => el.value)
+    );
+
+    let projCount = 0, teamCount = 0, fwCount = 0;
+    const countries = new Set();
+    const visibleIds = new Set();
+
+    // Selection state across all panels.
+    const anySelection = selectedProjects.size > 0 || selectedTeams.size > 0
+      || selectedCommons.size > 0 || selectedFrameworks.size > 0 || selectedInfra.size > 0;
+
+    // Explicitly selected ids across all panels.
+    const explicit = new Set();
+    selectedProjects.forEach(id => explicit.add(id));
+    selectedTeams.forEach(id => explicit.add(id));
+    selectedCommons.forEach(id => explicit.add(id));
+    selectedFrameworks.forEach(id => explicit.add(id));
+    selectedInfra.forEach(id => explicit.add(id));
+
+    // The "Liens projet ↔ équipe" toggle also governs cross-layer selection:
+    // when it is ON, a selected entity pulls in its linked entities (related
+    // teams/projects/frameworks); when OFF, panels are independent.
+    const implied = new Set();
+    if (showEdges) {
+      const expandAnchor = id => {
+        const tSet = teamsByProject.get(id); if (tSet) tSet.forEach(tid => implied.add(tid));
+        const pSet = projectsByTeam.get(id); if (pSet) pSet.forEach(pid => implied.add(pid));
+        const fwSet = frameworksByUser.get(id); if (fwSet) fwSet.forEach(fid => implied.add(fid));
+      };
+      selectedProjects.forEach(expandAnchor);
+      selectedTeams.forEach(expandAnchor);
+      selectedInfra.forEach(expandAnchor);
+      selectedFrameworks.forEach(fid => {
+        const userSet = usersByFramework.get(fid);
+        if (userSet) userSet.forEach(uid => implied.add(uid));
+      });
+    }
+
+    items.forEach(it => {
+      // Domain filter and selection CUMULATE (logical AND). With links ON a
+      // selected entity's linked entities are also shown; with links OFF only
+      // explicitly selected fiches show.
+      const passDomain = it.domains.some(d => allowedDomains.has(d));
+      const passSelection = !anySelection || explicit.has(it.id) || implied.has(it.id);
+      const shouldShow = passSelection && passDomain;
+
+      if (shouldShow) {
+        if (!it.onMap) { it.marker.addTo(map); it.onMap = true; }
+        if (it.kind === 'project') projCount++;
+        else if (it.kind === 'team') teamCount++;
+        else if (it.kind === 'framework') fwCount++;
+        if (it.country) countries.add(it.country);
+        visibleIds.add(it.id);
+      } else {
+        if (it.onMap) { map.removeLayer(it.marker); it.onMap = false; }
+      }
+    });
+
+    edgeLines.forEach(e => {
+      const shouldShow = showEdges && visibleIds.has(e.project) && visibleIds.has(e.team);
+      if (shouldShow) {
+        if (!e.onMap) { e.line.addTo(map); e.onMap = true; }
+      } else {
+        if (e.onMap) { map.removeLayer(e.line); e.onMap = false; }
+      }
+    });
+    directionalLines.forEach(e => {
+      const shouldShow = showEdges && visibleIds.has(e.asset) && visibleIds.has(e.other);
+      if (shouldShow) {
+        if (!e.onMap) { e.line.addTo(map); e.arrow.addTo(map); e.onMap = true; }
+      } else {
+        if (e.onMap) { map.removeLayer(e.line); map.removeLayer(e.arrow); e.onMap = false; }
+      }
+    });
+
+    document.getElementById('stat-projects').textContent = projCount;
+    document.getElementById('stat-teams').textContent = teamCount;
+    document.getElementById('stat-countries').textContent = countries.size;
+    const fwStatEl = document.getElementById('stat-frameworks');
+    if (fwStatEl) fwStatEl.textContent = fwCount;
+    console.log('refresh:', { projCount, teamCount, fwCount, countries: countries.size });
+  } catch (err) {
+    console.error('refresh() error:', err);
+  }
+}
+
+// Listeners — attach to every checkbox in the sidebar.
+const sidebarCheckboxes = document.querySelectorAll('#sidebar input[type="checkbox"]');
+console.log('attaching listeners to', sidebarCheckboxes.length, 'checkboxes');
+sidebarCheckboxes.forEach(el => el.addEventListener('change', refresh));
+
+// Per-subsection select-all/none buttons.
+const subgroupBtns = document.querySelectorAll('.subgroup-btn');
+console.log('attaching listeners to', subgroupBtns.length, 'subgroup buttons');
+subgroupBtns.forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    const action = btn.dataset.action; // 'all' or 'none'
+    const subgroup = btn.closest('.filter-subgroup, .layer-toggle');
+    if (!subgroup) return;
+    subgroup.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = (action === 'all');
+    });
+    refresh();
+  });
+});
+
+// First render.
+refresh();
+</script>
+</body>
+</html>

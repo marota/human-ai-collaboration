@@ -27,6 +27,7 @@
   --mono:  ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   --shell: 74rem;
+  --shell-pad: clamp(1.15rem, 5vw, 3rem);
   --measure: 40rem;
   --radius: 10px;
 }
@@ -97,7 +98,7 @@ img { height: auto; }
   width: 100%;
   max-width: var(--shell);
   margin-inline: auto;
-  padding-inline: clamp(1.15rem, 5vw, 3rem);
+  padding-inline: var(--shell-pad);
 }
 
 .eyebrow {
@@ -315,6 +316,22 @@ main { flex: 1 0 auto; }
   background: transparent;
 }
 .btn--ghost:hover { border-color: var(--accent); color: var(--accent-deep); }
+
+/* Third hero action — tinted so the map reads as a distinct destination. */
+.btn--map {
+  background: var(--accent-wash);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent-deep);
+}
+.btn--map:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+@media (prefers-color-scheme: dark) {
+  .btn--map:hover { color: #12141a; }
+}
+.btn--map svg { flex: none; }
 
 /* --- Page header ---------------------------------------------------------- */
 
@@ -702,6 +719,96 @@ a.series-item__inner:hover .series-item__arrow {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+/* --- Figures -------------------------------------------------------------- */
+
+.figure {
+  margin: 0 0 2.25rem;
+}
+/* A lead figure sits above the prose and may exceed the text measure. */
+.figure--lead {
+  width: min(60rem, calc(100vw - 2 * var(--shell-pad)));
+  margin-inline: auto;
+  padding-top: clamp(2rem, 4vw, 2.75rem);
+}
+.figure img,
+.figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.figure figcaption {
+  margin-top: 0.7rem;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  text-wrap: pretty;
+}
+
+/* Inline figure inside prose: keeps the text measure, narrower for UI shots. */
+.prose .figure { margin-block: 2rem; }
+.prose .figure--narrow { max-width: 26rem; }
+
+/* --- Embedded map --------------------------------------------------------- */
+
+/* Widens past the prose measure. The prose box starts at the shell's content
+   edge, so spanning the shell is a width change only — no recentring. */
+.map-frame {
+  width: calc(min(var(--shell), 100vw) - 2 * var(--shell-pad));
+  height: min(78vh, 54rem);
+  min-height: 32rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-alt);
+  box-shadow: var(--shadow-md);
+}
+.map-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* The map's own sidebar needs ~320px before it starts crowding the canvas. */
+@media (max-width: 46rem) {
+  .map-frame { height: 34rem; }
+}
+
+/* --- Post pager (compact, in the header) ---------------------------------- */
+
+.post-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 1.5rem;
+}
+.post-pager__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 550;
+  white-space: nowrap;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+.post-pager__link:hover {
+  border-color: var(--accent);
+  color: var(--accent-deep);
+  background: var(--accent-wash);
 }
 
 /* --- Post navigation ------------------------------------------------------ */
