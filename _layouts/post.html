@@ -8,6 +8,22 @@ layout: default
   {%- if p.url == page.url -%}{%- assign idx = forloop.index0 -%}{%- endif -%}
 {%- endfor -%}
 
+{%- comment -%} Neighbours, skipping parts that are still unwritten. {%- endcomment -%}
+{%- assign prev_i = idx | minus: 1 -%}
+{%- assign next_i = idx | plus: 1 -%}
+{%- assign prev_p = nil -%}
+{%- assign next_p = nil -%}
+{%- if idx > 0 -%}
+  {%- assign candidate = parts[prev_i] -%}
+  {%- assign c = candidate.title | slice: 0 -%}
+  {%- if c != '[' -%}{%- assign prev_p = candidate -%}{%- endif -%}
+{%- endif -%}
+{%- if next_i < total -%}
+  {%- assign candidate = parts[next_i] -%}
+  {%- assign c = candidate.title | slice: 0 -%}
+  {%- if c != '[' -%}{%- assign next_p = candidate -%}{%- endif -%}
+{%- endif -%}
+
 <div class="page-head">
   <div class="shell">
     <p class="eyebrow">
@@ -22,39 +38,42 @@ layout: default
         {%- if anchor_first != '[' %}<span class="tag">Builds on: {{ page.anchors }}</span>{% endif -%}
       {%- endif %}
     </div>
+
+    {%- if prev_p or next_p %}
+    <nav class="post-pager" aria-label="Series navigation">
+      {%- if prev_p %}
+      <a class="post-pager__link" href="{{ prev_p.url | relative_url }}" rel="prev">
+        <span aria-hidden="true">←</span> Part {{ prev_p.part }}
+      </a>
+      {%- endif %}
+      <a class="post-pager__link" href="{{ '/series/' | relative_url }}">All ten parts</a>
+      {%- if next_p %}
+      <a class="post-pager__link" href="{{ next_p.url | relative_url }}" rel="next">
+        Part {{ next_p.part }} <span aria-hidden="true">→</span>
+      </a>
+      {%- endif %}
+    </nav>
+    {%- endif %}
   </div>
 </div>
+
+{%- include lead-figure.html -%}
 
 <div class="shell">
   <article class="prose">
     {{ content }}
   </article>
 
-  {%- assign prev_i = idx | minus: 1 -%}
-  {%- assign next_i = idx | plus: 1 -%}
-  {%- assign prev_p = nil -%}
-  {%- assign next_p = nil -%}
-  {%- if idx > 0 -%}
-    {%- assign candidate = parts[prev_i] -%}
-    {%- assign c = candidate.title | slice: 0 -%}
-    {%- if c != '[' -%}{%- assign prev_p = candidate -%}{%- endif -%}
-  {%- endif -%}
-  {%- if next_i < total -%}
-    {%- assign candidate = parts[next_i] -%}
-    {%- assign c = candidate.title | slice: 0 -%}
-    {%- if c != '[' -%}{%- assign next_p = candidate -%}{%- endif -%}
-  {%- endif -%}
-
   {%- if prev_p or next_p -%}
-  <nav class="post-nav" aria-label="Series navigation">
+  <nav class="post-nav" aria-label="Previous and next part">
     {%- if prev_p %}
-    <a class="post-nav__link post-nav__link--prev" href="{{ prev_p.url | relative_url }}">
+    <a class="post-nav__link post-nav__link--prev" href="{{ prev_p.url | relative_url }}" rel="prev">
       <span class="post-nav__dir">← Part {{ prev_p.part }}</span>
       <span class="post-nav__title">{{ prev_p.title }}</span>
     </a>
     {%- endif %}
     {%- if next_p %}
-    <a class="post-nav__link post-nav__link--next" href="{{ next_p.url | relative_url }}">
+    <a class="post-nav__link post-nav__link--next" href="{{ next_p.url | relative_url }}" rel="next">
       <span class="post-nav__dir">Part {{ next_p.part }} →</span>
       <span class="post-nav__title">{{ next_p.title }}</span>
     </a>

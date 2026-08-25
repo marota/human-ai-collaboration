@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 480" role="img"
+     aria-labelledby="t d" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">Human-Centered AI: automation and human control as two dimensions</title>
+  <desc id="d">A two-by-two grid. The horizontal axis is computer automation, from low to high. The vertical axis is human control, from low to high. Low automation with low control is Passive. High automation with low control is Autonomous, tending to computer control. Low automation with high control is Assistive, tending to human mastery. High automation with high control is Partnership — reliable, safe and trustworthy — and is the target quadrant.</desc>
+
+  <style>
+    .plot      { fill: #eef5ee; }
+    .cell      { fill: #cfe3d1; }
+    .cell-2    { fill: #bcd8bf; }
+    .cell-3    { fill: #a8cbac; }
+    .grid      { stroke: #ffffff; stroke-width: 2; }
+    .frame     { fill: none; stroke: #c9cfc9; stroke-width: 1.5; }
+    .quad      { fill: #1e4620; font-size: 40px; font-weight: 700; }
+    .corner    { fill: #33553a; font-size: 14px; font-weight: 600; }
+    .axis      { fill: #2b2f2b; font-size: 15px; font-weight: 700; }
+    .tick      { fill: #5c635c; font-size: 14px; font-weight: 500; }
+    .edge      { fill: #7a827a; font-size: 13.5px; font-weight: 500; }
+    .hl        { fill: none; stroke: #e8b53c; stroke-width: 3.5; }
+    .arrow     { stroke: #2b2f2b; stroke-width: 2; fill: none; }
+
+    @media (prefers-color-scheme: dark) {
+      .plot   { fill: #1a231c; }
+      .cell   { fill: #2b4230; }
+      .cell-2 { fill: #35513a; }
+      .cell-3 { fill: #406245; }
+      .grid   { stroke: #121712; }
+      .frame  { stroke: #3d463e; }
+      .quad   { fill: #dcefdd; }
+      .corner { fill: #a9c9ad; }
+      .axis   { fill: #e2e6e2; }
+      .tick   { fill: #99a29a; }
+      .edge   { fill: #838c84; }
+      .hl     { stroke: #f0c463; }
+      .arrow  { stroke: #e2e6e2; }
+    }
+  </style>
+
+  <!-- edge captions -->
+  <text class="edge" x="410" y="22" text-anchor="middle">Excessive human control</text>
+  <text class="edge" x="0" y="0" text-anchor="middle" transform="translate(768,245) rotate(90)">Excessive automation</text>
+
+  <!-- plot -->
+  <g transform="translate(110,36)">
+    <rect class="plot" x="0" y="0" width="620" height="376"/>
+
+    <!-- quadrants: TL assistive, TR partnership, BL passive, BR autonomous -->
+    <rect class="cell"   x="0"   y="0"   width="310" height="188"/>
+    <rect class="cell-2" x="310" y="0"   width="310" height="188"/>
+    <rect class="cell"   x="0"   y="188" width="310" height="188"/>
+    <rect class="cell-3" x="310" y="188" width="310" height="188"/>
+
+    <line class="grid" x1="310" y1="0" x2="310" y2="376"/>
+    <line class="grid" x1="0" y1="188" x2="620" y2="188"/>
+    <rect class="frame" x="0" y="0" width="620" height="376"/>
+
+    <!-- corner qualifiers -->
+    <text class="corner" x="16"  y="26">Human Mastery</text>
+    <text class="corner" x="604" y="26" text-anchor="end">Reliable, Safe &amp; Trustworthy</text>
+    <text class="corner" x="604" y="362" text-anchor="end">Computer Control</text>
+
+    <!-- quadrant names -->
+    <text class="quad" x="155" y="108" text-anchor="middle">Assistive</text>
+    <text class="quad" x="465" y="108" text-anchor="middle">Partnership</text>
+    <text class="quad" x="155" y="296" text-anchor="middle">Passive</text>
+    <text class="quad" x="465" y="296" text-anchor="middle">Autonomous</text>
+
+    <!-- target quadrant -->
+    <rect class="hl" x="311.5" y="1.5" width="307" height="185"/>
+  </g>
+
+  <!-- y axis -->
+  <text class="tick" x="0" y="0" text-anchor="middle" transform="translate(92,74) rotate(-90)">High</text>
+  <path class="arrow" d="M96 62 v-14 M92 52 l4 -5 l4 5"/>
+  <text class="tick" x="0" y="0" text-anchor="middle" transform="translate(92,382) rotate(-90)">Low</text>
+  <text class="axis" x="0" y="0" text-anchor="middle" transform="translate(66,224) rotate(-90)">Human control</text>
+
+  <!-- x axis -->
+  <text class="tick" x="196" y="440" text-anchor="middle">Low</text>
+  <text class="axis" x="410" y="440" text-anchor="middle">Computer automation</text>
+  <text class="tick" x="620" y="440" text-anchor="middle">High</text>
+  <path class="arrow" d="M646 435 h16 M658 431 l5 4 l-5 4"/>
+</svg>
