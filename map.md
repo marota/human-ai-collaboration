@@ -10,13 +10,18 @@ deck: >-
 ---
 
 <div class="map-frame">
-  <iframe src="{{ '/assets/map/eu-hai-map.html' | relative_url }}"
+  <iframe src="{{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }}"
           title="Map of European human–AI collaboration teams and initiatives"
           loading="lazy"></iframe>
 </div>
 
-[Open the map full screen →]({{ '/assets/map/eu-hai-map.html' | relative_url }})
+[Open the map full screen →]({{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }})
+· [Version française]({{ '/assets/map/eu-hai-map.html?lang=fr' | relative_url }})
 · [Source and data on GitHub](https://github.com/marota/eu-hai-collab-map)
+
+The map is bilingual: the **EN / FR** switch in its top-right corner changes the
+interface *and* the description of every entity on the map. Your choice is
+remembered.
 
 ## Why map it
 

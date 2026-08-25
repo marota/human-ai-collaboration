@@ -71,6 +71,30 @@ a discipline that turns out to improve my own thinking about the task.
 **Bounded parallelism.** Two executors at most, and never two on the same file —
 that file gets handled directly after the parallel phase.
 
+### Dedicated capabilities, not just a generic model
+
+The rig is not two raw models with a shell. It also carries **dedicated
+capabilities** — specific tools and workflows the orchestrator can call when a
+task matches one of them, rather than reasoning its way there from scratch every
+time.
+
+Those capabilities were **benchmarked before being wired in**: a tool earns its
+place by measurably beating the generic path on the task it claims, not by
+sounding useful. The deterministic entity tagger from
+[Ambient AI Scribe]({{ '/projects/ambient-ai-scribe/' | relative_url }}), for
+instance, is exposed to the harness as a callable skill — it runs in 0.4 seconds
+and is exactly reproducible, which no amount of prompting a language model
+matches.
+
+The effect compounds in both directions. Any tool or application I build locally
+becomes something the agents can invoke agentically, which makes the harness more
+capable; and being invoked in real workflows exposes what each tool actually
+needs to expose, which makes the tool better. The rig and the toolbox pull each
+other forward.
+
+That is also the honest reason this stays personal rather than productised: the
+capabilities are worth what the underlying local tools are worth.
+
 ## What runs where
 
 - `setup-hermes-agents.sh` — idempotent installer: checks Ollama, Hermes and both
@@ -87,9 +111,11 @@ that file gets handled directly after the parallel phase.
 
 - This is a **personal setup, not a product**: shell scripts and configuration
   for one machine, one operating system, one pair of models.
-- It is **not an evaluation harness**. It runs agents; it does not score them.
-  Nothing here measures whether the orchestrator's verification actually catches
-  what the executor got wrong — which is the obvious next question, and the one
+- It is **not an evaluation harness for agents**. Individual capabilities were
+  benchmarked before being connected, but the rig does not score the agents
+  themselves. Nothing here measures whether the orchestrator's verification
+  actually catches what the executor got wrong — which is the obvious next
+  question, and the one
   [Co-Study4Grid]({{ '/projects/co-study4grid/' | relative_url }}) poses properly
   for a different task.
 - The verification discipline is **stated, not enforced**. A model instructed to
