@@ -64,7 +64,8 @@ Adrien P. (FR), Evelyne V. (US)
 
 And the organisations this runs through: RTE (FR), TenneT (NL), IRT SystemX (FR),
 Inria and Université Paris-Saclay (FR), INESC TEC (PT), TU Delft (NL), FHNW (CH),
-Linköping University (SE), ChaLearn, LF Energy, CIGRE, and the
+Linköping University (SE), ChaLearn, LF Energy, CIGRE, the French **IA2 national
+programme** — through its CAB and HSA projects — and the
 [AI4RealNet](https://ai4realnet.eu/) consortium.
 
 - [Google Scholar](https://scholar.google.com/citations?user=amRq8b8AAAAJ&hl=fr)

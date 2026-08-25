@@ -838,7 +838,7 @@ a.series-item__inner:hover .series-item__arrow {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 1.5rem;
+  margin-block: 0 3rem;
 }
 .post-pager__link {
   display: inline-flex;
