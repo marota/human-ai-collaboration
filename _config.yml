@@ -21,6 +21,16 @@ baseurl: "/human-ai-collaboration"          # ex. "/human-ai-decision" — vide 
 # Thème maison (voir _layouts/, _includes/, assets/css/main.css) — pas de gem theme.
 lang: en
 
+# ---------------------------------------------------------------------------
+# Interrupteurs de fonctionnalités.
+# Un `feature:` posé sur une entrée de nav ou une carte d'accueil la masque tant
+# que le drapeau correspondant est faux. Pour publier AVEC les projets :
+#   jekyll build --config _config.yml,_config.with-projects.yml
+# ou, dans l'action GitHub Pages, lancer le workflow avec include_projects=true.
+# ---------------------------------------------------------------------------
+features:
+  projects: false
+
 # Navigation principale — l'ordre ici est l'ordre affiché.
 nav:
   - title: The series
@@ -29,6 +39,7 @@ nav:
     url: /video/
   - title: Projects
     url: /projects/
+    feature: projects
   - title: Ecosystem map
     url: /map/
   - title: References
@@ -62,3 +73,6 @@ exclude:
   - Gemfile.lock
   - README.md
   - vendor
+  # Réactivés par _config.with-projects.yml, qui redéclare cette liste sans eux.
+  - projects
+  - assets/img/projects

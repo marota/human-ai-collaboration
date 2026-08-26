@@ -1,0 +1,81 @@
+name: Publish site
+
+# The Projects section is OFF by default. To publish a build that includes it,
+# run this workflow manually from the Actions tab and set `include_projects` to
+# true — nothing else changes.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      include_projects:
+        description: "Publish the Projects tab and its pages"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it half-way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - uses: actions/configure-pages@v5
+
+      - name: Resolve the config chain
+        id: cfg
+        run: |
+          if [ "${{ inputs.include_projects }}" = "true" ]; then
+            echo "files=_config.yml,_config.with-projects.yml" >> "$GITHUB_OUTPUT"
+            echo "Building WITH the Projects section."
+          else
+            echo "files=_config.yml" >> "$GITHUB_OUTPUT"
+            echo "Building WITHOUT the Projects section (default)."
+          fi
+
+      - name: Build
+        env:
+          JEKYLL_ENV: production
+        run: bundle exec jekyll build --config "${{ steps.cfg.outputs.files }}"
+
+      - name: Check the Projects section matches the requested mode
+        run: |
+          want="${{ inputs.include_projects }}"
+          [ "$want" = "true" ] || want=false
+          if [ -e _site/projects/index.html ]; then built=true; else built=false; fi
+          echo "requested=$want built=$built"
+          if [ "$want" != "$built" ]; then
+            echo "::error::Projects pages present=$built but include_projects=$want"
+            exit 1
+          fi
+          if [ "$built" = "false" ] && grep -rqs 'href="[^"]*/projects/' _site; then
+            echo "::error::A link to /projects/ survived in a build that excludes it"
+            grep -rns 'href="[^"]*/projects/' _site | head
+            exit 1
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

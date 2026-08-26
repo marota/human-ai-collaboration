@@ -1,0 +1,19 @@
+# ---------------------------------------------------------------------------
+# Surcouche : publie le site AVEC la section Projects.
+#
+#   jekyll build  --config _config.yml,_config.with-projects.yml
+#   jekyll serve  --config _config.yml,_config.with-projects.yml
+#
+# Jekyll fusionne les fichiers de config dans l'ordre : les clés ci-dessous
+# remplacent celles de _config.yml. `exclude` est redéclaré en entier — c'est
+# une liste, donc elle est remplacée, pas fusionnée — sans l'entrée `projects`.
+# ---------------------------------------------------------------------------
+
+features:
+  projects: true
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - vendor

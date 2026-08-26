@@ -16,6 +16,7 @@
 
     <nav class="nav" aria-label="Main">
       {%- for item in site.nav -%}
+        {%- if item.feature and site.features[item.feature] != true -%}{%- continue -%}{%- endif -%}
         {%- assign target = item.url | relative_url -%}
         {%- assign is_current = false -%}
         {%- if page.url == item.url -%}
