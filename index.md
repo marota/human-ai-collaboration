@@ -21,6 +21,7 @@ cards:
       measured, how, and where the method stops being valid.
     href: /projects/
     cta: See the projects
+    feature: projects
   - title: References
     text: >-
       The literature this work builds on — cognitive systems engineering, human

@@ -9,6 +9,7 @@
       <h2>Sections</h2>
       <ul>
         {%- for item in site.nav %}
+        {%- if item.feature and site.features[item.feature] != true %}{% continue %}{% endif %}
         <li><a href="{{ item.url | relative_url }}">{{ item.title }}</a></li>
         {%- endfor %}
       </ul>

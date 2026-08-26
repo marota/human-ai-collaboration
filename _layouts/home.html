@@ -40,7 +40,11 @@ layout: default
   </div>
 </section>
 
-{%- if page.cards -%}
+{%- assign visible_cards = 0 -%}
+{%- for c in page.cards -%}
+  {%- if c.feature == nil or site.features[c.feature] == true -%}{%- assign visible_cards = visible_cards | plus: 1 -%}{%- endif -%}
+{%- endfor -%}
+{%- if visible_cards > 0 -%}
 <section class="section">
   <div class="shell">
     <div class="section__head">
@@ -48,6 +52,7 @@ layout: default
     </div>
     <ul class="cards">
       {%- for c in page.cards %}
+      {%- if c.feature and site.features[c.feature] != true %}{% continue %}{% endif %}
       <li>
         <a class="card" href="{{ c.href | relative_url }}">
           <h3 class="card__title">{{ c.title }}</h3>

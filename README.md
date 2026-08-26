@@ -51,6 +51,46 @@ et le coût marginal est faible une fois le PDF prêt.
 
 ---
 
+## Publier avec ou sans la section Projects
+
+La section **Projects** est masquée par défaut. Le drapeau vit dans
+`_config.yml` :
+
+```yaml
+features:
+  projects: false
+```
+
+Quand il est faux : l'entrée de nav, la carte d'accueil, les quatre pages et
+leurs images ne sont **pas construites du tout** — elles ne sont pas seulement
+cachées en CSS, elles n'existent pas dans le site publié.
+
+| Publier | Comment |
+|---|---|
+| **Sans Projects** (défaut) | `git push` sur `main` — le workflow s'en charge |
+| **Avec Projects** | Actions → *Publish site* → *Run workflow* → cocher `include_projects` |
+
+En local :
+
+```bash
+jekyll serve                                              # sans Projects
+jekyll serve --config _config.yml,_config.with-projects.yml   # avec
+```
+
+`_config.with-projects.yml` redéclare `exclude` en entier — c'est une liste,
+donc Jekyll la remplace au lieu de la fusionner. Si tu ajoutes une entrée à
+`exclude` dans `_config.yml`, pense à la reporter là-bas.
+
+Le workflow échoue volontairement si le résultat ne correspond pas au mode
+demandé, ou si un lien vers `/projects/` a survécu dans une construction censée
+l'exclure.
+
+> **À faire une fois** : dans **Settings → Pages**, passer *Source* de
+> « Deploy from a branch » à **« GitHub Actions »**. Tant que ce n'est pas fait,
+> le workflow s'exécute mais le déploiement échoue.
+
+---
+
 ## 3. Les pages projets
 
 Les quatre pages de `projects/` sont écrites :
