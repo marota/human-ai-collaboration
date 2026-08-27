@@ -5,8 +5,8 @@ permalink: /about/
 eyebrow: Antoine Marot
 ---
 
-I'm Antoine Marot. For thirteen years at RTE, the French transmission system
-operator, I designed, developed and evaluated AI decision support for people who
+I'm Antoine Marot. After a start at Tesla Motors, I joined RTE for the last 13 years, the French transmission system
+operator, where I designed, developed and evaluated AI decision support for people who
 run a safety-critical physical system — first as a researcher, then leading the
 evaluation methodology, then delivering a real-world demonstrator for control
 rooms.
@@ -17,8 +17,9 @@ takes the human's role seriously rather than settling for a naive
 "human-in-the-loop" arrangement in which the person is present on paper and
 bypassed in practice.
 
-Alongside that: pioneering reinforcement learning for grid operation with Isabelle
-Guyon; the L2RPN international evaluation campaigns; participatory design research
+Alongside that: setting up and advising multi-domain national and European AI projects, 
+pioneering reinforcement learning for grid operation with Isabelle
+Guyon; the L2RPN international challenge series; participatory design research
 with Wendy Mackay; chairing a 30-member CIGRE working group; and advising the
 AI4RealNet Horizon Europe consortium on trustworthy AI across power, rail and air
 traffic. Working with researchers of that calibre — Isabelle Guyon and Wendy
@@ -47,28 +48,32 @@ published, built or run evaluation campaigns with, grouped the same way as the
 [ecosystem map]({{ '/map/' | relative_url }}) — by domain, with the two-letter
 code of the country they collaborate from.
 
-<!-- TODO: liste a valider et completer par Antoine avant publication.
-     Elle est construite a partir des co-auteurs des papiers cites et des
-     personnes nommees publiquement ; certains rattachements pays sont ceux de
-     l'institution, pas la nationalite. Retirer ou ajouter selon ton jugement. -->
+**Power Grid & Energy** — Benjamin D. (FR), Matthieu D. (FR), Olivier B. (FR), Laure C. (FR),
+Ricardo B. (PT), Jan V. (NL), Adrian K. (IR), Jerome P. (FR), Bruno L. (FR), Sami T. (FR), Noureddine H. (FR), Benoit J. (NL),   
+Alexandre R. (FR), Patrick P. (FR), Fabian H. (CH), Jochen C. (NL), Milos S. (DE), Alberto K. (BR), Sjoerd K. (NL), Amar R. (US),
+Medha S. (IR), Samuel Y. (UK), Aidan O. (UK), Qiuhua H. (US), Viktor M. (SE), Panagiotis P.(UK), Balthazar D. (FR),
+Spyros C. (DK), Malte L. (DE), Camilo R. (EQ), Arnaud Z. (CA)
 
-**Grid operations and energy** — Isabelle G. (FR), Benjamin D. (FR),
-Antoine R. (FR), Vincent B. (FR), Milad L. (FR), Bruno L. (FR), Ricardo B. (PT),
-Jan V. (NL), Jochen C. (NL), Alexandru S. (NL), Marija N. (NL)
+**Air Traffic**
+Clark B. (NL), Hervé G.(FR), Giuseppe M. (FR)
 
-**Human factors and interaction design** — Wendy M. (FR), Jonas L. (SE),
-Toni W. (CH), Salima H. (CH)
+**Railway**
+Nicolas R. (FR), Laurent G. (FR), Sebastien M. (FR), Hervé B. (FR), Daniel B. (CH), Adrian E. (CH)
 
-**AI evaluation, benchmarks and competitions** — Isabelle G. (FR),
-Adrien P. (FR), Evelyne V. (US)
+**Telecommunication**
+André B. (FR), Stephane G. (FR)
+
+**Human factors and interaction design** — Wendy M. (FR), Wissal S. (FR), Nicolas H. (FR), Kahina A. (FR), Jonas L. (SE), Magnus B. (SE),
+Toni W. (CH), Salima H. (CH), Maroua M. (FR)
+
+**AI, evaluation, benchmarks and competitions** — Isabelle G. (FR),
+Adrien P. (FR), Gabriel D. (FR), Milad L. (FR), Mouadh Y. (FR), Manuel S. (CH), Marcello R. (IT), Marc S. (FR)
 
 And the organisations this runs through: RTE (FR), TenneT (NL), IRT SystemX (FR),
-Inria and Université Paris-Saclay (FR), INESC TEC (PT), TU Delft (NL), FHNW (CH),
-Linköping University (SE), ChaLearn, LF Energy, CIGRE, the French **IA2 national
-programme** — through its CAB and HSA projects — and the
+Inria and Université Paris-Saclay (FR), INESC TEC (PT), TU Delft (NL), EPRI (US), SBB (CH), FHNW (CH),
+Linköping University (SE), Fraunhofer (DE), Lïnkoping U. (SE), Politechnico di Milano (IT), ChaLearn, Codabench, LF Energy, CIGRE, and the
 [AI4RealNet](https://ai4realnet.eu/) consortium.
 
 - [Google Scholar](https://scholar.google.com/citations?user=amRq8b8AAAAJ&hl=fr)
 - [LinkedIn](https://www.linkedin.com/in/antoine-MAROT)
 - [GitHub](https://github.com/marota)
-<!-- TODO: ajouter l'ORCID une fois cree — https://orcid.org/register (5 minutes) -->
