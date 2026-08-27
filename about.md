@@ -49,18 +49,16 @@ published, built or run evaluation campaigns with, grouped the same way as the
 code of the country they collaborate from.
 
 **Power Grid & Energy** — Benjamin D. (FR), Matthieu D. (FR), Olivier B. (FR), Laure C. (FR),
-Ricardo B. (PT), Jan V. (NL), Adrian K. (IR), Jerome P. (FR), Bruno L. (FR), Sami T. (FR), Noureddine H. (FR), Benoit J. (NL),   
-Alexandre R. (FR), Patrick P. (FR), Fabian H. (CH), Jochen C. (NL), Milos S. (DE), Alberto K. (BR), Sjoerd K. (NL), Amar R. (US),
-Medha S. (IR), Samuel Y. (UK), Aidan O. (UK), Qiuhua H. (US), Viktor M. (SE), Panagiotis P.(UK), Balthazar D. (FR),
+Ricardo B. (PT), Jan V. (NL), Adrian K. (IR), Jerome P. (FR), Bruno L. (FR), Sami T. (FR), Noureddine H. (FR), Benoit J. (FR), Alexandre R. (FR), Patrick P. (FR), Fabian H. (CH), Jochen C. (NL), Milos S. (DE), Alberto K. (BR), Sjoerd K. (NL), Amar R. (US), Medha S. (IR), Samuel Y. (UK), Aidan O. (UK), Qiuhua H. (US), Viktor M. (SE), Panagiotis P.(UK), Balthazar D. (FR),
 Spyros C. (DK), Malte L. (DE), Camilo R. (EQ), Arnaud Z. (CA)
 
-**Air Traffic**
+**Air Traffic** —
 Clark B. (NL), Hervé G.(FR), Giuseppe M. (FR)
 
-**Railway**
+**Railway** —
 Nicolas R. (FR), Laurent G. (FR), Sebastien M. (FR), Hervé B. (FR), Daniel B. (CH), Adrian E. (CH)
 
-**Telecommunication**
+**Telecommunication** —
 André B. (FR), Stephane G. (FR)
 
 **Human factors and interaction design** — Wendy M. (FR), Wissal S. (FR), Nicolas H. (FR), Kahina A. (FR), Jonas L. (SE), Magnus B. (SE),
