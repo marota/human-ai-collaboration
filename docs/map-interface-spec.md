@@ -226,6 +226,21 @@ coordinates. An entity off the map still participates in the graph.
 Consortium links are drawn from `edges.yml`; created/used links come from the
 commons and framework cross-references.
 
+**The selection fan is attenuated, not just drawn.** Selecting a
+twenty-partner project used to put twenty full-strength curves across the whole
+map — ink rather than information, since which places are involved is already
+legible from the neighbour markers, and the lines only have to carry the fact of
+the connection. `styleHotEdges()` applies two attenuations: the wider the fan the
+lighter and thinner each line (from 0.85 opacity at four neighbours or fewer down
+to 0.40 at sixteen or more), and the longer a line the lighter still, since the
+long ones are the ones crossing everything else.
+
+**One relationship can always be isolated.** Pointing at a partner — its marker
+on the map, or its row in the card, which is where the names are read — brings
+that single edge to full strength and drops the rest of the fan to a trace.
+`peek()` drives both the marker halo and the edge emphasis, so hovering anywhere
+that names an entity does the same thing.
+
 ### 4.4 Zoom thresholds
 
 | Level | Effect |
