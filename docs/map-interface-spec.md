@@ -393,15 +393,20 @@ counts without running per frame.
 When the stage measures zero — a hidden pane, printing — every placed marker is
 counted rather than none.
 
-**Off-map entities widen the gap on their own.** An entity with no coordinates
-(§3.1, point 4) can never be "in view" — there is no marker to be on- or
-off-screen — but it still matches the filters, so it counts toward the caption
-without ever counting toward the four tiles. Reading the gap between "in view"
-and "match the filters" as pan/zoom alone would be wrong whenever any of those
-entities pass the current filters. `updateInView()` tallies them separately as
-`state.offMapMatch`, and the caption names the count explicitly — "445 match the
-filters (11 of them off the map)" — rather than leaving the reader to do the
-arithmetic.
+**The gap has two causes, and both are named.** "In view" counts markers inside
+the stage rectangle, so it falls short of "match the filters" for two quite
+different reasons: entities whose marker is simply outside the current pan and
+zoom, and entities with no coordinates at all (§3.1, point 4), which can never be
+"in view" because there is no marker to be on- or off-screen. `updateInView()`
+tallies both — `state.offScreen` and `state.offMapMatch` — and the caption names
+them, so the numbers reconcile at any zoom: "445 match the filters (54 off
+screen, 11 off the map)".
+
+Naming only the off-map part, as an earlier version did, reads as though it
+accounts for the whole difference — which it does at the default fit, where every
+placed marker is on screen, and stops being true the moment the reader zooms in.
+A reader who then sees "434" become "380" against an unchanged "11 off the map"
+has been handed an arithmetic problem with a missing term.
 
 ### 9.2 The feed
 
@@ -418,12 +423,14 @@ where the markers are dense, the reader cannot read the names.
   entities remain reachable.
 
 The header count (`#fd-count`) sits right where a reader's eye lands first, so
-it repeats the off-map reconciliation from §9.1 there too rather than trusting
-the sidebar caption to be noticed: **"IN VIEW 434 + 11 off the map"**, the second
-part a button (`#fd-offmap`) that reveals the sidebar and scrolls the **Off the
-map** section into view. Reconciling the two numbers by reading a caption in a
-different corner of the page asks more of the reader than restating the gap
-next to the number that prompted the question in the first place.
+it repeats the reconciliation from §9.1 there too rather than trusting the
+sidebar caption to be noticed: **"IN VIEW 380 + 54 off screen + 11 off the
+map"**. Each part is a button, and each has its own remedy: `#fd-offscreen`
+fits the view so the off-screen markers come in, `#fd-offmap` reveals the
+sidebar and scrolls the **Off the map** section into view. Reconciling the
+numbers by reading a caption in a different corner of the page asks more of the
+reader than restating the gap next to the number that prompted the question in
+the first place.
 
 Hiding the feed reverts to the floating detail panel with the same card. The
 choice persists.
@@ -658,6 +665,9 @@ A change that breaks one of these is a regression even if nothing throws.
 11. No floating cluster (`.ctl-tr`, `.ctl-br`, `.ctl-bl`) or its content can
     grow past `#stage`'s visible area — each carries an explicit width bound
     rather than relying on its content staying small (§5).
+12. The counters reconcile at every zoom level: in view + off screen + off the
+    map equals the number matching the filters. A gap the reader can see must
+    be a gap the interface names (§9.1).
 
 ---
 

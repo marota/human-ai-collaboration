@@ -47,11 +47,13 @@ reaches the floor. Narrowed periods travel in the shareable link.
 
 The four counters in the side panel follow the **viewport**: zoom in and they
 count what is actually on screen, with the number matching the filters as a
-caption — naming how many of that count sit off the map, when any do, since the
-international standards under **Off the map** have no marker to zoom in on. The
-**Feed** column on the right lists those same entities, in layer order, and
-repeats that count next to its own header — click it to jump straight to the
-**Off the map** list. Selecting a marker expands its card in the feed and
+caption. When the two differ, the caption says why, in the two ways they can:
+how many markers are simply *off screen* at the current zoom, and how many sit
+*off the map* altogether — the international standards under **Off the map**
+have no marker to zoom in on. The **Feed** column on the right lists those same
+entities, in layer order, and repeats both figures next to its own header, each
+one a shortcut: click the off-screen count to zoom back out until they all fit,
+or the off-map count to jump straight to the **Off the map** list. Selecting a marker expands its card in the feed and
 scrolls it into view;
 clicking a row expands the card and highlights the marker without moving the
 map. The column can be hidden with the *Feed* pill — the card then opens as a

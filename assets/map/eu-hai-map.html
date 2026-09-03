@@ -305,10 +305,10 @@
   .fd-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--rule)}
   .fd-title{flex:1;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-faint)}
   .fd-title em{font-style:normal;color:var(--ink);font-variant-numeric:tabular-nums;margin-left:4px}
-  .fd-offmap{font-style:normal;font-weight:400;text-transform:none;letter-spacing:normal;
+  .fd-hint{font-style:normal;font-weight:400;text-transform:none;letter-spacing:normal;
     color:var(--ink-faint);font-variant-numeric:tabular-nums;margin-left:5px;cursor:pointer}
-  .fd-offmap:hover{color:var(--accent)}
-  .fd-offmap[hidden]{display:none}
+  .fd-hint:hover{color:var(--accent)}
+  .fd-hint[hidden]{display:none}
   .fd-list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:6px 8px 24px}
   .fd-item{border-radius:9px;border:1px solid transparent}
   .fd-item.open{background:var(--surface-alt);border-color:var(--rule);margin:4px 0}
@@ -597,7 +597,7 @@
 
   <aside id="feed" data-screen-label="Fil des fiches" aria-label="Fiches dans la vue">
     <div class="fd-head">
-      <span class="fd-title"><span data-i18n="feedTitle">Dans la vue</span><em id="fd-count">0</em><button class="fd-offmap" id="fd-offmap" type="button" hidden></button></span>
+      <span class="fd-title"><span data-i18n="feedTitle">Dans la vue</span><em id="fd-count">0</em><button class="fd-hint" id="fd-offscreen" type="button" hidden></button><button class="fd-hint" id="fd-offmap" type="button" hidden></button></span>
       <button class="dt-close" id="fd-close" aria-label="Masquer le fil">×</button>
     </div>
     <div class="fd-list" id="fd-list"></div>
@@ -711,7 +711,11 @@ const I18N = {
     feedPill:'Fil', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
     feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
     stNote:n=>`dans la vue · ${n} correspondent aux filtres`,
-    stNoteOff:(n,m)=>`dans la vue · ${n} correspondent aux filtres (dont ${m} hors carte)`,
+    stNoteWhy:(n,why)=>`dans la vue · ${n} correspondent aux filtres (${why})`,
+    stOffScreen:n=>`${n} hors écran`,
+    stOffMap:n=>`${n} hors carte`,
+    feedOffScreen:n=>`+ ${n} hors écran`,
+    feedOffScreenTitle:n=>`${n} de plus correspond${n>1?'ent':''} aux filtres mais se trouve${n>1?'nt':''} hors de la vue actuelle — dézoomez pour les afficher.`,
     feedOffMap:n=>`+ ${n} hors carte`,
     feedOffMapTitle:n=>`${n} de plus correspond${n>1?'ent':''} aux filtres mais n’${n>1?'ont':'a'} pas de coordonnées, donc pas de marqueur — voir « Hors carte » dans le panneau de gauche.`,
     asOf:date=>`Données à jour au ${date} — le curseur de période s’arrête à cette année.`,
@@ -778,7 +782,11 @@ const I18N = {
     feedPill:'Feed', feedTitle:'In view', feedHide:'Hide feed',
     feedEmpty:'Nothing in view — zoom out or widen the filters.',
     stNote:n=>`in view · ${n} match the filters`,
-    stNoteOff:(n,m)=>`in view · ${n} match the filters (${m} of them off the map)`,
+    stNoteWhy:(n,why)=>`in view · ${n} match the filters (${why})`,
+    stOffScreen:n=>`${n} off screen`,
+    stOffMap:n=>`${n} off the map`,
+    feedOffScreen:n=>`+ ${n} off screen`,
+    feedOffScreenTitle:n=>`${n} more match the filters but sit outside the current view — zoom out to bring them in.`,
     feedOffMap:n=>`+ ${n} off the map`,
     feedOffMapTitle:n=>`${n} more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.`,
     asOf:date=>`Data current as of ${date} — the period slider stops at that year.`,
@@ -819,7 +827,7 @@ const state = {
   domains: new Set(ALL_DOMS),
   layers: { project:true, team:true, commons:true, framework:true },
   years: null, // {a,b,undated} — filled once the data bounds are known
-  feed:false, inView:new Set(), matchCount:0, offMapMatch:0,
+  feed:false, inView:new Set(), matchCount:0, offMapMatch:0, offScreen:0,
   links:false, myMap:false,
   pins: new Set(JSON.parse(lsGet('hai-map-v2-pins')||'[]')),
   focusId:null, history:[], hIndex:-1,
@@ -1518,19 +1526,24 @@ function updateInView(vis){
   const [w,h] = stageSize(); const pad = 10;
   const unmeasured = w < 2 || h < 2;          // hidden pane / print: count every placed marker
   state.inView = new Set();
-  let offMap = 0;
+  let offMap = 0, placed = 0;
   items.forEach(it=>{
     if (!vis.has(it.id)) return;
     // Off-map entities (no coordinates) can never be "in view" — they have no
     // marker to be on- or off-screen — but they do match the filters, so the
     // gap between the two counters needs to be explained, not just displayed.
     if (!it.geo){ offMap++; return; }
+    placed++;
     if (unmeasured){ state.inView.add(it.id); return; }
     const sx = view.x + it.X*view.k, sy = view.y + it.Y*view.k;
     if (sx>=-pad && sx<=w+pad && sy>=-pad && sy<=h+pad) state.inView.add(it.id);
   });
   state.matchCount = vis.size;
   state.offMapMatch = offMap;
+  // The rest of the gap is pan/zoom: placed markers that are simply outside the
+  // stage right now. Naming only the off-map part would imply it explains the
+  // whole difference, which it does not as soon as the reader zooms in.
+  state.offScreen = placed - state.inView.size;
 }
 function renderStats(){
   let cp=0, ct=0, cr=0; const ctry = new Set();
@@ -1541,9 +1554,12 @@ function renderStats(){
   document.getElementById('st-team').textContent = ct;
   document.getElementById('st-res').textContent = cr;
   document.getElementById('st-ctry').textContent = ctry.size;
-  document.getElementById('st-note').textContent = state.offMapMatch
-    ? I18N[LANG].stNoteOff(state.matchCount, state.offMapMatch)
-    : I18N[LANG].stNote(state.matchCount);
+  const why = [];
+  if (state.offScreen) why.push(t('stOffScreen')(state.offScreen));
+  if (state.offMapMatch) why.push(t('stOffMap')(state.offMapMatch));
+  document.getElementById('st-note').textContent = why.length
+    ? t('stNoteWhy')(state.matchCount, why.join(', '))
+    : t('stNote')(state.matchCount);
 }
 let ivTimer = null;
 function scheduleInView(){
@@ -1565,6 +1581,13 @@ function renderFeed(){
   // on- or off-screen — so it will always undercount "match the filters"
   // whenever any of them pass. Name that gap right next to the number the
   // reader is actually looking at, not only in the sidebar caption.
+  const scrBtn = document.getElementById('fd-offscreen');
+  scrBtn.hidden = !state.offScreen;
+  if (state.offScreen){
+    scrBtn.textContent = t('feedOffScreen')(state.offScreen);
+    const smsg = t('feedOffScreenTitle')(state.offScreen);
+    scrBtn.title = smsg; scrBtn.setAttribute('aria-label', smsg);
+  }
   const offBtn = document.getElementById('fd-offmap');
   offBtn.hidden = !state.offMapMatch;
   if (state.offMapMatch){
@@ -1606,6 +1629,7 @@ function setFeed(on){
 }
 document.getElementById('feed-pill').addEventListener('click', ()=>setFeed(!state.feed));
 document.getElementById('fd-close').addEventListener('click', ()=>setFeed(false));
+document.getElementById('fd-offscreen').addEventListener('click', ()=>fitView(!reduceMotion));
 document.getElementById('fd-offmap').addEventListener('click', ()=>{
   document.body.classList.remove('sb-hidden');
   if (window.innerWidth<=840) setPanel(true);
