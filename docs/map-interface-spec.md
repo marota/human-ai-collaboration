@@ -25,9 +25,9 @@ repository through pull requests; this page renders a snapshot.
 
 Three design commitments follow from that, and they constrain everything below.
 
-- **Legibility over completeness of display.** Four hundred-odd entities cannot all be read
-  at once. Every feature — filters, period, feed, counters — exists to let a
-  reader carve out a subset small enough to actually read.
+- **Legibility over completeness of display.** Four hundred-odd entities
+  cannot all be read at once. Every feature — filters, period, feed, counters
+  — exists to let a reader carve out a subset small enough to actually read.
 - **Traversal over search.** The interesting structure is relational: which team
   sits in which consortium, who built which benchmark. Cards are navigable, and
   the neighbourhood of a selection is highlighted on the map.
@@ -44,7 +44,7 @@ routing, and anything requiring a network at view time.
 
 | File | Size | Role |
 |---|---|---|
-| `assets/map/eu-hai-map.html` | ~1 800 lines | The whole interface: markup, CSS, logic. Hand-written, no build step. |
+| `assets/map/eu-hai-map.html` | ~2 000 lines | The whole interface: markup, CSS, logic. Hand-written, no build step. |
 | `assets/map/hai-data.js` | ~950 kB | **Generated.** The entity payload plus the label vocabulary. |
 | `assets/map/europe-geo.js` | ~49 kB | Natural Earth country outlines, pre-projected. Regenerable, rarely changes. |
 
@@ -165,7 +165,7 @@ than breaking.
 `DATA.AS_OF` is one ISO date: the most recent `provenance.last_updated` /
 `provenance.added_on` across every entity in every layer. It is the only
 data-derived (not wall-clock) notion of "now" the page has, and it drives two
-things — the period filter's upper bound and its freshness bubble (§10.0).
+things — the period filter's upper bound and its freshness bubble (§10).
 
 ---
 
@@ -264,18 +264,38 @@ configure the view live in the left panel. That split is the reason the period
 slider was moved out of the bottom bar: there should be one place to look for
 interactions.
 
-**The period pill has a fixed width budget, on purpose.** `.ctl-tr` is
-absolutely positioned with `right` but no `left`, so nothing stops an
-unconstrained child from growing leftward — past the sidebar's edge and into
-`#stage`'s `overflow:hidden`, where it is silently clipped rather than
-overlapping anything. That happened once: the pill grew a second batch of
-content (the *unknown start* toggle and the reset button) onto its one row
-only once a range was picked, and the wider pill clipped invisibly behind the
-sidebar's edge. The fix is structural, not a size tweak: the pill is two flex
-rows (`.tf-row`, always the slider; `.tf-row2`, the toggle and reset,
-`hidden` until engaged) under a column with a `max-width`, so engaging the
-filter grows the pill **downward**, never sideways. Anything added to either
-row shares that same fixed-width budget.
+**Every floating cluster carries its own width bound, not just an edge
+offset.** `.ctl-tr`, `.ctl-br` and `.ctl-bl` are all `position:absolute` with
+an offset from one edge and nothing from the other — a shelf hung from a
+single bracket. Nothing about that alone limits how wide the shelf can get,
+and because `#stage{overflow:hidden}` clips rather than lets an over-wide
+cluster spill onto the map, the failure mode is invisible content, not a
+visibly broken layout — which is why it is worth stating as a rule rather
+than leaving each cluster's sizing to be re-derived by eye.
+
+The period pill (`.tf`) is the cluster most exposed to this, since its own
+content changes shape with state: engaging a range adds a second row (the
+*unknown start* toggle and reset, in `.tf-row2`, `hidden` until then), and
+the range text itself grows and shrinks with the selection. Two bounds keep
+it inside the visible area regardless of state:
+
+- **The pill has its own `max-width`** — 400px on desktop, sized to the
+  longer of the two languages' widest realistic row-1 content (label, a full
+  four-digit range, the info icon, the slider's fixed 172px) with headroom,
+  plus `overflow:hidden` as a second line of defence if a future label ever
+  exceeds it. Engaging the filter grows the pill **downward** into row 2,
+  never sideways.
+- **The cluster (`.ctl-tr`) has its own `max-width` too**, expressed in the
+  same 312px/344px the `#app` grid uses for the sidebar and feed columns,
+  reacting to `sb-hidden`/`feed-open` the same way the grid does. This gives
+  `flex-wrap` an actual width to wrap against: past a certain narrowness — a
+  modest window with the feed panel open, say — the button row drops to its
+  own line below the pill instead of either row clipping. Scoped to
+  `@media (min-width:841px)`, the mobile query's complement, since mobile
+  already bounds `.ctl-tr` more simply with `left` and `right` both set.
+
+Anything added to either row of the pill shares the pill's budget; anything
+added to the cluster shares the cluster's.
 
 ---
 
@@ -415,33 +435,31 @@ the DOM write, so panning across unchanged content costs nothing.
 
 ## 10. Period filter
 
-A two-handle slider from **1945 to the data's own freshness date** (§10.0) with
-a per-year histogram of how many dated entities were running that year — the
+A two-handle slider from **1945 to the data's own freshness date** with a
+per-year histogram of how many dated entities were running that year — the
 growth curve of the field, read directly.
 
 **Semantics.** A dated entity is kept when its span overlaps the selection. No
 recorded end means "still running", so it stays visible for any range reaching
 its start.
 
-### 10.0 The axis stops at "now", not at the furthest funded end-date
+**The axis stops at "now", not at the furthest funded end-date.** `YMAX` used
+to be `Math.max(...YEARS)` — the latest year appearing anywhere in the data,
+start or end. Several Horizon Europe projects are funded through 2030–2032, so
+the axis stretched a decade past the present to show almost nothing: a thin
+tail of "still running" bars for grants that have not been lived yet.
 
-`YMAX` used to be `Math.max(...YEARS)` — the latest year appearing anywhere in
-the data, start or end. Several Horizon Europe projects are funded through
-2030–2032, so the axis stretched a decade past the present to show almost
-nothing: a thin tail of "still running" bars for grants that have not been
-lived yet.
-
-The generator instead computes `AS_OF`, the most recent `provenance.upd` /
-`provenance.on` across every entity — a freshness date derived entirely from
-the data, not from wall-clock generation time. Deriving it from `date.today()`
-would put a changing timestamp in a generated file and break the "regenerating
-without a source change produces an empty diff" invariant (§16, first item);
-`AS_OF` only
-moves when an entity's own provenance actually does. The map reads its year as
-`YMAX`, clamped so it can never fall below the latest known **start** year (an
-entity whose own start is after `AS_OF`'s year would otherwise become
-permanently unreachable — not a case in the current data, but a real risk if
-ever a future-dated entity were added right after a stale `AS_OF`).
+The generator instead computes `AS_OF` (§3.5), the most recent
+`provenance.upd` / `provenance.on` across every entity — a freshness date
+derived entirely from the data, not from wall-clock generation time. Deriving
+it from `date.today()` would put a changing timestamp in a generated file and
+break the "regenerating without a source change produces an empty diff"
+invariant (§16, first item); `AS_OF` only moves when an entity's own
+provenance actually does. The map reads its year as `YMAX`, clamped so it can
+never fall below the latest known **start** year (an entity whose own start is
+after `AS_OF`'s year would otherwise become permanently unreachable — not a
+case in the current data, but a real risk if ever a future-dated entity were
+added right after a stale `AS_OF`).
 
 This does not hide any currently-active entity: a project funded through 2032
 still matches every range up to today, since its end (2032) satisfies `e >= a`
@@ -637,6 +655,9 @@ A change that breaks one of these is a regression even if nothing throws.
 8. Every user-visible string goes through `t()` and exists in both languages.
 9. Every string interpolated into HTML goes through `esc()`.
 10. The page never makes a network request.
+11. No floating cluster (`.ctl-tr`, `.ctl-br`, `.ctl-bl`) or its content can
+    grow past `#stage`'s visible area — each carries an explicit width bound
+    rather than relying on its content staying small (§5).
 
 ---
 
