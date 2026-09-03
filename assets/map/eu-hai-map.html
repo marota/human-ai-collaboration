@@ -185,8 +185,18 @@
 
   /* ---------- period filter (top-right cluster) ---------- */
   .ctl-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-  .tf{display:flex;align-items:center;gap:9px;height:34px;padding:0 13px;background:var(--surface);
-    border:1px solid var(--rule);border-radius:999px;box-shadow:var(--shadow-md)}
+  /* Two stacked rows, not one ever-widening one: .ctl-tr is absolutely
+     positioned with `right` but no `left`/width, so an unbounded single row
+     grows leftward with nothing to stop it — past the sidebar's edge and into
+     #stage's overflow:hidden, where it's silently clipped. Capping the width
+     here and dropping row 2 below keeps the pill's footprint fixed whether or
+     not "unknown start" is showing. */
+  .tf{display:flex;flex-direction:column;gap:6px;padding:7px 13px;background:var(--surface);
+    border:1px solid var(--rule);border-radius:15px;box-shadow:var(--shadow-md);
+    max-width:min(320px, calc(100vw - 28px))}
+  .tf-row{display:flex;align-items:center;gap:9px}
+  .tf-row2{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .tf-row2[hidden]{display:none}
   .tf-h{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint)}
   .tf-range{font-size:12px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;
     letter-spacing:.01em;white-space:nowrap}
@@ -209,7 +219,6 @@
   .tf-asof{font-size:11px;font-style:italic;font-family:var(--serif)}
   .tf-asof:hover{background:var(--accent-wash);color:var(--accent)}
   .tf-reset:hover{background:var(--accent-wash);color:var(--accent)}
-  .tf-opt[hidden],.tf-reset[hidden]{display:none}
 
   #tooltip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:240px;
     background:var(--surface);border:1px solid var(--rule);border-radius:9px;box-shadow:var(--shadow-lg);padding:8px 11px}
@@ -382,7 +391,10 @@
     .ctl-group{order:1;margin-left:auto}
     .pill{padding:7px 10px;font-size:11px}
     .legend{max-width:180px}
-    .tf{order:2;width:100%;padding:0 11px;gap:8px}
+    /* .ctl-tr is edge-to-edge here (left+right set), so .tf's own max-width
+       — needed only to bound the unconstrained desktop pill — would just
+       leave a gap; let it use the full strip instead. */
+    .tf{order:2;width:100%;max-width:none;padding:7px 11px;gap:6px}
     .tf-h{display:none}
     .tf-slider{width:auto;flex:1 1 auto;min-width:70px}
     #feed{position:fixed;top:0;right:0;bottom:0;width:min(88vw,340px);z-index:90;transform:translateX(105%);
@@ -500,18 +512,22 @@
 
     <div class="ctl ctl-tr" id="ctl-cluster">
       <div class="tf" id="ctl-time">
-        <span class="tf-h" data-i18n="timeTitle">Période</span>
-        <span class="tf-range" id="tf-range">—</span>
-        <button class="tf-asof" id="tf-asof" type="button">ⓘ</button>
-        <div class="tf-slider" id="tf-slider">
-          <svg class="tf-hist" id="tf-hist" preserveAspectRatio="none" aria-hidden="true"></svg>
-          <div class="tf-track"><div class="tf-sel" id="tf-sel"></div></div>
-          <div class="tf-knob" id="tf-a" role="slider" tabindex="0"></div>
-          <div class="tf-knob" id="tf-b" role="slider" tabindex="0"></div>
+        <div class="tf-row">
+          <span class="tf-h" data-i18n="timeTitle">Période</span>
+          <span class="tf-range" id="tf-range">—</span>
+          <button class="tf-asof" id="tf-asof" type="button">ⓘ</button>
+          <div class="tf-slider" id="tf-slider">
+            <svg class="tf-hist" id="tf-hist" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <div class="tf-track"><div class="tf-sel" id="tf-sel"></div></div>
+            <div class="tf-knob" id="tf-a" role="slider" tabindex="0"></div>
+            <div class="tf-knob" id="tf-b" role="slider" tabindex="0"></div>
+          </div>
         </div>
-        <label class="tf-opt" id="tf-opt" hidden><input type="checkbox" id="tf-undated" checked>
-          <span data-i18n="timeUndated">sans date</span> <em id="tf-undated-n">0</em></label>
-        <button class="tf-reset" id="tf-reset" hidden>⟲</button>
+        <div class="tf-row2" id="tf-row2" hidden>
+          <label class="tf-opt" id="tf-opt"><input type="checkbox" id="tf-undated" checked>
+            <span data-i18n="timeUndated">sans date</span> <em id="tf-undated-n">0</em></label>
+          <button class="tf-reset" id="tf-reset" type="button">⟲</button>
+        </div>
       </div>
       <div class="ctl-group">
         <button class="pill" id="links-pill" aria-pressed="false"><span data-i18n="linksPill">Liens</span></button>
@@ -1603,10 +1619,11 @@ function renderTime(){
   document.getElementById('tf-range').textContent = a===b ? String(a) : `${a} – ${b}`;
   document.getElementById('tf-undated-n').textContent = UNDATED;
   document.getElementById('tf-undated').checked = state.years.undated;
-  // The undated toggle and the reset only mean something once a range is picked.
+  // The undated toggle and the reset only mean something once a range is
+  // picked — both live in one row (§ "unfolds below", not beside the slider)
+  // toggled together so the pill's width never depends on whether it's shown.
   const engaged = on || !state.years.undated;
-  document.getElementById('tf-opt').hidden = !engaged;
-  document.getElementById('tf-reset').hidden = !engaged;
+  document.getElementById('tf-row2').hidden = !engaged;
   document.getElementById('tf-reset').title = t('timeAll');
   document.getElementById('tf-reset').setAttribute('aria-label', t('timeAll'));
   document.getElementById('tf-slider').title = `${YMIN} – ${YMAX} · ${t('timeFloor')}`;
