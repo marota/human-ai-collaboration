@@ -267,6 +267,30 @@ def primary(sec, lead) -> str:
     return sec[0] if sec else "multi"
 
 
+# The dating pass recorded, in provenance.source, how solid each start year is:
+#   "timeline.start (high|medium|low): <evidence>"
+# A note admitting the sub-unit's own date was not found means the year belongs
+# to the host institution, not to the work the entry describes — the map must be
+# able to say so rather than drawing it as a firm date.
+DATE_NOTE = re.compile(r"timeline\.start \((high|medium|low)\): (.*?)(?: \| |$)", re.S)
+# "X founded 1949; the HMT department's date not found" — the year is the host's,
+# and says nothing about when the work described actually began. Distinct from
+# "Estimate: MAHALO started 2020", which *is* an estimate of this entry's start.
+HOST_YEAR = re.compile(r"date not (?:found|published)|not found\b", re.I)
+
+
+def date_quality(d: dict) -> dict:
+    src = (d.get("provenance") or {}).get("source") or ""
+    m = DATE_NOTE.search(src)
+    if not m:
+        return {}
+    conf, note = m.group(1), m.group(2).strip()
+    out = {"dateConf": conf}
+    if conf in ("medium", "low") and HOST_YEAR.search(note):
+        out["dateHost"] = True          # the year is the host institution's
+    return out
+
+
 def timeline_of(d: dict) -> dict:
     tl = d.get("timeline") or {}
     out = {
@@ -332,6 +356,7 @@ def base_entry(d: dict, descs: dict, lead: str | None = None) -> dict:
     tl = timeline_of(d)
     if tl:
         e["timeline"] = tl
+        e.update(date_quality(d))
     lk = links_of(d)
     if lk:
         e["links"] = lk
