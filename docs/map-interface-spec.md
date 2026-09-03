@@ -384,6 +384,14 @@ where the markers are dense, the reader cannot read the names.
 - A selected entity with no coordinates is prepended to the list, so the off-map
   entities remain reachable.
 
+The header count (`#fd-count`) sits right where a reader's eye lands first, so
+it repeats the off-map reconciliation from §9.1 there too rather than trusting
+the sidebar caption to be noticed: **"IN VIEW 434 + 11 off the map"**, the second
+part a button (`#fd-offmap`) that reveals the sidebar and scrolls the **Off the
+map** section into view. Reconciling the two numbers by reading a caption in a
+different corner of the page asks more of the reader than restating the gap
+next to the number that prompted the question in the first place.
+
 Hiding the feed reverts to the floating detail panel with the same card. The
 choice persists.
 

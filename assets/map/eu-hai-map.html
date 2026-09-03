@@ -288,6 +288,10 @@
   .fd-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--rule)}
   .fd-title{flex:1;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-faint)}
   .fd-title em{font-style:normal;color:var(--ink);font-variant-numeric:tabular-nums;margin-left:4px}
+  .fd-offmap{font-style:normal;font-weight:400;text-transform:none;letter-spacing:normal;
+    color:var(--ink-faint);font-variant-numeric:tabular-nums;margin-left:5px;cursor:pointer}
+  .fd-offmap:hover{color:var(--accent)}
+  .fd-offmap[hidden]{display:none}
   .fd-list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:6px 8px 24px}
   .fd-item{border-radius:9px;border:1px solid transparent}
   .fd-item.open{background:var(--surface-alt);border-color:var(--rule);margin:4px 0}
@@ -549,7 +553,7 @@
 
   <aside id="feed" data-screen-label="Fil des fiches" aria-label="Fiches dans la vue">
     <div class="fd-head">
-      <span class="fd-title"><span data-i18n="feedTitle">Dans la vue</span><em id="fd-count">0</em></span>
+      <span class="fd-title"><span data-i18n="feedTitle">Dans la vue</span><em id="fd-count">0</em><button class="fd-offmap" id="fd-offmap" type="button" hidden></button></span>
       <button class="dt-close" id="fd-close" aria-label="Masquer le fil">×</button>
     </div>
     <div class="fd-list" id="fd-list"></div>
@@ -664,6 +668,8 @@ const I18N = {
     feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
     stNote:n=>`dans la vue · ${n} correspondent aux filtres`,
     stNoteOff:(n,m)=>`dans la vue · ${n} correspondent aux filtres (dont ${m} hors carte)`,
+    feedOffMap:n=>`+ ${n} hors carte`,
+    feedOffMapTitle:n=>`${n} de plus correspond${n>1?'ent':''} aux filtres mais n’${n>1?'ont':'a'} pas de coordonnées, donc pas de marqueur — voir « Hors carte » dans le panneau de gauche.`,
     asOf:date=>`Données à jour au ${date} — le curseur de période s’arrête à cette année.`,
     nogeoTitle:'Hors carte', nogeoNote:'Normes internationales et ressources sans localisation : pas de marqueur, mais une fiche complète.',
     tPrev:'Précédent', tNext:'Suivant', tDone:'Terminer', tStep:(i,n)=>`Étape ${i} / ${n}`,
@@ -729,6 +735,8 @@ const I18N = {
     feedEmpty:'Nothing in view — zoom out or widen the filters.',
     stNote:n=>`in view · ${n} match the filters`,
     stNoteOff:(n,m)=>`in view · ${n} match the filters (${m} of them off the map)`,
+    feedOffMap:n=>`+ ${n} off the map`,
+    feedOffMapTitle:n=>`${n} more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.`,
     asOf:date=>`Data current as of ${date} — the period slider stops at that year.`,
     nogeoTitle:'Off the map', nogeoNote:'International standards and resources with no location: no marker, but a full card.',
     tPrev:'Previous', tNext:'Next', tDone:'Done', tStep:(i,n)=>`Step ${i} / ${n}`,
@@ -1509,6 +1517,17 @@ function renderFeed(){
   const list = [...state.inView].map(id=>byId[id]).sort(cmp);
   if (focus && !state.inView.has(focus)) list.unshift(byId[focus]);   // e.g. an entity with no coordinates
   document.getElementById('fd-count').textContent = state.inView.size;
+  // "In view" can never include off-map entities — there's no marker to be
+  // on- or off-screen — so it will always undercount "match the filters"
+  // whenever any of them pass. Name that gap right next to the number the
+  // reader is actually looking at, not only in the sidebar caption.
+  const offBtn = document.getElementById('fd-offmap');
+  offBtn.hidden = !state.offMapMatch;
+  if (state.offMapMatch){
+    offBtn.textContent = t('feedOffMap')(state.offMapMatch);
+    const msg = t('feedOffMapTitle')(state.offMapMatch);
+    offBtn.title = msg; offBtn.setAttribute('aria-label', msg);
+  }
   const key = list.map(it=>it.id).join(',')+'|'+focus+'|'+LANG+'|'+[...state.pins].join(',');
   if (key === feedKey) return;
   feedKey = key;
@@ -1543,6 +1562,11 @@ function setFeed(on){
 }
 document.getElementById('feed-pill').addEventListener('click', ()=>setFeed(!state.feed));
 document.getElementById('fd-close').addEventListener('click', ()=>setFeed(false));
+document.getElementById('fd-offmap').addEventListener('click', ()=>{
+  document.body.classList.remove('sb-hidden');
+  if (window.innerWidth<=840) setPanel(true);
+  document.getElementById('f-nogeo').scrollIntoView({ behavior: reduceMotion?'auto':'smooth', block:'center' });
+});
 
 // ---------- period filter ----------
 const tfSlider = document.getElementById('tf-slider');
