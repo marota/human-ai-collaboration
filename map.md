@@ -23,6 +23,28 @@ The map is bilingual: the **EN / FR** switch in its top-right corner changes the
 interface *and* the description of every entity on the map. Your choice is
 remembered.
 
+The **Period** slider in the top-right cluster, alongside the other controls,
+narrows the map to a range of years, so the landscape can be read as it stood in
+2016–2021 rather than all at once. The
+histogram behind the slider counts how many dated entities were running each
+year — the shape of the field's growth, in effect. An entity is kept when its
+span overlaps the selection; no recorded end date means "still running". Start
+years were researched for the 199 entities that had none — founding dates of
+labs, operators and standards, each recorded in the entry's provenance with its
+source and a confidence level. The 14 still undated, named sub-units whose
+creation year is not published, are kept by default and can be dropped with the
+*undated* checkbox. The axis starts in 1945; the few older foundings — Italgas,
+Philips, the ASEA and Siemens laboratories — stay included in any range that
+reaches it. Narrowed periods travel in the shareable link.
+
+The four counters in the side panel follow the **viewport**: zoom in and they
+count what is actually on screen, with the number matching the filters as a
+caption. The **Feed** column on the right lists those same entities, in layer
+order. Selecting a marker expands its card in the feed and scrolls it into view;
+clicking a row expands the card and highlights the marker without moving the
+map. The column can be hidden with the *Feed* pill — the card then opens as a
+floating panel instead.
+
 ## Why map it
 
 The argument running through [the series]({{ '/series/' | relative_url }}) is that
@@ -40,17 +62,31 @@ The data is organised into five layers, one YAML file per entity, plus the
 consortium relationships between them. The current snapshot holds:
 
 <ul class="tiles">
-  <li><strong>220</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
-  <li><strong>106</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
-  <li><strong>28</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
-  <li><strong>21</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
-  <li><strong>129</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
+  <li><strong>237</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
+  <li><strong>101</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
+  <li><strong>36</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
+  <li><strong>23</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
+  <li><strong>275</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
   <li><strong>27</strong><span>Countries</span><em>Europe in the broad sense, including UK, CH and NO</em></li>
 </ul>
 
-Infrastructure — testbeds, simulators, control-room labs, compute — is shown as
-a derived layer: the teams and projects tagged with a simulation or compute
-domain, rather than a separate list.
+Infrastructure — testbeds, simulators, control-room labs, compute — is a layer
+of its own in the data (38 entries), but it has no markers of its own. Where a
+facility is run by a team already on the map, it enriches that team's card with
+its operator, access model and capacity; the fifteen sites with no team of
+their own carry a marker in the Teams layer.
+
+Nine entities have no coordinates and so no pin: the international standards
+(ISO 9241-210, IEC 61508, IEEE 7000, SAE J3016, ARP6983/ED-324) and the founding
+human–automation frameworks (Fitts' List, Sheridan &amp; Verplank, Parasuraman,
+Sheridan &amp; Wickens), plus one non-European commons. They are listed under
+**Off the map** in the side panel, and their cards read like any other.
+
+Clicking a marker opens a card built from the whole record, not a summary of it:
+description, focus areas, timeline and milestones, consortium with each
+partner's role and country, funding source and budget, licence and maintainer
+for a commons, jurisdiction and issuing body for a framework — and, at the
+bottom, who added the entry, when, and with what confidence.
 
 ## Scope
 
@@ -80,4 +116,16 @@ To add or fix an entry: copy the relevant `data/<layer>/_template.yml`, fill it
 in, run `python scripts/validate_data.py`, and open a pull request. The review
 bar and the taxonomy are described in the repository's `CONTRIBUTING.md`.
 
+The copy embedded in this site is generated from those YAML files — never edited
+by hand. To pull in a change:
+
+```
+git clone -b refactor/pentagon-layers https://github.com/marota/eu-hai-collab-map.git ../eu-hai-collab-map
+python3 scripts/build-map-data.py --source ../eu-hai-collab-map
+```
+
 Code is MIT; the data under `data/` is CC BY 4.0.
+
+How the interface itself works — the data pipeline, the visual language, the
+filtering model, and the invariants a change must not break — is written up in
+the [interface specification](https://github.com/marota/human-ai-collaboration/blob/main/docs/map-interface-spec.md).

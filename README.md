@@ -141,11 +141,41 @@ Deux sections méritent d'être maintenues à jour en priorité :
 │   ├── personal-agent-harness.md
 │   └── ambient-ai-scribe.md
 ├── map.md                      # carte de l'écosystème européen
+├── docs/
+│   └── map-interface-spec.md   # spécification de l'interface carte (référence)
+├── scripts/
+│   └── build-map-data.py       # régénère assets/map/hai-data.js depuis les YAML
 └── assets/
     ├── css/main.css            # toute l'apparence du site
-    ├── map/eu-hai-map.html     # carte autonome (Leaflet, données inlinées)
+    ├── map/eu-hai-map.html     # carte autonome (SVG, sans dépendance)
+    ├── map/hai-data.js         # GÉNÉRÉ — ne pas éditer à la main
+    ├── map/europe-geo.js       # fond Natural Earth pré-projeté
     └── img/                    # favicon, illustrations série et projets
 ```
+
+### Régénérer les données de la carte
+
+Les entités de la carte vivent en YAML dans le dépôt compagnon
+[eu-hai-collab-map](https://github.com/marota/eu-hai-collab-map) — c'est la
+source de vérité. `assets/map/hai-data.js` en est la projection : descriptions
+complètes, axes de recherche, consortium, financement, calendriers, licences,
+provenance. Pour la reconstruire après une correction en amont :
+
+```bash
+git clone -b refactor/pentagon-layers https://github.com/marota/eu-hai-collab-map.git ../eu-hai-collab-map
+python3 scripts/build-map-data.py --source ../eu-hai-collab-map
+```
+
+Le chemin peut aussi venir de `$EU_HAI_MAP_REPO`. Le script n'a besoin que de
+PyYAML, et affiche un récapitulatif (entités par couche, entités sans
+coordonnées, longueur de la plus longue description) pour repérer une régression
+d'un coup d'œil.
+
+Avant de toucher à `assets/map/eu-hai-map.html` ou au générateur, lire
+[`docs/map-interface-spec.md`](docs/map-interface-spec.md) : modèle de données,
+langage visuel, modèle de filtrage, et surtout la liste des invariants qu'un
+changement ne doit pas casser — la dérivation des couleurs de marqueur, en
+particulier, est copiée à l'identique de l'ancien script et doit le rester.
 
 ---
 

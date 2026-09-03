@@ -1,0 +1,539 @@
+# Ecosystem map — interface specification
+
+The European human–AI collaboration map published at `/map/`. This document is
+the reference for anyone changing `assets/map/eu-hai-map.html` or
+`scripts/build-map-data.py`: what the interface is meant to do, how each part
+works, and which properties a change must not break.
+
+Companion documents: [`CONTRIBUTING.md`][contrib] in the data repository (how to
+add or fix an entity) and [`SPECIFICATIONS.md`][specs] (the data model and the
+editing app, of which this page is a read-only consumer).
+
+[contrib]: https://github.com/marota/eu-hai-collab-map/blob/main/CONTRIBUTING.md
+[specs]: https://github.com/marota/eu-hai-collab-map/blob/main/SPECIFICATIONS.md
+
+---
+
+## 1. Purpose and scope
+
+The map answers one question: **who works, across Europe, on human–AI
+collaboration for decision-making in industrial and critical systems, and how
+are they connected?**
+
+It is a *reading* surface, not an editing one. Curation happens in the data
+repository through pull requests; this page renders a snapshot.
+
+Three design commitments follow from that, and they constrain everything below.
+
+- **Legibility over completeness of display.** 397 entities cannot all be read
+  at once. Every feature — filters, period, feed, counters — exists to let a
+  reader carve out a subset small enough to actually read.
+- **Traversal over search.** The interesting structure is relational: which team
+  sits in which consortium, who built which benchmark. Cards are navigable, and
+  the neighbourhood of a selection is highlighted on the map.
+- **No dependencies.** The page loads three local files and nothing else. No
+  CDN, no tiles, no fonts, no analytics. It works offline, from `file://`, and
+  will still work when today's map libraries are gone.
+
+**Non-goals.** Editing, authentication, server round-trips, real-time data,
+routing, and anything requiring a network at view time.
+
+---
+
+## 2. Architecture
+
+| File | Size | Role |
+|---|---|---|
+| `assets/map/eu-hai-map.html` | ~1 800 lines | The whole interface: markup, CSS, logic. Hand-written, no build step. |
+| `assets/map/hai-data.js` | ~730 kB | **Generated.** The entity payload plus the label vocabulary. |
+| `assets/map/europe-geo.js` | ~49 kB | Natural Earth country outlines, pre-projected. Regenerable, rarely changes. |
+
+Both data files assign to `window` (`HAI_DATA`, `HAI_GEO`) and are loaded with
+plain `<script src>` before the inline module. The page is a single document
+with no imports, so it can be opened directly from disk.
+
+The site embeds it in an `<iframe>` from [`map.md`](../map.md); the same file is
+also the full-screen version. There is no separate build for the two.
+
+---
+
+## 3. Data pipeline
+
+```
+eu-hai-collab-map/data/**.yml   ← source of truth, PR-reviewed, CI-validated
+        │
+        │  scripts/build-map-data.py --source <checkout>
+        ▼
+assets/map/hai-data.js          ← generated, committed, never hand-edited
+        │
+        ▼
+assets/map/eu-hai-map.html      ← reads window.HAI_DATA
+```
+
+Regenerating:
+
+```bash
+git clone https://github.com/marota/eu-hai-collab-map.git ../eu-hai-collab-map
+python3 scripts/build-map-data.py --source ../eu-hai-collab-map
+```
+
+The source path also comes from `$EU_HAI_MAP_REPO` or a few conventional
+sibling locations. The only dependency is PyYAML. The generator prints a summary
+— entities per layer, entities without coordinates, longest description — so a
+regression is visible at a glance. **Output is byte-stable across runs**, so a
+no-op regeneration produces an empty diff.
+
+### 3.1 What the generator must preserve
+
+These are load-bearing. A change that breaks one of them silently moves or
+recolours markers, which readers will not notice as a bug.
+
+1. **Marker geometry and colour are derived exactly as the legacy
+   `sync_html_map.py` derived them.** The `SECTOR`, `APPROACH` and `INFRA_KIND`
+   tables are copied verbatim and must stay that way. Regeneration after a data
+   change should alter only the entities that changed.
+2. **`digital_twins` is never mapped to `simulation`.** The compute / cluster /
+   simulation codes are infrastructure categories and come only from the
+   infrastructure layer. Otherwise every operator using digital twins would
+   wrongly appear under the research-infrastructure filters.
+3. **Descriptions are not truncated.** The predecessor capped them at 300
+   characters, cutting 29 English and 39 French descriptions mid-word. Paragraph
+   breaks are preserved; wrapped lines are re-joined.
+4. **Entities without coordinates are kept**, flagged `geo: false`, not dropped.
+
+### 3.2 Layers
+
+| Layer | Count | Marker | Origin |
+|---|---:|---|---|
+| Projects & programmes | 101 | large circle | `data/projects/` |
+| Teams | 237 | small circle | `data/teams/` (222) + infrastructure with no matching team (15) |
+| Commons | 23 | dashed circle | `data/commons/` |
+| Frameworks | 36 | square | `data/frameworks/` |
+| Links | 275 | curved edge | `data/edges.yml` |
+
+**Infrastructure has no layer of its own**, by design. Of its 38 entries, 23
+describe a facility run by a team already on the map: they enrich that team's
+card with operator, access model and capacity, and add their infrastructure
+domain code to its marker, without creating a duplicate pin. The other 15 are
+rendered as team markers. This keeps "who is doing the work" and "what they run
+it on" in one place.
+
+### 3.3 Entity fields
+
+Common to every layer:
+
+`id` · `name` · `city` · `country` · `lat` · `lon` · `domain` (lead, drives
+colour when single) · `domains[]` (drives the pie slices and the filters) ·
+`url` · `desc` / `desc_fr` / `desc_en` · `focus[]` (raw focus-area keys) ·
+`status` · `tier` · `timeline{start,end,milestones[]}` · `links{papers[],
+linkedin, twitter, docs, official}` · `prov{by,on,upd,src,conf}` · `geo` (only
+when false).
+
+Per layer, additionally:
+
+- **Projects** — `kind`, `when` (compact span for tooltip and print), `budget`
+  (legacy alias), `funding{source,call,grant,eur,url}`,
+  `consortium[{org,role,country,ref}]`, `demos[]`, `delivs[]`.
+- **Teams** — `type`, `affiliation{org,parent,url}`, `facilities[]`,
+  `infra{kind,operator,access,capacity,hosts[]}` when an infrastructure entry
+  merged in.
+- **Frameworks** — `kind`, `subSection`, `jurisdiction`, `issuer{org,url}`,
+  `legal`, `adopted`, `appliesTo[]`, `refs[]`, `createdBy[]`, `usedBy[]`.
+- **Commons** — `kind`, `subSection`, `license`, `maintainer{org,url}`, `repo`,
+  `size`, `createdBy[]`, `usedBy[]`.
+
+`consortium[].ref` is dropped when it does not resolve to a known entity, so the
+card never renders a dead link.
+
+### 3.4 Vocabulary
+
+`DATA.TAXO` carries English and French labels for every controlled value:
+`focus`, `type`, `kind`, `status`, `tier`, `access`, `legal`, `role`,
+`jurisdiction`, `confidence`. English comes from `data/taxonomy.yml`; French is
+a hand-written table in the generator. An unmapped key falls back to its
+de-underscored form, so a new vocabulary entry degrades to readable text rather
+than breaking.
+
+---
+
+## 4. Visual language
+
+### 4.1 Projection and basemap
+
+Lambert azimuthal equal-area, λ₀ = 10°E, φ₁ = 52°N, onto a 1000 × 710 canvas.
+Equal-area matters: the map compares *densities* of activity, and a Mercator
+would inflate the Nordics against Iberia and Italy.
+
+Geometry is pre-projected in `europe-geo.js`, so the runtime does one
+trigonometric pass over the entity coordinates and nothing else. Twenty capital
+labels give orientation without a label layer.
+
+### 4.2 Markers
+
+**Shape encodes the layer, colour encodes the domain.** They are independent
+channels, and they must stay independent.
+
+| Layer | Radius | Shape |
+|---|---:|---|
+| Project | 8.5 | circle |
+| Commons | 7.5 | circle, dashed stroke |
+| Framework | 6 | rounded square |
+| Team | 4.5 | circle, thinner stroke |
+
+A multi-domain entity is drawn as **equal pie slices**, one per domain (vertical
+bands for the square). This is deliberately not a "primary domain plus badges":
+an entity working across energy and rail is not primarily either, and the
+reader should see the split at marker size.
+
+Seventeen domain colours in three filter groups:
+
+- **Industrial** — energy, aviation, rail, transport, telecom, utility, health,
+  manufacturing, maritime, nuclear, defence
+- **Research focus** — human factors, XAI, multi-agent/other
+- **Research infrastructure** — compute, AI networks, socio-technical simulation
+
+Draw order is `team → commons → framework → project`, so the large, sparse
+markers sit above the dense small ones.
+
+Co-located entities are **jittered** by 0.18° on a circle, per layer group, so a
+city with eight labs shows eight markers rather than one. This is applied once,
+before projection, and is therefore stable across sessions.
+
+### 4.3 Edges
+
+Quadratic curves, offset perpendicular to the chord by `min(34, 0.14 × length)`
+so that reciprocal links do not overlap. Colour follows the source entity's lead
+domain. Consortium links are solid; "used by" links are dashed.
+
+**Adjacency and geometry are separate.** `relate()` always records the
+relationship in the `neighbors` map — which drives card navigation and
+neighbourhood highlighting — but only pushes a drawable edge when both ends have
+coordinates. An entity off the map still participates in the graph.
+
+324 relations are drawn: 275 project–team consortium links plus 49 created/used
+links from commons and frameworks.
+
+### 4.4 Zoom thresholds
+
+| Level | Effect |
+|---|---|
+| `k₀ × 0.7` | minimum zoom |
+| `k₀ × 1.22` | fit-to-view default |
+| `k₀ × 1.7` | capital labels appear |
+| `k₀ × 3.2` | minimum level when flying to a selected entity |
+| `k₀ × 4.2` | marker labels appear |
+| `k₀ × 30` | maximum zoom |
+
+`k₀` is the scale that fits the whole canvas, so thresholds are relative to the
+viewport and behave the same on a phone and a wide monitor. Markers are drawn at
+constant screen size by counter-scaling each one by `1/k`; the counter-scale
+pass is skipped when `k` moved less than 0.1 %, which keeps panning free of
+layout work.
+
+---
+
+## 5. Layout
+
+Three columns in a CSS grid, `312px | 1fr | 344px`:
+
+- **Left — controls.** Identity, counters, search, starting views, layer
+  toggles, domain filters, links toggle, off-the-map list, My map, help.
+- **Centre — the map.** Floating control clusters at the four corners; the
+  top-right cluster holds the period slider and the mode pills.
+- **Right — the feed.** Optional; collapses to zero columns when hidden.
+
+Below 840 px the sidebar and the feed become overlay drawers, the top-right
+cluster wraps to two rows, and the detail panel docks to the bottom of the
+screen.
+
+**All controls the reader acts on live in the top-right cluster.** Filters that
+configure the view live in the left panel. That split is the reason the period
+slider was moved out of the bottom bar: there should be one place to look for
+interactions.
+
+---
+
+## 6. Filtering
+
+There is exactly one visibility predicate, `visibleSet()`, and it returns two
+sets: `vis` (rendered) and `dimmed` (rendered faintly). Everything else reads
+from it. Four independent axes combine with AND:
+
+1. **Layer** — four toggles.
+2. **Domain** — 17 checkboxes. An entity survives if *any* of its domains is
+   checked, so a multi-domain marker stays visible until all of its domains are
+   unchecked.
+3. **Period** — see §10.
+4. **My map** — when on, replaces the above entirely: only pins and their
+   immediate neighbours, the neighbours dimmed.
+
+The focused entity is always re-added to `vis` and un-dimmed, along with any of
+its visible neighbours. A card can therefore stay open on an entity that the
+filters would otherwise hide, which is what a reader expects when they narrow a
+filter while reading.
+
+**Starting views** are named domain presets (Overview, Energy & grids,
+Aviation & ATM, Health, Human factors & XAI, Simulation & infrastructure). They
+reset the layers, the period and My map, so a preset is a clean slate rather
+than a modifier on the current state.
+
+---
+
+## 7. Selection and navigation
+
+One selection at a time, `state.focusId`.
+
+Selecting an entity: opens its card, highlights its marker, dims everything that
+is not a neighbour, draws its edges at full strength, and — unless suppressed —
+flies the map to it at a minimum of `k₀ × 3.2`.
+
+`openEntity(id, {fly:false})` suppresses the fly. The feed uses it: clicking a
+row should not move the map under the reader's cursor.
+
+**Traversal is the point.** Every related entity in a card is a button that
+opens that entity's card. A breadcrumb keeps the last three steps and a back
+button walks the history, so a reader can follow a consortium out and come back.
+
+Clicking empty map closes the card. Escape closes, in priority order: tour,
+welcome, card, drawer.
+
+---
+
+## 8. The card
+
+One function, `cardHtml(it)`, renders the body; `bindCard()` wires it. The
+floating panel and the feed use the same output, so they cannot drift.
+
+Section order, each omitted when empty:
+
+1. Layer eyebrow with glyph, name, `city, country · span`
+2. Tags — kind or type, status, tier
+3. Domain badges with colour dots
+4. Description, paragraphs preserved
+5. Pin / Visit website
+6. Facts grid — affiliation, parent, jurisdiction, issuing body, legal status,
+   adoption, licence, maintainer, repository, reach
+7. Focus areas, as chips
+8. Timeline — span, then milestones on a rule
+9. Consortium — organisation, role, country; clickable when the reference
+   resolves
+10. Funding — source, call, grant, budget in locale-formatted euros
+11. Infrastructure — kind, operator, access model, capacity
+12. Demonstrators · Deliverables · Facilities hosted · Applies to · Builds on ·
+    Publications · Other links
+13. Related entities — consortium teams or projects, created, builds on, used by
+14. Provenance — who added the entry, when, at what confidence, from what source
+
+The provenance footer is not decoration. The map is a curated snapshot with
+uneven certainty, and a reader deciding whether to act on an entry needs to see
+that a date is a founding record or an estimate.
+
+---
+
+## 9. The feed and the counters
+
+### 9.1 Counters follow the viewport
+
+The four counters in the left panel count **what is on screen**, not what
+matches the filters. Zooming into central Europe changes them. The number
+matching the filters is shown underneath as a caption, so both readings are
+available and neither is ambiguous.
+
+`updateInView()` projects each visible entity to screen coordinates and tests it
+against the stage rectangle with a 10 px margin. It is called from `refresh()`
+and, debounced at 90 ms, from `applyView()` — so panning and zooming update the
+counts without running per frame.
+
+When the stage measures zero — a hidden pane, printing — every placed marker is
+counted rather than none.
+
+### 9.2 The feed
+
+A column listing the entities in view, sorted by layer then name, with a count
+in the header. It exists because a map shows *where* but not *what*: at any zoom
+where the markers are dense, the reader cannot read the names.
+
+- **Marker → feed.** Selecting on the map expands that entity's card in the
+  column and scrolls it to centre.
+- **Feed → map.** Clicking a row expands its card and highlights the marker,
+  **without moving the view**. Clicking the open row collapses it.
+- Hovering a row shows a soft halo on the corresponding marker.
+- A selected entity with no coordinates is prepended to the list, so the nine
+  off-map entities remain reachable.
+
+Hiding the feed reverts to the floating detail panel with the same card. The
+choice persists.
+
+Rendering is keyed on `ids + focus + language + pins`; an identical key skips
+the DOM write, so panning across unchanged content costs nothing.
+
+---
+
+## 10. Period filter
+
+A two-handle slider over **1945–2032** with a per-year histogram of how many
+dated entities were running that year — the growth curve of the field, read
+directly.
+
+**Semantics.** An entity is kept when its span overlaps the selection. No
+recorded end means "still running", so it stays visible for any range reaching
+its start. No recorded start means the span is open at the left.
+
+**The undated policy is the load-bearing decision.** Filtering purely by date
+would empty the map, because standing labs have no natural start date in the
+data. So:
+
+- Start years were researched for every entity that lacked one — 199 of them in
+  the September 2026 pass (132 high confidence, 48 medium, 19 low), each written
+  into the entity's provenance with its source and its confidence level.
+- **14 remain undated** — named sub-units whose creation year is not published.
+  Substituting the parent organisation's founding year would be misleading, so
+  they carry no date.
+- Undated entities are **kept by default** and can be dropped with the *undated*
+  checkbox, which appears only once a range is actually selected.
+
+**The 1945 floor.** Four entities predate it — Italgas 1837, Philips 1914, the
+ASEA and Siemens laboratories 1916 — and stretching the axis over 195 years
+would make the useful range unusable. The axis stops at 1945; those entities
+stay included in any range that reaches the floor.
+
+**Interaction.** Drag a handle, or click the track — outside the selection the
+handle on that side is grabbed, which is what lets a range collapsed to a single
+year be reopened in either direction. Keyboard: arrows ±1, PageUp/PageDown ±5,
+Home/End to the bounds, with `role="slider"` and a live `aria-valuenow`.
+
+---
+
+## 11. Search, pins, sharing, print
+
+**Search** matches name or city, diacritic-insensitive, from two characters, and
+groups results by layer with at most eight per layer. Arrow keys and Enter
+select. It searches all entities, including those with no coordinates.
+
+**Pins** ("My map") are a reader's own selection, held in `localStorage` and
+listed in the sidebar. My map mode shows only pins and their neighbours.
+
+**Sharing** encodes the full view state in the URL fragment; **print** produces
+a text sheet of the pinned entities, or of everything visible when nothing is
+pinned, with descriptions and links.
+
+---
+
+## 12. Bilingual model
+
+The switch changes the interface **and** the content. Entity descriptions exist
+in both languages in the data (`desc_fr` / `desc_en`, falling back to `desc`),
+and every controlled vocabulary value has both labels in `DATA.TAXO`.
+
+`applyLang()` re-renders every dynamic surface: presets, layer rows, domain
+groups, legend, pins, off-the-map list, period control, the open card. A missing
+French key falls back to English rather than showing the raw key.
+
+Initial language: `?lang=` → `localStorage` → browser language → English.
+
+---
+
+## 13. Persistence and deep links
+
+### `localStorage`
+
+| Key | Meaning |
+|---|---|
+| `hai-map-lang` | `fr` / `en` |
+| `hai-map-v2-pins` | JSON array of pinned ids |
+| `hai-map-v2-feed` | `1` / `0` — feed column shown |
+| `hai-map-v2-seen` | welcome screen already shown |
+| `hai-map-v2-hint-click` | first-marker hint already shown |
+| `hai-map-v2-hint-pin` | first-pin hint already shown |
+
+All reads and writes go through `lsGet` / `lsSet`, which swallow exceptions —
+the page must work in a context where storage throws.
+
+### URL
+
+`?lang=fr|en` in the query. View state in the fragment, each part emitted only
+when it differs from the default:
+
+| Parameter | Meaning |
+|---|---|
+| `pins=a,b,c` | pinned ids |
+| `e=<id>` | open this card on load |
+| `dom=a,b` | checked domains |
+| `lay=a,b` | enabled layers |
+| `links=1` | full link mesh drawn |
+| `my=1` | My map mode |
+| `yr=2016,2021` | period range |
+| `nd=0` | undated entities excluded |
+
+Unknown ids and codes are filtered out on read, so a stale link degrades to a
+sensible view instead of an empty map.
+
+---
+
+## 14. Accessibility
+
+- Semantic landmarks; `data-screen-label` on each region.
+- `aria-pressed` on every toggle; `aria-expanded` on feed rows.
+- The period handles are `role="slider"` with min, max and current value.
+- Counters are in an `aria-live="polite"` region.
+- Visible focus ring on all interactive elements.
+- `prefers-reduced-motion` disables view animation and feed auto-scroll.
+- Full dark mode via `prefers-color-scheme`, on CSS custom properties.
+- The map is pannable and zoomable from the keyboard through the zoom buttons;
+  every entity is reachable without the map, through search or the feed.
+
+---
+
+## 15. Performance
+
+Budget: a first paint with no network beyond the three local files, and pan/zoom
+that stays smooth with 388 markers and 324 edges.
+
+- Markers and edges are built **once** into static SVG. Filtering toggles
+  `display` and classes; it never rebuilds the DOM.
+- The per-marker counter-scale pass runs only when the scale actually changed.
+- In-view recomputation is debounced at 90 ms.
+- Feed rendering is keyed and skipped when the key is unchanged.
+- Cards are rendered on demand, one at a time.
+
+---
+
+## 16. Invariants
+
+A change that breaks one of these is a regression even if nothing throws.
+
+1. Regenerating the data without a source change produces an empty diff.
+2. Shape means layer; colour means domain. Neither channel encodes anything
+   else.
+3. An entity without coordinates has no marker but keeps a card, a search
+   result, a feed row and its graph edges.
+4. The floating panel and the feed render the same card from the same function.
+5. The focused entity is never hidden by a filter change.
+6. Descriptions are never truncated.
+7. Every user-visible string goes through `t()` and exists in both languages.
+8. Every string interpolated into HTML goes through `esc()`.
+9. The page never makes a network request.
+
+---
+
+## 17. Extending it
+
+**A new domain.** Add the colour to `COLORS`, the code to the right group in
+`DOM_GROUPS`, the labels to `badge` and `dom` in both languages, and the mapping
+to `SECTOR` or `APPROACH` in the generator. Markers and filters follow.
+
+**A new vocabulary value.** Add it to `data/taxonomy.yml` and to the matching
+`TAXO` table in the generator. Without the second step it renders de-underscored
+rather than breaking.
+
+**A new language.** Add the `I18N` block, the `descriptions.<lang>.yml` file in
+the data repository, the third label in the generator's `TAXO` tables, and an
+entry in the switch. Everything else is already routed through `t()`.
+
+**A new card section.** Add the field to the generator, then a `dtSec()` call in
+`cardHtml()` at the right position, with its label in both `I18N` blocks. It
+appears in the panel and the feed at once.
+
+**A new layer** is the expensive one: `KINDS`, `TOTALS`, `MK_R`, the draw order,
+`shapeSvg()`, `relSections()`, the legend, the welcome rows and the generator
+all enumerate the four current layers.
