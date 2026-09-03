@@ -146,6 +146,7 @@
   .mk{cursor:pointer}
   .mk .halo{opacity:0;transition:opacity .15s}
   .mk:hover .halo,.mk.focus .halo{opacity:1}
+  .mk.peek .halo{opacity:.55}
   .mk.dim{opacity:.13;pointer-events:auto}
   .mk .lbl{font-family:var(--sans);font-size:8.5px;font-weight:600;fill:var(--ink-soft);
     paint-order:stroke;stroke:var(--sea);stroke-width:2.6px;pointer-events:none;display:none}
@@ -182,6 +183,32 @@
   .attrib{font-size:9.5px;color:var(--ink-faint);background:color-mix(in srgb,var(--paper) 72%,transparent);
     padding:3px 8px;border-radius:6px;align-self:flex-end}
 
+  /* ---------- period filter (top-right cluster) ---------- */
+  .ctl-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .tf{display:flex;align-items:center;gap:9px;height:34px;padding:0 13px;background:var(--surface);
+    border:1px solid var(--rule);border-radius:999px;box-shadow:var(--shadow-md)}
+  .tf-h{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint)}
+  .tf-range{font-size:12px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;
+    letter-spacing:.01em;white-space:nowrap}
+  .tf-slider{position:relative;width:172px;height:22px;flex:none;touch-action:none}
+  .tf-hist{position:absolute;left:0;right:0;top:0;height:13px;width:100%;display:block;overflow:visible}
+  .tf-hist rect{fill:var(--rule-strong);transition:fill .12s}
+  .tf-hist rect.on{fill:var(--accent)}
+  .tf-track{position:absolute;left:0;right:0;bottom:5px;height:3px;border-radius:2px;background:var(--rule)}
+  .tf-sel{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:2px}
+  .tf-knob{position:absolute;bottom:0.5px;width:12px;height:12px;margin-left:-6px;border-radius:50%;
+    background:var(--surface);border:2px solid var(--accent);box-shadow:var(--shadow-sm);cursor:ew-resize;
+    padding:0;touch-action:none}
+  .tf-knob:hover,.tf-knob:focus-visible{background:var(--accent)}
+  .tf-opt{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-soft);
+    cursor:pointer;white-space:nowrap}
+  .tf-opt input{width:12px;height:12px;accent-color:var(--accent);margin:0;cursor:pointer}
+  .tf-opt em{font-style:normal;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .tf-reset{width:20px;height:20px;flex:none;border-radius:50%;display:grid;place-items:center;
+    font-size:13px;line-height:1;color:var(--ink-faint)}
+  .tf-reset:hover{background:var(--accent-wash);color:var(--accent)}
+  .tf-opt[hidden],.tf-reset[hidden]{display:none}
+
   #tooltip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:240px;
     background:var(--surface);border:1px solid var(--rule);border-radius:9px;box-shadow:var(--shadow-lg);padding:8px 11px}
   #tooltip .tt-name{font-family:var(--serif);font-size:12.5px;font-weight:600;line-height:1.3}
@@ -195,6 +222,7 @@
     display:none;flex-direction:column;overflow:hidden}
   #detail.open{display:flex}
   body.detail-open .ctl-tr,body.detail-open .ctl-br{display:none}
+  body.feed-open.detail-open .ctl-tr,body.feed-open.detail-open .ctl-br{display:flex}
   .dt-bar{flex:none;display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--rule);min-width:0}
   .dt-back{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--ink-soft);flex:none}
   .dt-back:hover{background:var(--accent-wash);color:var(--accent)}
@@ -215,15 +243,63 @@
     background:var(--surface-alt);padding:2px 9px;border-radius:999px}
   .dt-desc{font-family:var(--serif);font-size:13.5px;line-height:1.6;color:var(--ink);margin:12px 0 0}
   .dt-actions{display:flex;gap:7px;margin-top:14px;flex-wrap:wrap}
-  .dt-rel{margin-top:20px}
-  .dt-rel h4{font-size:10px;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-faint);font-weight:600;
+  .dt-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+  .dt-tag{font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;color:var(--ink-soft);
+    background:var(--surface-alt);border:1px solid var(--rule);border-radius:5px;padding:2px 6px}
+  .dt-sec{margin-top:20px}
+  .dt-sec h4{font-size:10px;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-faint);font-weight:600;
     margin:0 0 6px;display:flex;justify-content:space-between}
-  .dt-rel h4 em{font-style:normal;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .dt-sec h4 em{font-style:normal;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .dt-facts{margin:16px 0 0;display:grid;gap:5px;font-size:12px}
+  .dt-facts div{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:baseline}
+  .dt-facts dt{color:var(--ink-faint);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+  .dt-facts dd{margin:0;color:var(--ink);min-width:0;overflow-wrap:anywhere}
+  .dt-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .dt-chip{font-size:11px;color:var(--ink-soft);border:1px solid var(--rule-strong);border-radius:99px;padding:2px 9px}
+  .dt-span{margin:0;font-size:12.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .dt-ms{list-style:none;margin:8px 0 0;padding:0;border-left:1px solid var(--rule);display:grid;gap:6px}
+  .dt-ms li{display:grid;grid-template-columns:78px 1fr;gap:8px;padding-left:10px;font-size:12px;position:relative}
+  .dt-ms li::before{content:'';position:absolute;left:-3.5px;top:6px;width:6px;height:6px;border-radius:50%;
+    background:var(--accent);border:1px solid var(--surface)}
+  .dt-ms .ms-d{color:var(--ink-faint);font-variant-numeric:tabular-nums;font-size:11px}
+  .dt-list{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px;line-height:1.4}
+  .dt-list .m{color:var(--ink-faint);font-size:11px}
+  .dt-lk{text-align:left;color:var(--accent);font-size:12.5px;line-height:1.4}
+  .dt-lk:hover{color:var(--accent-deep);text-decoration:underline}
+  .dt-prov{margin:22px 0 0;padding-top:10px;border-top:1px solid var(--rule);font-size:10.5px;
+    line-height:1.5;color:var(--ink-faint)}
+  .dt-prov .src{opacity:.85}
   .rel-row{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:6px 8px;border-radius:8px;font-size:12.5px;line-height:1.3}
   .rel-row:hover{background:var(--accent-wash)}
   .rel-row .glyph{flex:none;width:18px;height:18px;display:grid;place-items:center}
   .rel-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rel-row .mt{flex:none;font-size:10px;color:var(--ink-faint)}
+
+  /* ---------- feed (entities in view) ---------- */
+  #feed{display:none;flex-direction:column;height:100vh;overflow:hidden;background:var(--surface);
+    border-left:1px solid var(--rule);min-width:0}
+  body.feed-open #feed{display:flex}
+  body.feed-open #app{grid-template-columns:312px 1fr 344px}
+  body.sb-hidden.feed-open #app{grid-template-columns:0 1fr 344px}
+  body.feed-open #detail{display:none !important}
+  .fd-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--rule)}
+  .fd-title{flex:1;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-faint)}
+  .fd-title em{font-style:normal;color:var(--ink);font-variant-numeric:tabular-nums;margin-left:4px}
+  .fd-list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:6px 8px 24px}
+  .fd-item{border-radius:9px;border:1px solid transparent}
+  .fd-item.open{background:var(--surface-alt);border-color:var(--rule);margin:4px 0}
+  .fd-row{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:7px 8px;border-radius:8px;font-size:12.5px;line-height:1.3}
+  .fd-row:hover{background:var(--accent-wash)}
+  .fd-row .glyph{flex:none;width:18px;height:18px;display:grid;place-items:center}
+  .fd-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fd-item.open .fd-row .nm{white-space:normal;font-weight:600}
+  .fd-row .mt{flex:none;font-size:10px;color:var(--ink-faint);max-width:96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fd-row .chev{flex:none;color:var(--ink-faint);font-size:14px;line-height:1;transition:transform .15s}
+  .fd-item.open .chev{transform:rotate(90deg)}
+  .fd-card{padding:2px 12px 14px}
+  .fd-card .dt-name{font-size:16px}
+  .fd-empty{font-size:12px;color:var(--ink-faint);padding:14px 10px;line-height:1.5}
+  .stats-note{font-size:10px;color:var(--ink-faint);margin:6px 0 0;text-align:center;letter-spacing:.02em}
 
   /* ---------- overlays ---------- */
   .overlay{position:fixed;inset:0;z-index:100;background:var(--scrim);display:none;align-items:center;justify-content:center;padding:20px}
@@ -293,9 +369,19 @@
     .sb-collapse{display:none}
     .sb-toggle-fab{display:inline-flex !important}
     #detail{top:auto;left:10px;right:10px;bottom:10px;width:auto;max-height:58vh}
-    .ctl-tr{right:10px;top:10px;max-width:calc(100vw - 80px)}
+    /* The buttons keep the first line, right of the Filters FAB; the period
+       strip drops to a full-width line of its own underneath. */
+    .ctl-tr{right:10px;left:10px;top:10px;max-width:none}
+    .ctl-group{order:1;margin-left:auto}
     .pill{padding:7px 10px;font-size:11px}
     .legend{max-width:180px}
+    .tf{order:2;width:100%;padding:0 11px;gap:8px}
+    .tf-h{display:none}
+    .tf-slider{width:auto;flex:1 1 auto;min-width:70px}
+    #feed{position:fixed;top:0;right:0;bottom:0;width:min(88vw,340px);z-index:90;transform:translateX(105%);
+      transition:transform .25s ease;box-shadow:var(--shadow-lg)}
+    body.feed-open #feed{display:flex;transform:none}
+    body.feed-open #app,body.sb-hidden.feed-open #app{grid-template-columns:1fr}
   }
 </style>
 </head>
@@ -319,6 +405,7 @@
         <div><strong id="st-res">—</strong><span data-i18n="stResources">Ressources</span></div>
         <div><strong id="st-ctry">—</strong><span data-i18n="stCountries">Pays</span></div>
       </div>
+      <p class="stats-note" id="st-note"></p>
     </div>
     <div class="sb-body">
       <section class="sb-section">
@@ -355,6 +442,12 @@
           <span class="sw"></span>
         </button>
         <p class="note" data-i18n="linksNote">Les liens consortium et d'usage s'affichent automatiquement autour d'une fiche ouverte. Ce réglage dessine le maillage entier.</p>
+      </section>
+
+      <section class="sb-section" id="f-nogeo" hidden>
+        <h3 class="sb-h"><span data-i18n="nogeoTitle">Hors carte</span><span class="mini-act"><span class="mini-btn" id="nogeo-count" style="cursor:default">0</span></span></h3>
+        <div class="pin-list" id="nogeo-list"></div>
+        <p class="note" data-i18n="nogeoNote">Normes internationales et ressources sans localisation : pas de marqueur, mais une fiche complète.</p>
       </section>
 
       <section class="sb-section" id="f-mymap">
@@ -399,12 +492,28 @@
     <button class="sq sb-collapse" id="sb-hide" aria-label="Masquer le panneau" title="Masquer le panneau">⟨</button>
 
     <div class="ctl ctl-tr" id="ctl-cluster">
-      <button class="pill" id="links-pill" aria-pressed="false"><span data-i18n="linksPill">Liens</span></button>
-      <button class="pill" id="mymap-pill" aria-pressed="false"><span data-i18n="myMapTitle">Ma carte</span><span class="cnt-badge" id="mymap-badge">0</span></button>
-      <div class="lang-switch" role="group" aria-label="Langue">
-        <button type="button" data-lang="en">EN</button><button type="button" data-lang="fr" class="is-active">FR</button>
+      <div class="tf" id="ctl-time">
+        <span class="tf-h" data-i18n="timeTitle">Période</span>
+        <span class="tf-range" id="tf-range">—</span>
+        <div class="tf-slider" id="tf-slider">
+          <svg class="tf-hist" id="tf-hist" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="tf-track"><div class="tf-sel" id="tf-sel"></div></div>
+          <div class="tf-knob" id="tf-a" role="slider" tabindex="0"></div>
+          <div class="tf-knob" id="tf-b" role="slider" tabindex="0"></div>
+        </div>
+        <label class="tf-opt" id="tf-opt" hidden><input type="checkbox" id="tf-undated" checked>
+          <span data-i18n="timeUndated">sans date</span> <em id="tf-undated-n">0</em></label>
+        <button class="tf-reset" id="tf-reset" hidden>⟲</button>
       </div>
-      <button class="sq" id="help-btn" aria-label="Aide" title="Aide">?</button>
+      <div class="ctl-group">
+        <button class="pill" id="links-pill" aria-pressed="false"><span data-i18n="linksPill">Liens</span></button>
+        <button class="pill" id="mymap-pill" aria-pressed="false"><span data-i18n="myMapTitle">Ma carte</span><span class="cnt-badge" id="mymap-badge">0</span></button>
+        <button class="pill" id="feed-pill" aria-pressed="false"><span data-i18n="feedPill">Fil</span></button>
+        <div class="lang-switch" role="group" aria-label="Langue">
+          <button type="button" data-lang="en">EN</button><button type="button" data-lang="fr" class="is-active">FR</button>
+        </div>
+        <button class="sq" id="help-btn" aria-label="Aide" title="Aide">?</button>
+      </div>
     </div>
 
     <div class="ctl ctl-br">
@@ -433,6 +542,14 @@
 
     <div id="tooltip"></div>
   </main>
+
+  <aside id="feed" data-screen-label="Fil des fiches" aria-label="Fiches dans la vue">
+    <div class="fd-head">
+      <span class="fd-title"><span data-i18n="feedTitle">Dans la vue</span><em id="fd-count">0</em></span>
+      <button class="dt-close" id="fd-close" aria-label="Masquer le fil">×</button>
+    </div>
+    <div class="fd-list" id="fd-list"></div>
+  </aside>
 </div>
 
 <div class="overlay" id="welcome" role="dialog" aria-modal="true" data-screen-label="Écran d'accueil">
@@ -524,6 +641,23 @@ const I18N = {
     'rel.teams':'Équipes du consortium', 'rel.projects':'Projets & programmes', 'rel.uses':'S\u2019appuie sur',
     'rel.created':'A créé', 'rel.createdBy':'Créé par', 'rel.usedBy':'Utilisé par',
     noDesc:'Description à venir.',
+    'f.affiliation':'Rattachement', 'f.parent':'Tutelle', 'f.jurisdiction':'Portée', 'f.issuer':'Émetteur',
+    'f.legal':'Statut juridique', 'f.adopted':'Adoption', 'f.license':'Licence', 'f.maintainer':'Mainteneur',
+    'f.repo':'Dépôt', 'f.size':'Diffusion', 'f.kind':'Type', 'f.operator':'Opérateur', 'f.access':'Accès',
+    'f.capacity':'Capacité', 'f.source':'Source', 'f.call':'Appel', 'f.grant':'Convention',
+    'f.budget':'Budget', 'f.fundingPage':'Page de financement', 'f.official':'Texte officiel', 'f.docs':'Documentation',
+    'sec.focus':'Axes de recherche', 'sec.timeline':'Calendrier', 'sec.consortium':'Consortium',
+    'sec.funding':'Financement', 'sec.demos':'Démonstrateurs', 'sec.delivs':'Livrables',
+    'sec.infra':'Infrastructure', 'sec.facilities':'Plateformes hébergées', 'sec.applies':'Champ d\u2019application',
+    'sec.refs':'S\u2019appuie sur', 'sec.papers':'Publications', 'sec.links':'Autres liens',
+    provBy:'Ajouté par', provConf:'confiance', provSrc:'Source :',
+    noPlace:'Sans ancrage géographique',
+    timeTitle:'Période', timeAll:'Toutes les années', timeUndated:'sans date',
+    timeFrom:'Première année', timeTo:'Dernière année', timeFloor:'les fondations antérieures restent incluses',
+    feedPill:'Fil', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
+    feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
+    stNote:n=>`dans la vue · ${n} correspondent aux filtres`,
+    nogeoTitle:'Hors carte', nogeoNote:'Normes internationales et ressources sans localisation : pas de marqueur, mais une fiche complète.',
     tPrev:'Précédent', tNext:'Suivant', tDone:'Terminer', tStep:(i,n)=>`Étape ${i} / ${n}`,
     'tour.1t':'Filtres & couches', 'tour.1b':'Le panneau latéral contrôle ce que montre la carte : quatre couches d\u2019entités, dix-sept domaines, des vues de départ toutes prêtes — et la recherche.',
     'tour.2t':'La carte', 'tour.2b':'Molette pour zoomer, glisser pour se déplacer. Chaque marqueur est une entité ; sa forme dit sa couche, sa couleur son domaine. Cliquez pour ouvrir la fiche.',
@@ -568,6 +702,23 @@ const I18N = {
     'rel.teams':'Consortium teams', 'rel.projects':'Projects & programmes', 'rel.uses':'Builds on',
     'rel.created':'Created', 'rel.createdBy':'Created by', 'rel.usedBy':'Used by',
     noDesc:'Description to come.',
+    'f.affiliation':'Affiliation', 'f.parent':'Parent body', 'f.jurisdiction':'Jurisdiction', 'f.issuer':'Issuing body',
+    'f.legal':'Legal status', 'f.adopted':'Adopted', 'f.license':'Licence', 'f.maintainer':'Maintainer',
+    'f.repo':'Repository', 'f.size':'Reach', 'f.kind':'Kind', 'f.operator':'Operator', 'f.access':'Access',
+    'f.capacity':'Capacity', 'f.source':'Source', 'f.call':'Call', 'f.grant':'Grant',
+    'f.budget':'Budget', 'f.fundingPage':'Funding page', 'f.official':'Official text', 'f.docs':'Documentation',
+    'sec.focus':'Focus areas', 'sec.timeline':'Timeline', 'sec.consortium':'Consortium',
+    'sec.funding':'Funding', 'sec.demos':'Demonstrators', 'sec.delivs':'Deliverables',
+    'sec.infra':'Infrastructure', 'sec.facilities':'Facilities hosted', 'sec.applies':'Applies to',
+    'sec.refs':'Builds on', 'sec.papers':'Publications', 'sec.links':'Other links',
+    provBy:'Added by', provConf:'confidence', provSrc:'Source:',
+    noPlace:'No geographic anchor',
+    timeTitle:'Period', timeAll:'All years', timeUndated:'undated',
+    timeFrom:'First year', timeTo:'Last year', timeFloor:'earlier foundings stay included',
+    feedPill:'Feed', feedTitle:'In view', feedHide:'Hide feed',
+    feedEmpty:'Nothing in view — zoom out or widen the filters.',
+    stNote:n=>`in view · ${n} match the filters`,
+    nogeoTitle:'Off the map', nogeoNote:'International standards and resources with no location: no marker, but a full card.',
     tPrev:'Previous', tNext:'Next', tDone:'Done', tStep:(i,n)=>`Step ${i} / ${n}`,
     'tour.1t':'Filters & layers', 'tour.1b':'The side panel controls what the map shows: four entity layers, seventeen domains, ready-made starting views — and search.',
     'tour.2t':'The map', 'tour.2b':'Scroll to zoom, drag to pan. Every marker is an entity; its shape tells the layer, its colour the domain. Click to open the card.',
@@ -603,6 +754,8 @@ const t = k => { const v = I18N[LANG][k]; return v==null ? (I18N.en[k] ?? k) : v
 const state = {
   domains: new Set(ALL_DOMS),
   layers: { project:true, team:true, commons:true, framework:true },
+  years: null, // {a,b,undated} — filled once the data bounds are known
+  feed:false, inView:new Set(), matchCount:0,
   links:false, myMap:false,
   pins: new Set(JSON.parse(lsGet('hai-map-v2-pins')||'[]')),
   focusId:null, history:[], hIndex:-1,
@@ -610,9 +763,10 @@ const state = {
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------- data prep ----------
-function jitter(items){
+function jitter(list){
   const groups = {};
-  items.forEach(it => { const k = it.lat.toFixed(2)+','+it.lon.toFixed(2); (groups[k]=groups[k]||[]).push(it); });
+  list.filter(it => it.lat!=null && it.lon!=null)
+    .forEach(it => { const k = it.lat.toFixed(2)+','+it.lon.toFixed(2); (groups[k]=groups[k]||[]).push(it); });
   Object.values(groups).forEach(g => {
     if (g.length===1) return;
     const r = 0.18;
@@ -629,28 +783,61 @@ function project(lon,lat){
   return [GEO.TX + GEO.S*k*Math.cos(p)*Math.sin(l-LAM0),
           GEO.TY - GEO.S*k*(Math.cos(PHI1)*Math.sin(p)-Math.sin(PHI1)*Math.cos(p)*Math.cos(l-LAM0))];
 }
+// Dates come in as '2019', '2024-01' or '2021-04-21' — the year is what we filter on.
+const year = v => { const m = /^(\d{4})/.exec(String(v==null?'':v)); return m ? +m[1] : null; };
+
 const items = []; const byId = {};
 function reg(arr, kind){ arr.forEach(d => {
   const domains = (d.domains && d.domains.length) ? d.domains : [d.domain];
-  const [X,Y] = project(d.lon, d.lat);
-  const it = { d, kind, domains, X, Y, id:d.id };
+  // International standards (ISO, IEC, IEEE, SAE…) and one non-EU commons have
+  // no coordinates: they carry no marker but keep a card, search and filters.
+  const geo = d.lat!=null && d.lon!=null;
+  const [X,Y] = geo ? project(d.lon, d.lat) : [0,0];
+  const tl = d.timeline || {};
+  const y0 = year(tl.start), y1 = year(tl.end);
+  const it = { d, kind, domains, X, Y, id:d.id, geo, y0, y1, dated:(y0!=null||y1!=null) };
   items.push(it); byId[d.id] = it;
 }); }
 reg(DATA.PROJECTS,'project'); reg(DATA.COMMONS,'commons'); reg(DATA.TEAMS,'team'); reg(DATA.FRAMEWORKS,'framework');
 const TOTALS = { project:DATA.PROJECTS.length, team:DATA.TEAMS.length, commons:DATA.COMMONS.length, framework:DATA.FRAMEWORKS.length };
 
+// ---------- period bounds ----------
+const YEARS = items.flatMap(it => [it.y0, it.y1]).filter(y => y!=null);
+// Slider floor: a handful of founders predate 1945 (Italgas 1837, Philips 1914…);
+// they stay included in any range reaching the floor, the axis just stops stretching.
+const YMIN = YEARS.length ? Math.max(1945, Math.min(...YEARS)) : 2000;
+const YMAX = YEARS.length ? Math.max(...YEARS) : 2030;
+const UNDATED = items.filter(it => !it.dated).length;
+state.years = { a:YMIN, b:YMAX, undated:true };
+const timeOn = () => state.years.a > YMIN || state.years.b < YMAX;
+// A dated entity is kept when its span overlaps the selection. No recorded end
+// means "still running", so it stays visible for any range reaching its start.
+function inPeriod(it){
+  if (!timeOn()) return true;
+  if (!it.dated) return state.years.undated;
+  const s = it.y0==null ? -Infinity : it.y0;
+  const e = it.y1==null ?  Infinity : it.y1;
+  return s <= state.years.b && e >= state.years.a;
+}
+
 // adjacency
 const neighbors = new Map(); // id -> Set(id)
 function link(a,b){ if(!byId[a]||!byId[b]) return; if(!neighbors.has(a)) neighbors.set(a,new Set()); if(!neighbors.has(b)) neighbors.set(b,new Set()); neighbors.get(a).add(b); neighbors.get(b).add(a); }
 const edges = []; // {a,b,color,dash}
+// Adjacency is always recorded (the cards navigate through it); geometry only
+// exists when both ends are placed on the map.
+function relate(a, b, style){
+  if (!byId[a] || !byId[b]) return;
+  link(a, b);
+  if (byId[a].geo && byId[b].geo) edges.push({a, b, ...style});
+}
 DATA.EDGES.forEach(e => {
-  const p = byId[e.project], tm = byId[e.team]; if(!p||!tm) return;
-  edges.push({a:e.project,b:e.team,color:COLORS[p.d.domain]||'#999',dash:null});
-  link(e.project,e.team);
+  const p = byId[e.project]; if(!p) return;
+  relate(e.project, e.team, {color:COLORS[p.d.domain]||'#999', dash:null});
 });
 [...DATA.COMMONS, ...DATA.FRAMEWORKS].forEach(asset => {
-  (asset.createdBy||[]).forEach(uid => { if(!byId[uid]) return; edges.push({a:uid,b:asset.id,color:COLORS[asset.domain]||'#888',dash:null,strong:true}); link(asset.id,uid); });
-  (asset.usedBy||[]).forEach(uid => { if(!byId[uid]) return; edges.push({a:asset.id,b:uid,color:COLORS[asset.domain]||'#888',dash:'4 4'}); link(asset.id,uid); });
+  (asset.createdBy||[]).forEach(uid => relate(uid, asset.id, {color:COLORS[asset.domain]||'#888', dash:null, strong:true}));
+  (asset.usedBy||[]).forEach(uid => relate(asset.id, uid, {color:COLORS[asset.domain]||'#888', dash:'4 4'}));
 });
 const nOf = id => neighbors.get(id) || new Set();
 
@@ -725,7 +912,7 @@ const edgeEls = edges.map(e=>{
 });
 // markers (order: teams under, then commons, frameworks, projects on top)
 const drawOrder = ['team','commons','framework','project'];
-const sorted = [...items].sort((a,b)=>drawOrder.indexOf(a.kind)-drawOrder.indexOf(b.kind));
+const sorted = items.filter(it=>it.geo).sort((a,b)=>drawOrder.indexOf(a.kind)-drawOrder.indexOf(b.kind));
 gMarkers.innerHTML = sorted.map(it=>{
   const r = MK_R[it.kind];
   const showLbl = it.kind!=='team';
@@ -776,6 +963,7 @@ function applyView(){
     gMarkers.classList.toggle('show-lbl', showLbl);
     document.querySelectorAll('.mk .lbl').forEach(el=>{ el.style.display = showLbl?'block':'none'; });
   }
+  scheduleInView();
 }
 function zoomAt(px,py,f){
   const k = Math.min(Math.max(view.k*f, k0*0.7), k0*30);
@@ -817,6 +1005,7 @@ document.getElementById('z-fit').addEventListener('click',()=>fitView(true));
 window.addEventListener('resize',()=>fitView(false));
 function flyTo(id){
   const it = byId[id]; if (!it) return;
+  if (!it.geo) return;
   const [w,h] = stageSize();
   const k = Math.max(view.k, k0*3.2);
   setView({ k, x: w/2 - it.X*k, y: h/2 - it.Y*k }, true);
@@ -832,6 +1021,7 @@ function visibleSet(){
     items.forEach(it=>{
       if (!state.layers[it.kind]) return;
       if (!it.domains.some(d=>state.domains.has(d))) return;
+      if (!inPeriod(it)) return;
       vis.add(it.id);
     });
   }
@@ -845,14 +1035,11 @@ function refresh(){
   const {vis, dimmed} = visibleSet();
   const focus = state.focusId;
   const focusN = focus ? nOf(focus) : null;
-  let cp=0, ct=0, cr=0; const ctry = new Set();
   items.forEach(it=>{
     const el = mkEls[it.id];
     const on = vis.has(it.id);
-    el.style.display = on ? '' : 'none';
-    if (!on) return;
-    if (it.kind==='project') cp++; else if (it.kind==='team') ct++; else cr++;
-    if (it.d.country) ctry.add(it.d.country);
+    if (el) el.style.display = on ? '' : 'none';
+    if (!on || !el) return;
     let dim = dimmed.has(it.id);
     if (focus && it.id!==focus && !(focusN && focusN.has(it.id))) dim = true;
     el.classList.toggle('dim', dim);
@@ -869,10 +1056,7 @@ function refresh(){
     el.setAttribute('stroke-width', hot ? 1.8 : 0.8);
     el.setAttribute('stroke-opacity', hot ? 0.85 : (focus ? 0.08 : 0.28));
   });
-  document.getElementById('st-proj').textContent = cp;
-  document.getElementById('st-team').textContent = ct;
-  document.getElementById('st-res').textContent = cr;
-  document.getElementById('st-ctry').textContent = ctry.size;
+  updateInView(vis); renderStats(); renderFeed();
   document.getElementById('links-row').setAttribute('aria-pressed', state.links);
   document.getElementById('links-pill').classList.toggle('active', state.links);
   document.getElementById('links-pill').setAttribute('aria-pressed', state.links);
@@ -903,7 +1087,8 @@ function applyPreset(id){
   state.domains = new Set(p.doms || ALL_DOMS);
   KINDS.forEach(k=>state.layers[k]=true);
   state.myMap = false;
-  syncDomainChecks(); renderLayerRows(); refresh(); fitView(true);
+  state.years = { a:YMIN, b:YMAX, undated:true };
+  syncDomainChecks(); renderLayerRows(); renderTime(); refresh(); fitView(true);
   closeWelcome();
 }
 function renderLayerRows(){
@@ -967,6 +1152,20 @@ function renderPins(){
   lsSet('hai-map-v2-pins', JSON.stringify([...state.pins]));
   document.getElementById('mymap-badge').textContent = state.pins.size;
 }
+function renderNoGeo(){
+  const arr = items.filter(it=>!it.geo);
+  const host = document.getElementById('f-nogeo');
+  host.hidden = !arr.length;
+  if (!arr.length) return;
+  document.getElementById('nogeo-count').textContent = arr.length;
+  const list = document.getElementById('nogeo-list');
+  list.innerHTML = arr.map(it=>`
+    <button class="pin-item" data-open="${esc(it.id)}">
+      <span class="glyph">${glyphHtml(it.kind,14)}</span>
+      <span class="nm">${esc(it.d.name)}</span>
+    </button>`).join('');
+  list.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>openEntity(b.dataset.open)));
+}
 function togglePin(id){
   if (state.pins.has(id)) state.pins.delete(id);
   else { state.pins.add(id); if (!lsGet('hai-map-v2-hint-pin')){ toast(t('hintPinned')); lsSet('hai-map-v2-hint-pin','1'); } }
@@ -1004,49 +1203,182 @@ function renderTrail(){
   }));
   document.getElementById('dt-back').disabled = state.hIndex<=0;
 }
-function renderDetail(id){
-  const it = byId[id]; if (!it) return;
+// ---------- card building blocks ----------
+// Vocabulary labels ship with the data (data/taxonomy.yml + the generator's FR
+// table); fall back to a de-underscored key when a value is not yet in it.
+const VOCAB = DATA.TAXO || {};
+function taxo(group, key){
+  if (!key) return '';
+  const e = VOCAB[group] && VOCAB[group][key];
+  return e ? (e[LANG] || e.en) : String(key).replace(/_/g,' ');
+}
+function extUrl(u, label){
+  let txt = label || String(u).replace(/^https?:\/\/(www\.)?/,'').replace(/\/$/,'');
+  if (!label && txt.length > 38) txt = txt.slice(0,36) + '…';
+  return `<a href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">${esc(txt)}</a>`;
+}
+function facts(rows){
+  const r = rows.filter(x => x && x[1]);
+  return r.length ? `<dl class="dt-facts">${r.map(([k,v]) =>
+    `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>` : '';
+}
+function dtSec(title, inner){
+  return inner ? `<section class="dt-sec"><h4>${esc(title)}</h4>${inner}</section>` : '';
+}
+function chips(values, group){
+  return values && values.length
+    ? `<div class="dt-chips">${values.map(v=>`<span class="dt-chip">${esc(group?taxo(group,v):String(v).replace(/_/g,' '))}</span>`).join('')}</div>`
+    : '';
+}
+function timelineHtml(tl){
+  if (!tl) return '';
+  const span = tl.end ? `${tl.start||'?'} → ${tl.end}` : (tl.start ? `${tl.start} →` : '');
+  const ms = (tl.milestones||[]).map(m =>
+    `<li><span class="ms-d">${esc(m.date)}</span><span>${esc(m.label)}</span></li>`).join('');
+  if (!span && !ms) return '';
+  return `${span?`<p class="dt-span">${esc(span)}</p>`:''}${ms?`<ul class="dt-ms">${ms}</ul>`:''}`;
+}
+function money(n){
+  try { return new Intl.NumberFormat(LANG==='fr'?'fr-FR':'en-GB',
+    {style:'currency', currency:'EUR', maximumFractionDigits:0}).format(n); }
+  catch(e){ return '€' + n; }
+}
+function consortiumHtml(list){
+  if (!list || !list.length) return '';
+  return `<ul class="dt-list">${list.map(c=>{
+    const bits = [c.role?taxo('role',c.role):'', c.country].filter(Boolean).join(' · ');
+    const org = (c.ref && byId[c.ref])
+      ? `<button class="dt-lk" data-open="${esc(c.ref)}">${esc(c.org)}</button>`
+      : esc(c.org);
+    return `<li>${org}${bits?` <span class="m">${esc(bits)}</span>`:''}</li>`;
+  }).join('')}</ul>`;
+}
+function itemsHtml(list, key){
+  if (!list || !list.length) return '';
+  return `<ul class="dt-list">${list.map(x=>{
+    const label = x[key] || '';
+    return `<li>${x.url?extUrl(x.url,label):esc(label)}${x.date?` <span class="m">${esc(x.date)}</span>`:''}</li>`;
+  }).join('')}</ul>`;
+}
+function refsHtml(ids){
+  const list = (ids||[]).filter(x=>byId[x]);
+  if (!list.length) return '';
+  return `<ul class="dt-list">${list.map(x=>
+    `<li><button class="dt-lk" data-open="${esc(x)}">${esc(byId[x].d.name)}</button></li>`).join('')}</ul>`;
+}
+function provHtml(p){
+  if (!p || !p.by) return '';
+  const bits = [`${t('provBy')} ${p.by}`, p.upd || p.on,
+    p.conf ? `${t('provConf')} ${taxo('confidence', p.conf)}` : ''].filter(Boolean);
+  return `<p class="dt-prov">${esc(bits.join(' · '))}${p.src?`<br><span class="src">${esc(t('provSrc'))} ${esc(p.src)}</span>`:''}</p>`;
+}
+
+// One card body for both the floating panel and the feed.
+function cardHtml(it){
+  const id = it.id;
   const d = it.d;
   const meta = [d.city, d.country].filter(Boolean).join(', ');
-  const extras = [d.when, d.budget].filter(Boolean).join(' · ');
   const desc = d['desc_'+LANG] || d.desc || t('noDesc');
   const pinned = state.pins.has(id);
   const secs = relSections(it);
-  document.getElementById('dt-body').innerHTML = `
+  const tl = d.timeline, lk = d.links || {}, fn = d.funding, inf = d.infra;
+  const spec = d.kind ? taxo('kind', d.kind) : (d.type ? taxo('type', d.type) : '');
+  const tags = [spec, d.status ? taxo('status', d.status) : '',
+                d.tier ? taxo('tier', d.tier) : ''].filter(Boolean);
+
+  const identity = facts([
+    d.affiliation && d.affiliation.org && d.affiliation.org !== d.name
+      ? [t('f.affiliation'), d.affiliation.url ? extUrl(d.affiliation.url, d.affiliation.org) : esc(d.affiliation.org)] : null,
+    d.affiliation && d.affiliation.parent ? [t('f.parent'), esc(d.affiliation.parent)] : null,
+    d.jurisdiction ? [t('f.jurisdiction'), esc(taxo('jurisdiction', d.jurisdiction))] : null,
+    d.issuer ? [t('f.issuer'), d.issuer.url ? extUrl(d.issuer.url, d.issuer.org) : esc(d.issuer.org)] : null,
+    d.legal ? [t('f.legal'), esc(taxo('legal', d.legal))] : null,
+    d.adopted ? [t('f.adopted'), esc(d.adopted)] : null,
+    d.license ? [t('f.license'), esc(d.license)] : null,
+    d.maintainer ? [t('f.maintainer'), d.maintainer.url ? extUrl(d.maintainer.url, d.maintainer.org) : esc(d.maintainer.org)] : null,
+    d.repo && d.repo !== d.url ? [t('f.repo'), extUrl(d.repo)] : null,
+    d.size ? [t('f.size'), esc(d.size)] : null,
+  ]);
+
+  const fundingSec = fn ? dtSec(t('sec.funding'), facts([
+    fn.source ? [t('f.source'), esc(fn.source)] : null,
+    fn.call ? [t('f.call'), esc(fn.call)] : null,
+    fn.grant ? [t('f.grant'), esc(fn.grant)] : null,
+    fn.eur ? [t('f.budget'), esc(money(fn.eur))] : null,
+    fn.url ? [t('f.fundingPage'), extUrl(fn.url)] : null,
+  ])) : '';
+
+  const infraSec = inf ? dtSec(t('sec.infra'), facts([
+    inf.kind ? [t('f.kind'), esc(taxo('kind', inf.kind))] : null,
+    inf.operator ? [t('f.operator'), inf.operator.url ? extUrl(inf.operator.url, inf.operator.org) : esc(inf.operator.org)] : null,
+    inf.access ? [t('f.access'), esc(taxo('access', inf.access))] : null,
+    inf.capacity ? [t('f.capacity'), esc(inf.capacity)] : null,
+  ])) : '';
+
+  const linksSec = dtSec(t('sec.links'), facts([
+    lk.official ? [t('f.official'), extUrl(lk.official)] : null,
+    lk.docs ? [t('f.docs'), extUrl(lk.docs)] : null,
+    lk.linkedin ? ['LinkedIn', extUrl(lk.linkedin)] : null,
+    lk.twitter ? ['X / Twitter', extUrl(lk.twitter)] : null,
+  ]));
+
+  return `
     <div class="dt-kind"><span class="glyph">${glyphHtml(it.kind,15)}</span>${esc(t('kind.'+it.kind))}</div>
     <h2 class="dt-name">${esc(d.name)}</h2>
-    <p class="dt-meta">${esc(meta)}${extras?` · ${esc(extras)}`:''}</p>
+    <p class="dt-meta">${esc(meta || t('noPlace'))}${d.when?` · ${esc(d.when)}`:''}</p>
+    ${tags.length?`<div class="dt-tags">${tags.map(x=>`<span class="dt-tag">${esc(x)}</span>`).join('')}</div>`:''}
     <div class="dt-doms">${it.domains.map(x=>`<span class="dt-dom"><span class="dot" style="width:8px;height:8px;background:${COLORS[x]||'#999'}"></span>${esc(t('badge')[x]||x)}</span>`).join('')}</div>
-    <p class="dt-desc">${esc(desc)}</p>
+    ${String(desc).split('\n\n').map(p=>`<p class="dt-desc">${esc(p)}</p>`).join('')}
     <div class="dt-actions">
-      <button class="btn ${pinned?'primary':''}" id="dt-pin">${pinned?esc(t('unpin')):esc(t('pin'))}</button>
+      <button class="btn dt-pin ${pinned?'primary':''}">${pinned?esc(t('unpin')):esc(t('pin'))}</button>
       ${d.url?`<a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">${esc(t('visit'))}</a>`:''}
     </div>
+    ${identity}
+    ${dtSec(t('sec.focus'), chips(d.focus, 'focus'))}
+    ${dtSec(t('sec.timeline'), timelineHtml(tl))}
+    ${dtSec(t('sec.consortium'), consortiumHtml(d.consortium))}
+    ${fundingSec}
+    ${infraSec}
+    ${dtSec(t('sec.demos'), itemsHtml(d.demos, 'label'))}
+    ${dtSec(t('sec.delivs'), itemsHtml(d.delivs, 'title'))}
+    ${dtSec(t('sec.facilities'), (d.facilities||[]).length?`<ul class="dt-list">${d.facilities.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'')}
+    ${dtSec(t('sec.applies'), chips(d.appliesTo))}
+    ${dtSec(t('sec.refs'), refsHtml(d.refs))}
+    ${dtSec(t('sec.papers'), (lk.papers||[]).length?`<ul class="dt-list">${lk.papers.map(u=>`<li>${extUrl(u)}</li>`).join('')}</ul>`:'')}
+    ${linksSec}
     ${secs.map(s=>`
-      <div class="dt-rel"><h4>${esc(t(s.key))} <em>${s.ids.length}</em></h4>
+      <section class="dt-sec"><h4>${esc(t(s.key))} <em>${s.ids.length}</em></h4>
         ${s.ids.map(x=>{ const o = byId[x]; return `
           <button class="rel-row" data-open="${esc(x)}">
             <span class="glyph"><svg width="16" height="16" viewBox="-9 -9 18 18">${shapeSvg(o.domains,o.kind,o.kind==='team'?4.5:6,false)}</svg></span>
             <span class="nm">${esc(o.d.name)}</span>
             <span class="mt">${esc([o.d.city,o.d.country].filter(Boolean).join(', '))}</span>
           </button>`; }).join('')}
-      </div>`).join('')}
+      </section>`).join('')}
+    ${provHtml(d.prov)}
   `;
-  document.getElementById('dt-pin').addEventListener('click',()=>togglePin(id));
-  document.querySelectorAll('#dt-body [data-open]').forEach(b=>b.addEventListener('click',()=>openEntity(b.dataset.open)));
+}
+function bindCard(host, id){
+  const pin = host.querySelector('.dt-pin'); if (pin) pin.addEventListener('click',()=>togglePin(id));
+  host.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>openEntity(b.dataset.open)));
+}
+function renderDetail(id){
+  const it = byId[id]; if (!it) return;
+  const host = document.getElementById('dt-body');
+  host.innerHTML = cardHtml(it); bindCard(host, id);
   renderTrail();
 }
-function showEntity(id){
+function showEntity(id, opts={}){
   state.focusId = id;
   detail.classList.add('open'); document.body.classList.add('detail-open');
-  renderDetail(id); refresh(); flyTo(id);
+  renderDetail(id); refresh(); if (opts.fly!==false) flyTo(id);
 }
-function openEntity(id){
+function openEntity(id, opts={}){
   if (!byId[id]) return;
   if (state.history[state.hIndex]!==id){
     state.history = state.history.slice(0, state.hIndex+1); state.history.push(id); state.hIndex++;
   }
-  showEntity(id);
+  showEntity(id, opts);
   if (window.innerWidth<=840) setPanel(false);
 }
 function closeDetail(){
@@ -1076,6 +1408,196 @@ gMarkers.addEventListener('pointermove', e=>{
   tooltip.style.left = x+'px'; tooltip.style.top = y+'px';
 });
 gMarkers.addEventListener('pointerout', e=>{ if (!e.relatedTarget || !e.relatedTarget.closest('.mk')) tooltip.style.display='none'; });
+
+// ---------- in-view counts & feed ----------
+const KIND_ORDER = { project:0, team:1, commons:2, framework:3 };
+function updateInView(vis){
+  const [w,h] = stageSize(); const pad = 10;
+  const unmeasured = w < 2 || h < 2;          // hidden pane / print: count every placed marker
+  state.inView = new Set();
+  items.forEach(it=>{
+    if (!it.geo || !vis.has(it.id)) return;
+    if (unmeasured){ state.inView.add(it.id); return; }
+    const sx = view.x + it.X*view.k, sy = view.y + it.Y*view.k;
+    if (sx>=-pad && sx<=w+pad && sy>=-pad && sy<=h+pad) state.inView.add(it.id);
+  });
+  state.matchCount = vis.size;
+}
+function renderStats(){
+  let cp=0, ct=0, cr=0; const ctry = new Set();
+  state.inView.forEach(id=>{ const it = byId[id];
+    if (it.kind==='project') cp++; else if (it.kind==='team') ct++; else cr++;
+    if (it.d.country) ctry.add(it.d.country); });
+  document.getElementById('st-proj').textContent = cp;
+  document.getElementById('st-team').textContent = ct;
+  document.getElementById('st-res').textContent = cr;
+  document.getElementById('st-ctry').textContent = ctry.size;
+  document.getElementById('st-note').textContent = I18N[LANG].stNote(state.matchCount);
+}
+let ivTimer = null;
+function scheduleInView(){
+  if (ivTimer) return;
+  ivTimer = setTimeout(()=>{ ivTimer = null; updateInView(visibleSet().vis); renderStats(); renderFeed(); }, 90);
+}
+function peek(id, on){ const el = mkEls[id]; if (el) el.classList.toggle('peek', on); }
+let feedKey = '', feedFocus = null;
+function renderFeed(){
+  const pill = document.getElementById('feed-pill');
+  pill.setAttribute('aria-pressed', state.feed); pill.classList.toggle('active', state.feed);
+  if (!state.feed) return;
+  const focus = state.focusId && byId[state.focusId] ? state.focusId : null;
+  const cmp = (a,b) => (KIND_ORDER[a.kind]-KIND_ORDER[b.kind]) || a.d.name.localeCompare(b.d.name, LANG);
+  const list = [...state.inView].map(id=>byId[id]).sort(cmp);
+  if (focus && !state.inView.has(focus)) list.unshift(byId[focus]);   // e.g. an entity with no coordinates
+  document.getElementById('fd-count').textContent = state.inView.size;
+  const key = list.map(it=>it.id).join(',')+'|'+focus+'|'+LANG+'|'+[...state.pins].join(',');
+  if (key === feedKey) return;
+  feedKey = key;
+  const host = document.getElementById('fd-list');
+  host.innerHTML = list.length ? list.map(it=>`
+    <div class="fd-item${it.id===focus?' open':''}" data-id="${esc(it.id)}">
+      <button class="fd-row" data-open="${esc(it.id)}" aria-expanded="${it.id===focus}">
+        <span class="glyph"><svg width="16" height="16" viewBox="-9 -9 18 18">${shapeSvg(it.domains,it.kind,it.kind==='team'?4.5:6,false)}</svg></span>
+        <span class="nm">${esc(it.d.name)}</span>
+        <span class="mt">${esc([it.d.city,it.d.country].filter(Boolean).join(', '))}</span>
+        <span class="chev" aria-hidden="true">›</span>
+      </button>
+      ${it.id===focus ? `<div class="fd-card">${cardHtml(it)}</div>` : ''}
+    </div>`).join('') : `<p class="fd-empty">${esc(t('feedEmpty'))}</p>`;
+  host.querySelectorAll('.fd-row').forEach(b=>{
+    const id = b.dataset.open;
+    b.addEventListener('click', ()=>{ if (state.focusId===id) closeDetail(); else openEntity(id, {fly:false}); });
+    b.addEventListener('pointerenter', ()=>peek(id, true));
+    b.addEventListener('pointerleave', ()=>peek(id, false));
+  });
+  const openEl = host.querySelector('.fd-item.open');
+  if (openEl){
+    bindCard(openEl.querySelector('.fd-card'), focus);
+    if (focus !== feedFocus) openEl.scrollIntoView({ block:'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+  feedFocus = focus;
+}
+function setFeed(on){
+  state.feed = on; document.body.classList.toggle('feed-open', on);
+  lsSet('hai-map-v2-feed', on ? '1' : '0'); feedKey = '';
+  refresh();
+}
+document.getElementById('feed-pill').addEventListener('click', ()=>setFeed(!state.feed));
+document.getElementById('fd-close').addEventListener('click', ()=>setFeed(false));
+
+// ---------- period filter ----------
+const tfSlider = document.getElementById('tf-slider');
+const tfKnob = { a: document.getElementById('tf-a'), b: document.getElementById('tf-b') };
+const tfSpan = YMAX - YMIN || 1;
+const tfPct = y => ((y - YMIN) / tfSpan) * 100;
+
+function renderHist(){
+  // One bar per year: how many dated entities are running that year.
+  const n = tfSpan + 1;
+  const counts = new Array(n).fill(0);
+  items.forEach(it => {
+    if (!it.dated) return;
+    const s = Math.max(YMIN, it.y0==null ? YMIN : it.y0);
+    const e = Math.min(YMAX, it.y1==null ? YMAX : it.y1);
+    for (let y=s; y<=e; y++) counts[y-YMIN]++;
+  });
+  const peak = Math.max(1, ...counts);
+  const svg = document.getElementById('tf-hist');
+  svg.setAttribute('viewBox', `0 0 ${n} 20`);
+  svg.innerHTML = counts.map((c,i)=>{
+    const h = c ? Math.max(1.1, (c/peak)*19) : 0;
+    return h ? `<rect data-y="${YMIN+i}" x="${i+0.12}" y="${(20-h).toFixed(2)}" width="0.76" height="${h.toFixed(2)}"></rect>` : '';
+  }).join('');
+}
+function paintHist(){
+  document.querySelectorAll('#tf-hist rect').forEach(r=>{
+    const y = +r.dataset.y;
+    r.classList.toggle('on', y >= state.years.a && y <= state.years.b);
+  });
+}
+function renderTime(){
+  const {a,b} = state.years, on = timeOn();
+  document.getElementById('tf-range').textContent = a===b ? String(a) : `${a} – ${b}`;
+  document.getElementById('tf-undated-n').textContent = UNDATED;
+  document.getElementById('tf-undated').checked = state.years.undated;
+  // The undated toggle and the reset only mean something once a range is picked.
+  const engaged = on || !state.years.undated;
+  document.getElementById('tf-opt').hidden = !engaged;
+  document.getElementById('tf-reset').hidden = !engaged;
+  document.getElementById('tf-reset').title = t('timeAll');
+  document.getElementById('tf-reset').setAttribute('aria-label', t('timeAll'));
+  document.getElementById('tf-slider').title = `${YMIN} – ${YMAX} · ${t('timeFloor')}`;
+  const sel = document.getElementById('tf-sel');
+  sel.style.left = tfPct(a) + '%';
+  sel.style.right = (100 - tfPct(b)) + '%';
+  tfKnob.a.style.left = tfPct(a) + '%';
+  tfKnob.b.style.left = tfPct(b) + '%';
+  [['a',a],['b',b]].forEach(([k,v])=>{
+    const el = tfKnob[k];
+    el.setAttribute('aria-valuemin', YMIN); el.setAttribute('aria-valuemax', YMAX);
+    el.setAttribute('aria-valuenow', v); el.setAttribute('aria-valuetext', v);
+    el.setAttribute('aria-label', t(k==='a' ? 'timeFrom' : 'timeTo'));
+  });
+  paintHist();
+}
+function setYears(a, b, silent){
+  state.years.a = Math.min(Math.max(YMIN, Math.round(a)), YMAX);
+  state.years.b = Math.min(Math.max(state.years.a, Math.round(b)), YMAX);
+  renderTime(); if (!silent) refresh();
+}
+function yearAt(clientX){
+  const r = tfSlider.getBoundingClientRect();
+  return YMIN + Math.round(((clientX - r.left) / Math.max(r.width,1)) * tfSpan);
+}
+function tfDrag(which, e){
+  e.preventDefault();
+  const el = tfKnob[which];
+  el.setPointerCapture(e.pointerId); el.focus();
+  const move = ev => {
+    const y = yearAt(ev.clientX);
+    if (which==='a') setYears(Math.min(y, state.years.b), state.years.b);
+    else setYears(state.years.a, Math.max(y, state.years.a));
+  };
+  const up = ev => {
+    el.releasePointerCapture(ev.pointerId);
+    el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up);
+    el.removeEventListener('pointercancel', up);
+  };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  move(e);
+}
+tfKnob.a.addEventListener('pointerdown', e=>tfDrag('a', e));
+tfKnob.b.addEventListener('pointerdown', e=>tfDrag('b', e));
+tfSlider.addEventListener('pointerdown', e=>{
+  if (e.target.closest('.tf-knob')) return;
+  const y = yearAt(e.clientX);
+  // Outside the selection, grab the handle on that side — otherwise a collapsed
+  // range (a === b) could never be widened again.
+  const which = y < state.years.a ? 'a' : y > state.years.b ? 'b'
+    : (Math.abs(y - state.years.a) <= Math.abs(y - state.years.b) ? 'a' : 'b');
+  tfDrag(which, e);
+});
+['a','b'].forEach(which=>tfKnob[which].addEventListener('keydown', e=>{
+  const step = { ArrowLeft:-1, ArrowRight:1, ArrowDown:-1, ArrowUp:1, PageDown:-5, PageUp:5 }[e.key];
+  let v = null;
+  if (step!=null) v = state.years[which] + step;
+  else if (e.key==='Home') v = YMIN;
+  else if (e.key==='End') v = YMAX;
+  else return;
+  e.preventDefault();
+  if (which==='a') setYears(Math.min(v, state.years.b), state.years.b);
+  else setYears(state.years.a, Math.max(v, state.years.a));
+}));
+document.getElementById('tf-undated').addEventListener('change', e=>{
+  state.years.undated = e.target.checked; renderTime(); refresh();
+});
+document.getElementById('tf-reset').addEventListener('click', resetYears);
+function resetYears(){
+  state.years = { a:YMIN, b:YMAX, undated:true };
+  renderTime(); refresh();
+}
+renderHist();
 
 // ---------- search ----------
 const searchInput = document.getElementById('search');
@@ -1126,8 +1648,9 @@ document.getElementById('mymap-pill').addEventListener('click', toggleMyMap);
 document.getElementById('reset-btn').addEventListener('click', ()=>{
   state.domains = new Set(ALL_DOMS); KINDS.forEach(k=>state.layers[k]=true);
   state.links = false; state.myMap = false; closeDetail();
+  state.years = { a:YMIN, b:YMAX, undated:true };
   searchInput.value=''; searchDrop.classList.remove('open');
-  syncDomainChecks(); renderLayerRows(); refresh(); fitView(true);
+  syncDomainChecks(); renderLayerRows(); renderTime(); refresh(); fitView(true);
 });
 document.getElementById('share-btn').addEventListener('click', ()=>{
   const h = [];
@@ -1138,6 +1661,8 @@ document.getElementById('share-btn').addEventListener('click', ()=>{
   if (lays.length !== KINDS.length) h.push('lay='+lays.join(','));
   if (state.links) h.push('links=1');
   if (state.myMap) h.push('my=1');
+  if (timeOn()) h.push('yr='+state.years.a+','+state.years.b);
+  if (!state.years.undated) h.push('nd=0');
   const url = location.origin + location.pathname + '?lang=' + LANG + (h.length ? '#' + h.join('&') : '');
   (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(
     ()=>toast(t('linkCopied')),
@@ -1145,7 +1670,8 @@ document.getElementById('share-btn').addEventListener('click', ()=>{
 });
 document.getElementById('print-btn').addEventListener('click', ()=>{
   const arr = [...state.pins].map(id=>byId[id]).filter(Boolean);
-  const src = arr.length ? arr : items.filter(it=>mkEls[it.id].style.display!=='none');
+  const vis = visibleSet().vis;
+  const src = arr.length ? arr : items.filter(it=>vis.has(it.id));
   const byKind = KINDS.map(k=>({k, list: src.filter(it=>it.kind===k)})).filter(g=>g.list.length);
   document.getElementById('print-sheet').innerHTML = `
     <h1>${esc(t('title'))}</h1>
@@ -1256,8 +1782,9 @@ function applyLang(){
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ const v = t(el.dataset.i18nPh); if (typeof v==='string') el.placeholder = v; });
   document.querySelectorAll('.lang-switch button').forEach(b=>b.classList.toggle('is-active', b.dataset.lang===LANG));
   document.getElementById('sb-foot').innerHTML = t('footer');
+  document.getElementById('fd-close').title = t('feedHide'); document.getElementById('fd-close').setAttribute('aria-label', t('feedHide'));
   document.title = t('title') + (LANG==='fr' ? ' — carte de l\u2019écosystème' : ' — ecosystem map');
-  renderPresets(); renderLayerRows(); renderDomainGroups(); renderLegend(); renderPins();
+  renderPresets(); renderLayerRows(); renderDomainGroups(); renderLegend(); renderPins(); renderNoGeo(); renderTime();
   if (welcome.classList.contains('open')) renderWelcome();
   if (state.focusId) renderDetail(state.focusId);
   refresh();
@@ -1274,10 +1801,16 @@ function applyHash(){
   const lay = h.get('lay'); if (lay){ KINDS.forEach(k=>state.layers[k] = lay.split(',').includes(k)); }
   if (h.get('links')==='1') state.links = true;
   if (h.get('my')==='1' && state.pins.size) state.myMap = true;
+  const yr = h.get('yr');
+  if (yr){ const [a,b] = yr.split(',').map(Number);
+    if (Number.isFinite(a) && Number.isFinite(b)) setYears(a, b, true); }
+  if (h.get('nd')==='0') state.years.undated = false;
   const e = h.get('e'); return e && byId[e] ? e : null;
 }
 
 // ---------- boot ----------
+state.feed = (lsGet('hai-map-v2-feed') ?? (window.innerWidth > 840 ? '1' : '0')) === '1';
+document.body.classList.toggle('feed-open', state.feed);
 const deepEntity = applyHash();
 applyLang();
 fitView(false);
