@@ -160,6 +160,13 @@ a hand-written table in the generator. An unmapped key falls back to its
 de-underscored form, so a new vocabulary entry degrades to readable text rather
 than breaking.
 
+### 3.5 Freshness
+
+`DATA.AS_OF` is one ISO date: the most recent `provenance.last_updated` /
+`provenance.added_on` across every entity in every layer. It is the only
+data-derived (not wall-clock) notion of "now" the page has, and it drives two
+things — the period filter's upper bound and its freshness bubble (§10.0).
+
 ---
 
 ## 4. Visual language
@@ -353,6 +360,16 @@ counts without running per frame.
 When the stage measures zero — a hidden pane, printing — every placed marker is
 counted rather than none.
 
+**Off-map entities widen the gap on their own.** An entity with no coordinates
+(§3.1, point 4) can never be "in view" — there is no marker to be on- or
+off-screen — but it still matches the filters, so it counts toward the caption
+without ever counting toward the four tiles. Reading the gap between "in view"
+and "match the filters" as pan/zoom alone would be wrong whenever any of those
+entities pass the current filters. `updateInView()` tallies them separately as
+`state.offMapMatch`, and the caption names the count explicitly — "445 match the
+filters (11 of them off the map)" — rather than leaving the reader to do the
+arithmetic.
+
 ### 9.2 The feed
 
 A column listing the entities in view, sorted by layer then name, with a count
@@ -377,13 +394,43 @@ the DOM write, so panning across unchanged content costs nothing.
 
 ## 10. Period filter
 
-A two-handle slider over **1945–2032** with a per-year histogram of how many
-dated entities were running that year — the growth curve of the field, read
-directly.
+A two-handle slider from **1945 to the data's own freshness date** (§10.0) with
+a per-year histogram of how many dated entities were running that year — the
+growth curve of the field, read directly.
 
 **Semantics.** A dated entity is kept when its span overlaps the selection. No
 recorded end means "still running", so it stays visible for any range reaching
 its start.
+
+### 10.0 The axis stops at "now", not at the furthest funded end-date
+
+`YMAX` used to be `Math.max(...YEARS)` — the latest year appearing anywhere in
+the data, start or end. Several Horizon Europe projects are funded through
+2030–2032, so the axis stretched a decade past the present to show almost
+nothing: a thin tail of "still running" bars for grants that have not been
+lived yet.
+
+The generator instead computes `AS_OF`, the most recent `provenance.upd` /
+`provenance.on` across every entity — a freshness date derived entirely from
+the data, not from wall-clock generation time. Deriving it from `date.today()`
+would put a changing timestamp in a generated file and break the "regenerating
+without a source change produces an empty diff" invariant (§16, first item);
+`AS_OF` only
+moves when an entity's own provenance actually does. The map reads its year as
+`YMAX`, clamped so it can never fall below the latest known **start** year (an
+entity whose own start is after `AS_OF`'s year would otherwise become
+permanently unreachable — not a case in the current data, but a real risk if
+ever a future-dated entity were added right after a stale `AS_OF`).
+
+This does not hide any currently-active entity: a project funded through 2032
+still matches every range up to today, since its end (2032) satisfies `e >= a`
+for any `a` the slider can reach. Only the empty decade of future bars
+disappears from the histogram and the draggable range.
+
+A small **ⓘ** button next to the range label — `#tf-asof` — surfaces `AS_OF`
+directly: a `title` for hover, and a `toast()` on click so the same sentence
+reaches touch devices, which do not hover. This is the map's only freshness
+indicator; there is no separate "last updated" banner elsewhere in the page.
 
 ### 10.1 Entities whose start is unknown
 

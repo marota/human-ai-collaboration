@@ -551,6 +551,21 @@ def js_array(items: list[dict]) -> str:
     return "\n".join("  " + json.dumps(o, ensure_ascii=False) + "," for o in items)
 
 
+def data_as_of(data: dict) -> str:
+    """The most recent provenance touch across every entity — a freshness date
+    derived entirely from the data, not from wall-clock generation time. Using
+    `date.today()` here would put a changing timestamp in a generated file and
+    break the "no-op regeneration produces an empty diff" invariant; this only
+    moves when an entity's own last_updated/added_on actually does.
+    """
+    dates: list[str] = []
+    for layer in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS"):
+        for o in data[layer]:
+            prov = o.get("prov") or {}
+            dates += [d for d in (prov.get("upd"), prov.get("on")) if d]
+    return max(dates) if dates else ""
+
+
 def render(data: dict, source: Path) -> str:
     head = (
         "// GENERATED FILE — do not edit by hand.\n"
@@ -564,8 +579,9 @@ def render(data: dict, source: Path) -> str:
         for name in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES")
     )
     taxo = "const TAXO = " + json.dumps(taxo_payload(), ensure_ascii=False, indent=1) + ";\n\n"
-    tail = "window.HAI_DATA = { PROJECTS, COMMONS, TEAMS, FRAMEWORKS, EDGES, TAXO };\n"
-    return head + body + taxo + tail
+    as_of = "const AS_OF = " + json.dumps(data_as_of(data)) + ";\n\n"
+    tail = "window.HAI_DATA = { PROJECTS, COMMONS, TEAMS, FRAMEWORKS, EDGES, TAXO, AS_OF };\n"
+    return head + body + taxo + as_of + tail
 
 
 def resolve_source(arg: str | None) -> Path:
@@ -605,6 +621,7 @@ def main() -> None:
         print(f"  {name.lower():<11} {len(data[name])}")
     print(f"  no lat/lon  {len(geoless)}  ({', '.join(geoless)})")
     print(f"  longest description  {longest} chars (was capped at 300)")
+    print(f"  as of  {data_as_of(data)}  (most recent provenance touch — caps the period filter)")
 
 
 if __name__ == "__main__":

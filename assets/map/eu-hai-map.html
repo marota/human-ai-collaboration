@@ -204,8 +204,10 @@
     cursor:pointer;white-space:nowrap}
   .tf-opt input{width:12px;height:12px;accent-color:var(--accent);margin:0;cursor:pointer}
   .tf-opt em{font-style:normal;color:var(--ink-faint);font-variant-numeric:tabular-nums}
-  .tf-reset{width:20px;height:20px;flex:none;border-radius:50%;display:grid;place-items:center;
+  .tf-reset,.tf-asof{width:20px;height:20px;flex:none;border-radius:50%;display:grid;place-items:center;
     font-size:13px;line-height:1;color:var(--ink-faint)}
+  .tf-asof{font-size:11px;font-style:italic;font-family:var(--serif)}
+  .tf-asof:hover{background:var(--accent-wash);color:var(--accent)}
   .tf-reset:hover{background:var(--accent-wash);color:var(--accent)}
   .tf-opt[hidden],.tf-reset[hidden]{display:none}
 
@@ -496,6 +498,7 @@
       <div class="tf" id="ctl-time">
         <span class="tf-h" data-i18n="timeTitle">Période</span>
         <span class="tf-range" id="tf-range">—</span>
+        <button class="tf-asof" id="tf-asof" type="button">ⓘ</button>
         <div class="tf-slider" id="tf-slider">
           <svg class="tf-hist" id="tf-hist" preserveAspectRatio="none" aria-hidden="true"></svg>
           <div class="tf-track"><div class="tf-sel" id="tf-sel"></div></div>
@@ -660,6 +663,8 @@ const I18N = {
     feedPill:'Fil', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
     feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
     stNote:n=>`dans la vue · ${n} correspondent aux filtres`,
+    stNoteOff:(n,m)=>`dans la vue · ${n} correspondent aux filtres (dont ${m} hors carte)`,
+    asOf:date=>`Données à jour au ${date} — le curseur de période s’arrête à cette année.`,
     nogeoTitle:'Hors carte', nogeoNote:'Normes internationales et ressources sans localisation : pas de marqueur, mais une fiche complète.',
     tPrev:'Précédent', tNext:'Suivant', tDone:'Terminer', tStep:(i,n)=>`Étape ${i} / ${n}`,
     'tour.1t':'Filtres & couches', 'tour.1b':'Le panneau latéral contrôle ce que montre la carte : quatre couches d\u2019entités, dix-sept domaines, des vues de départ toutes prêtes — et la recherche.',
@@ -723,6 +728,8 @@ const I18N = {
     feedPill:'Feed', feedTitle:'In view', feedHide:'Hide feed',
     feedEmpty:'Nothing in view — zoom out or widen the filters.',
     stNote:n=>`in view · ${n} match the filters`,
+    stNoteOff:(n,m)=>`in view · ${n} match the filters (${m} of them off the map)`,
+    asOf:date=>`Data current as of ${date} — the period slider stops at that year.`,
     nogeoTitle:'Off the map', nogeoNote:'International standards and resources with no location: no marker, but a full card.',
     tPrev:'Previous', tNext:'Next', tDone:'Done', tStep:(i,n)=>`Step ${i} / ${n}`,
     'tour.1t':'Filters & layers', 'tour.1b':'The side panel controls what the map shows: four entity layers, seventeen domains, ready-made starting views — and search.',
@@ -760,7 +767,7 @@ const state = {
   domains: new Set(ALL_DOMS),
   layers: { project:true, team:true, commons:true, framework:true },
   years: null, // {a,b,undated} — filled once the data bounds are known
-  feed:false, inView:new Set(), matchCount:0,
+  feed:false, inView:new Set(), matchCount:0, offMapMatch:0,
   links:false, myMap:false,
   pins: new Set(JSON.parse(lsGet('hai-map-v2-pins')||'[]')),
   focusId:null, history:[], hIndex:-1,
@@ -814,7 +821,27 @@ const YEARS = items.flatMap(it => [it.y0, it.y1]).filter(y => y!=null);
 // Slider floor: a handful of founders predate 1945 (Italgas 1837, Philips 1914…);
 // they stay included in any range reaching the floor, the axis just stops stretching.
 const YMIN = YEARS.length ? Math.max(1945, Math.min(...YEARS)) : 2000;
-const YMAX = YEARS.length ? Math.max(...YEARS) : 2030;
+// The axis stops at "now" — the data's own freshness date (AS_OF, the most
+// recent provenance touch) — rather than at whichever funded project end-date
+// happens to reach furthest into the future. A project funded through 2032 is
+// still shown as present at every reachable year; the slider just doesn't
+// stretch out to visualise a decade of "still running" as if it were history.
+// Never capped below the latest known START year, or that entity could never
+// be reached by any range.
+const AS_OF_YEAR = DATA.AS_OF ? parseInt(DATA.AS_OF.slice(0, 4), 10) : null;
+const startYears = items.map(it => it.y0).filter(y => y != null);
+const YMAX = Math.max(
+  AS_OF_YEAR || (YEARS.length ? Math.max(...YEARS) : 2030),
+  startYears.length ? Math.max(...startYears) : YMIN
+);
+// Long-form "as of" date for the period control's info bubble — the same
+// AS_OF value that capped YMAX, spelled out.
+function fmtAsOf(){
+  if (!DATA.AS_OF) return '';
+  const d = new Date(DATA.AS_OF + 'T00:00:00');
+  return new Intl.DateTimeFormat(LANG==='fr'?'fr-FR':'en-GB',
+    { day:'numeric', month:'long', year:'numeric' }).format(d);
+}
 const UNDATED = items.filter(it => it.vague).length;
 state.years = { a:YMIN, b:YMAX, undated:true };
 const timeOn = () => state.years.a > YMIN || state.years.b < YMAX;
@@ -1439,13 +1466,19 @@ function updateInView(vis){
   const [w,h] = stageSize(); const pad = 10;
   const unmeasured = w < 2 || h < 2;          // hidden pane / print: count every placed marker
   state.inView = new Set();
+  let offMap = 0;
   items.forEach(it=>{
-    if (!it.geo || !vis.has(it.id)) return;
+    if (!vis.has(it.id)) return;
+    // Off-map entities (no coordinates) can never be "in view" — they have no
+    // marker to be on- or off-screen — but they do match the filters, so the
+    // gap between the two counters needs to be explained, not just displayed.
+    if (!it.geo){ offMap++; return; }
     if (unmeasured){ state.inView.add(it.id); return; }
     const sx = view.x + it.X*view.k, sy = view.y + it.Y*view.k;
     if (sx>=-pad && sx<=w+pad && sy>=-pad && sy<=h+pad) state.inView.add(it.id);
   });
   state.matchCount = vis.size;
+  state.offMapMatch = offMap;
 }
 function renderStats(){
   let cp=0, ct=0, cr=0; const ctry = new Set();
@@ -1456,7 +1489,9 @@ function renderStats(){
   document.getElementById('st-team').textContent = ct;
   document.getElementById('st-res').textContent = cr;
   document.getElementById('st-ctry').textContent = ctry.size;
-  document.getElementById('st-note').textContent = I18N[LANG].stNote(state.matchCount);
+  document.getElementById('st-note').textContent = state.offMapMatch
+    ? I18N[LANG].stNoteOff(state.matchCount, state.offMapMatch)
+    : I18N[LANG].stNote(state.matchCount);
 }
 let ivTimer = null;
 function scheduleInView(){
@@ -1551,6 +1586,9 @@ function renderTime(){
   document.getElementById('tf-reset').title = t('timeAll');
   document.getElementById('tf-reset').setAttribute('aria-label', t('timeAll'));
   document.getElementById('tf-slider').title = `${YMIN} – ${YMAX} · ${t('timeFloor')}`;
+  const asOfMsg = t('asOf')(fmtAsOf());
+  document.getElementById('tf-asof').title = asOfMsg;
+  document.getElementById('tf-asof').setAttribute('aria-label', asOfMsg);
   const sel = document.getElementById('tf-sel');
   sel.style.left = tfPct(a) + '%';
   sel.style.right = (100 - tfPct(b)) + '%';
@@ -1617,6 +1655,9 @@ document.getElementById('tf-undated').addEventListener('change', e=>{
   state.years.undated = e.target.checked; renderTime(); refresh();
 });
 document.getElementById('tf-reset').addEventListener('click', resetYears);
+// A `title` covers hover; the click also surfaces the same sentence as a
+// toast so it reaches touch devices, which don't hover.
+document.getElementById('tf-asof').addEventListener('click', ()=> toast(t('asOf')(fmtAsOf())));
 function resetYears(){
   state.years = { a:YMIN, b:YMAX, undated:true };
   renderTime(); refresh();
