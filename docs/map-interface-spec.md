@@ -264,6 +264,19 @@ configure the view live in the left panel. That split is the reason the period
 slider was moved out of the bottom bar: there should be one place to look for
 interactions.
 
+**The period pill has a fixed width budget, on purpose.** `.ctl-tr` is
+absolutely positioned with `right` but no `left`, so nothing stops an
+unconstrained child from growing leftward — past the sidebar's edge and into
+`#stage`'s `overflow:hidden`, where it is silently clipped rather than
+overlapping anything. That happened once: the pill grew a second batch of
+content (the *unknown start* toggle and the reset button) onto its one row
+only once a range was picked, and the wider pill clipped invisibly behind the
+sidebar's edge. The fix is structural, not a size tweak: the pill is two flex
+rows (`.tf-row`, always the slider; `.tf-row2`, the toggle and reset,
+`hidden` until engaged) under a column with a `max-width`, so engaging the
+filter grows the pill **downward**, never sideways. Anything added to either
+row shares that same fixed-width budget.
+
 ---
 
 ## 6. Filtering
