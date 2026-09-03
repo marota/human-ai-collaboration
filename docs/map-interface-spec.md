@@ -264,6 +264,22 @@ configure the view live in the left panel. That split is the reason the period
 slider was moved out of the bottom bar: there should be one place to look for
 interactions.
 
+**A collapsed column leaves the grid, so the tracks have to leave with it.**
+Hiding the sidebar is `display:none`, which stops it being a grid item — every
+remaining item then shifts one track to the left. Keeping a `0`-width stub for
+the collapsed column therefore does not hold its place: it hands the map the
+stub and the feed the map's track, and the map disappears. `body.sb-hidden`
+describes only the columns that are still there (`1fr`, or `1fr 344px` with the
+feed open).
+
+**Anything that resizes the stage without resizing the window has to say so.**
+Only `resize` refits the map, and collapsing the sidebar or toggling the feed
+fires no such event: the map kept the scale and offset of the old rectangle, and
+the counters kept measuring against it. `stageResized()` — called right after
+those class changes, where reading the new size forces the layout — keeps the
+reader's zoom and the same geography centred, re-derives `k0`, and lets
+`applyView()` bring the counts back in step (§9.1).
+
 **Every floating cluster carries its own width bound, not just an edge
 offset.** `.ctl-tr`, `.ctl-br` and `.ctl-bl` are all `position:absolute` with
 an offset from one edge and nothing from the other — a shelf hung from a

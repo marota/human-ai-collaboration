@@ -46,7 +46,11 @@
   ::selection{background:var(--accent-wash);color:var(--accent-deep)}
 
   #app{display:grid;grid-template-columns:312px 1fr;height:100vh}
-  body.sb-hidden #app{grid-template-columns:0 1fr}
+  /* The collapsed sidebar is display:none below, so it is no longer a grid
+     item: the columns here describe what is left, without a 0-width stub for
+     it. A stub would take the map's place and shift every item one track
+     left — the map into the 0 track, i.e. gone. */
+  body.sb-hidden #app{grid-template-columns:1fr}
 
   /* ---------- sidebar ---------- */
   #sidebar{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--surface);
@@ -300,7 +304,7 @@
     border-left:1px solid var(--rule);min-width:0}
   body.feed-open #feed{display:flex}
   body.feed-open #app{grid-template-columns:312px 1fr 344px}
-  body.sb-hidden.feed-open #app{grid-template-columns:0 1fr 344px}
+  body.sb-hidden.feed-open #app{grid-template-columns:1fr 344px}
   body.feed-open #detail{display:none !important}
   .fd-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--rule)}
   .fd-title{flex:1;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-faint)}
@@ -1032,10 +1036,12 @@ const mkEls = {}; gMarkers.querySelectorAll('.mk').forEach(el=>{ mkEls[el.datase
 
 // ---------- view (pan/zoom) ----------
 const view = { x:0, y:0, k:1 }; let k0 = 1;
+let stageW = 0, stageH = 0;   // last measured stage, for stageResized() below
 function stageSize(){ const r = document.getElementById('stage').getBoundingClientRect(); return [r.width, r.height]; }
 function fitView(animated){
   const [w,h] = stageSize();
   k0 = Math.min(w/GEO.W, h/GEO.H);
+  stageW = w; stageH = h;
   const k = k0*1.22;
   const cx = GEO.TX, cy = GEO.TY - 40; // centre l'Europe utile
   setView({ k, x: w/2 - cx*k, y: h/2 - cy*k }, animated);
@@ -1108,6 +1114,23 @@ document.getElementById('z-in').addEventListener('click',()=>{ const [w,h]=stage
 document.getElementById('z-out').addEventListener('click',()=>{ const [w,h]=stageSize(); zoomAt(w/2,h/2,1/1.45); });
 document.getElementById('z-fit').addEventListener('click',()=>fitView(true));
 window.addEventListener('resize',()=>fitView(false));
+// The stage also changes size without the window changing: the sidebar
+// collapsing, the feed opening or hiding. No resize event fires for those, so
+// the map kept the scale and offset of the old rectangle and the counters kept
+// measuring against it. Call this right after any class change that resizes the
+// stage — reading the new size forces the layout, so it is already current.
+function stageResized(){
+  const [w,h] = stageSize();
+  if (w < 2 || h < 2) return;                          // hidden pane, printing
+  if (stageW && (w !== stageW || h !== stageH)){
+    // Keep the reader's zoom and the same geography centred; re-derive k0,
+    // which every zoom threshold is relative to. setView → applyView also
+    // brings the in-view counts back in step with the new rectangle.
+    k0 = Math.min(w/GEO.W, h/GEO.H);
+    setView({ k: view.k, x: view.x + (w-stageW)/2, y: view.y + (h-stageH)/2 }, false);
+  }
+  stageW = w; stageH = h;
+}
 function flyTo(id){
   const it = byId[id]; if (!it) return;
   if (!it.geo) return;
@@ -1625,6 +1648,7 @@ function renderFeed(){
 function setFeed(on){
   state.feed = on; document.body.classList.toggle('feed-open', on);
   lsSet('hai-map-v2-feed', on ? '1' : '0'); feedKey = '';
+  stageResized();
   refresh();
 }
 document.getElementById('feed-pill').addEventListener('click', ()=>setFeed(!state.feed));
@@ -1845,9 +1869,11 @@ document.getElementById('print-btn').addEventListener('click', ()=>{
 function setPanel(open){ document.body.classList.toggle('panel-open', open); }
 document.getElementById('sb-open').addEventListener('click', ()=>{
   if (window.innerWidth<=840) setPanel(true);
-  else document.body.classList.remove('sb-hidden');
+  else { document.body.classList.remove('sb-hidden'); stageResized(); }
 });
-document.getElementById('sb-hide').addEventListener('click', ()=>document.body.classList.add('sb-hidden'));
+document.getElementById('sb-hide').addEventListener('click', ()=>{
+  document.body.classList.add('sb-hidden'); stageResized();
+});
 document.getElementById('sb-backdrop').addEventListener('click', ()=>setPanel(false));
 
 // ---------- toast ----------
