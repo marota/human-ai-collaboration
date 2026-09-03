@@ -109,7 +109,7 @@ regeneration; the shape of the table is what is normative, not the figures.
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
 | Projects & programmes | 111 | large circle | `data/projects/` |
-| Teams | 264 | small circle | `data/teams/` + infrastructure with no matching team |
+| Teams | 268 | small circle | `data/teams/` + infrastructure with no matching team |
 | Commons | 25 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
 | Links | 295 | curved edge | `data/edges.yml` |
@@ -430,7 +430,7 @@ different reasons: entities whose marker is simply outside the current pan and
 zoom, and entities with no coordinates at all (§3.1, point 4), which can never be
 "in view" because there is no marker to be on- or off-screen. `updateInView()`
 tallies both — `state.offScreen` and `state.offMapMatch` — and the caption names
-them, so the numbers reconcile at any zoom: "445 match the filters (54 off
+them, so the numbers reconcile at any zoom: "449 match the filters (54 off
 screen, 11 off the map)".
 
 Naming only the off-map part, as an earlier version did, reads as though it
@@ -455,7 +455,7 @@ where the markers are dense, the reader cannot read the names.
 
 The header count (`#fd-count`) sits right where a reader's eye lands first, so
 it repeats the reconciliation from §9.1 there too rather than trusting the
-sidebar caption to be noticed: **"IN VIEW 380 + 54 off screen + 11 off the
+sidebar caption to be noticed: **"IN VIEW 384 + 54 off screen + 11 off the
 map"**. Each part is a button, and each has its own remedy: `#fd-offscreen`
 fits the view so the off-screen markers come in, `#fd-offmap` reveals the
 sidebar and scrolls the **Off the map** section into view. Reconciling the

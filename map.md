@@ -76,7 +76,7 @@ The data is organised into five layers, one YAML file per entity, plus the
 consortium relationships between them. The current snapshot holds:
 
 <ul class="tiles">
-  <li><strong>264</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
+  <li><strong>268</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
   <li><strong>111</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
   <li><strong>45</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
   <li><strong>25</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
