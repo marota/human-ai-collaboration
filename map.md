@@ -25,22 +25,32 @@ remembered.
 
 The **Period** slider in the top-right cluster, alongside the other controls,
 narrows the map to a range of years, so the landscape can be read as it stood in
-2016–2021 rather than all at once. The
-histogram behind the slider counts how many dated entities were running each
-year — the shape of the field's growth, in effect. An entity is kept when its
-span overlaps the selection; no recorded end date means "still running". Start
-years were researched for the 199 entities that had none — founding dates of
-labs, operators and standards, each recorded in the entry's provenance with its
-source and a confidence level. The 14 still undated, named sub-units whose
-creation year is not published, are kept by default and can be dropped with the
-*undated* checkbox. The axis starts in 1945; the few older foundings — Italgas,
-Philips, the ASEA and Siemens laboratories — stay included in any range that
-reaches it. Narrowed periods travel in the shareable link.
+2016–2021 rather than all at once. It runs from 1945 to the map's own freshness
+date — the ⓘ next to it names that date — rather than out to whichever funded
+project happens to end furthest in the future; a project funded through 2032
+still shows as present today, the axis just stops stretching to show it.
+
+The histogram behind the slider counts how many dated entities were running
+each year — the shape of the field's growth, in effect. An entity is kept when
+its span overlaps the selection; no recorded end date means "still running".
+Start years were researched for the 199 entities that had none — founding dates
+of labs, operators and standards, each recorded in the entry's provenance with
+its source and a confidence level. Of those, 23 turned out to have only their
+*host institution's* founding year on record rather than their own — that year
+becomes a floor, not a start: the entry is shown as certainly present in the
+2020s, only possibly so back to the year its host was founded, and never before
+it. A further 14 entities carry no date at all and are treated the same way,
+with no floor. Both groups are kept by default and can be dropped with the
+*undated* checkbox. The few real foundings older than 1945 — Philips, the ASEA
+and Siemens laboratories, Radboud University — stay included in any range that
+reaches the floor. Narrowed periods travel in the shareable link.
 
 The four counters in the side panel follow the **viewport**: zoom in and they
 count what is actually on screen, with the number matching the filters as a
-caption. The **Feed** column on the right lists those same entities, in layer
-order. Selecting a marker expands its card in the feed and scrolls it into view;
+caption — naming how many of that count sit off the map, when any do, since the
+international standards under **Off the map** have no marker to zoom in on. The
+**Feed** column on the right lists those same entities, in layer order.
+Selecting a marker expands its card in the feed and scrolls it into view;
 clicking a row expands the card and highlights the marker without moving the
 map. The column can be hidden with the *Feed* pill — the card then opens as a
 floating panel instead.
