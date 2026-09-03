@@ -25,7 +25,7 @@ repository through pull requests; this page renders a snapshot.
 
 Three design commitments follow from that, and they constrain everything below.
 
-- **Legibility over completeness of display.** 397 entities cannot all be read
+- **Legibility over completeness of display.** Four hundred-odd entities cannot all be read
   at once. Every feature — filters, period, feed, counters — exists to let a
   reader carve out a subset small enough to actually read.
 - **Traversal over search.** The interesting structure is relational: which team
@@ -45,7 +45,7 @@ routing, and anything requiring a network at view time.
 | File | Size | Role |
 |---|---|---|
 | `assets/map/eu-hai-map.html` | ~1 800 lines | The whole interface: markup, CSS, logic. Hand-written, no build step. |
-| `assets/map/hai-data.js` | ~730 kB | **Generated.** The entity payload plus the label vocabulary. |
+| `assets/map/hai-data.js` | ~950 kB | **Generated.** The entity payload plus the label vocabulary. |
 | `assets/map/europe-geo.js` | ~49 kB | Natural Earth country outlines, pre-projected. Regenerable, rarely changes. |
 
 Both data files assign to `window` (`HAI_DATA`, `HAI_GEO`) and are loaded with
@@ -103,18 +103,21 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
+Counts are a snapshot (3 September 2026) and move with every upstream
+regeneration; the shape of the table is what is normative, not the figures.
+
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
-| Projects & programmes | 101 | large circle | `data/projects/` |
-| Teams | 237 | small circle | `data/teams/` (222) + infrastructure with no matching team (15) |
-| Commons | 23 | dashed circle | `data/commons/` |
-| Frameworks | 36 | square | `data/frameworks/` |
-| Links | 275 | curved edge | `data/edges.yml` |
+| Projects & programmes | 111 | large circle | `data/projects/` |
+| Teams | 264 | small circle | `data/teams/` + infrastructure with no matching team |
+| Commons | 25 | dashed circle | `data/commons/` |
+| Frameworks | 45 | square | `data/frameworks/` |
+| Links | 295 | curved edge | `data/edges.yml` |
 
-**Infrastructure has no layer of its own**, by design. Of its 38 entries, 23
+**Infrastructure has no layer of its own**, by design. Of its 41 entries, 23
 describe a facility run by a team already on the map: they enrich that team's
 card with operator, access model and capacity, and add their infrastructure
-domain code to its marker, without creating a duplicate pin. The other 15 are
+domain code to its marker, without creating a duplicate pin. The other 18 are
 rendered as team markers. This keeps "who is doing the work" and "what they run
 it on" in one place.
 
@@ -125,9 +128,12 @@ Common to every layer:
 `id` · `name` · `city` · `country` · `lat` · `lon` · `domain` (lead, drives
 colour when single) · `domains[]` (drives the pie slices and the filters) ·
 `url` · `desc` / `desc_fr` / `desc_en` · `focus[]` (raw focus-area keys) ·
-`status` · `tier` · `timeline{start,end,milestones[]}` · `links{papers[],
-linkedin, twitter, docs, official}` · `prov{by,on,upd,src,conf}` · `geo` (only
-when false).
+`status` · `tier` · `timeline{start,end,milestones[]}` · `dateConf` ·
+`dateHost` · `links{papers[], linkedin, twitter, docs, official}` ·
+`prov{by,on,upd,src,conf}` · `geo` (only when false).
+
+`dateConf` and `dateHost` are derived, not authored: the generator parses them
+out of the provenance note (§10).
 
 Per layer, additionally:
 
@@ -210,8 +216,8 @@ relationship in the `neighbors` map — which drives card navigation and
 neighbourhood highlighting — but only pushes a drawable edge when both ends have
 coordinates. An entity off the map still participates in the graph.
 
-324 relations are drawn: 275 project–team consortium links plus 49 created/used
-links from commons and frameworks.
+Consortium links are drawn from `edges.yml`; created/used links come from the
+commons and framework cross-references.
 
 ### 4.4 Zoom thresholds
 
@@ -358,8 +364,8 @@ where the markers are dense, the reader cannot read the names.
 - **Feed → map.** Clicking a row expands its card and highlights the marker,
   **without moving the view**. Clicking the open row collapses it.
 - Hovering a row shows a soft halo on the corresponding marker.
-- A selected entity with no coordinates is prepended to the list, so the nine
-  off-map entities remain reachable.
+- A selected entity with no coordinates is prepended to the list, so the off-map
+  entities remain reachable.
 
 Hiding the feed reverts to the floating detail panel with the same card. The
 choice persists.
@@ -375,27 +381,74 @@ A two-handle slider over **1945–2032** with a per-year histogram of how many
 dated entities were running that year — the growth curve of the field, read
 directly.
 
-**Semantics.** An entity is kept when its span overlaps the selection. No
+**Semantics.** A dated entity is kept when its span overlaps the selection. No
 recorded end means "still running", so it stays visible for any range reaching
-its start. No recorded start means the span is open at the left.
+its start.
 
-**The undated policy is the load-bearing decision.** Filtering purely by date
-would empty the map, because standing labs have no natural start date in the
-data. So:
+### 10.1 Entities whose start is unknown
 
-- Start years were researched for every entity that lacked one — 199 of them in
-  the September 2026 pass (132 high confidence, 48 medium, 19 low), each written
-  into the entity's provenance with its source and its confidence level.
-- **14 remain undated** — named sub-units whose creation year is not published.
-  Substituting the parent organisation's founding year would be misleading, so
-  they carry no date.
-- Undated entities are **kept by default** and can be dropped with the *undated*
-  checkbox, which appears only once a range is actually selected.
+Two facts bracket an entity whose own start date could not be established, and
+between them the filter is tri-state rather than binary.
 
-**The 1945 floor.** Four entities predate it — Italgas 1837, Philips 1914, the
-ASEA and Siemens laboratories 1916 — and stretching the axis over 195 years
-would make the useful range unusable. The axis stops at 1945; those entities
-stay included in any range that reaches the floor.
+- **It exists today.** Everything on the map is a live entry, so it is
+  *certainly* present from `PRESENT_FROM` (2020) onwards.
+- **It cannot predate its host.** Where the only year on record is the founding
+  year of the institution that hosts the work, that year is a hard **lower
+  bound** — a human-machine teaming department cannot have started before the
+  institute that houses it.
+
+| Range | Known start | Unknown start |
+|---|---|---|
+| Reaching 2020 or later | overlap test | **solid** — certainly present |
+| Between the host's founding year and 2020 | overlap test | **dimmed** — possible, not established |
+| Before the host's founding year | overlap test | **hidden** — impossible |
+
+`periodState()` returns `in` / `soft` / `out`. `soft` puts the entity in `vis`
+*and* in `dimmed`, and the feed replaces its location with "possibly". An entity
+with no year at all has no lower bound, so it stays `soft` however far back the
+range goes. The *unknown start* checkbox removes the whole set for a reader who
+wants only established dates.
+
+### 10.2 What counts as an unknown start
+
+The generator distinguishes three cases from the provenance note, which the
+dating pass wrote as `timeline.start (high|medium|low): <evidence>`:
+
+| Case | Emitted | Filtering |
+|---|---|---|
+| No `timeline.start` at all | — | vague, no lower bound |
+| Note admits the sub-unit's own date was not found | `dateHost: true` | vague, host year is the lower bound |
+| Note estimates *this entry's* start (`Estimate: MAHALO started 2020`) | `dateConf` only | normal — hidden before its year |
+
+*TNO — Human-Machine Teaming* carries 1949 because TNO Soesterberg dates from
+1949; the HMT department does not. The year stays in the data, where it is true
+and sourced, and serves as the lower bound — but the map never draws it as the
+start of the work. On the card an approximate start renders as `≈ 1949` with a
+caption stating exactly how the map treats it.
+
+### 10.3 How far the dates were established
+
+The three tiers of evidence are not equally strong, and the map should not
+flatten them:
+
+- **Proven from the graph.** If an entity sits in a consortium whose project
+  started in 2018, it existed in 2018. This bounds the start from *above* only,
+  and settles just four of the vague entries — a link to a 2020 project says
+  nothing about when a decades-old institute began.
+- **Researched.** A handful were resolved individually: PowSyBl 2018, Italgas
+  2017 (not the 1837 company), Energinet 2023, Vitens 2010, Inserm AI Health
+  2021-12, Thames Water 2026, IFAC TC 4.1 1982.
+- **Judged from the nature of the entry.** Standing institutes and university
+  departments are pre-2020 with near-certainty; a named modern programme inside
+  an old institution is not. Three remain genuinely open — ČEPS Grid AI &
+  Ethics, Transelectrica Smart Grid / SCADA, Uisce Éireann Leakage AI — and are
+  treated as pre-2020, which may be wrong for them.
+
+**The 1945 floor.** A handful of corporate laboratories and universities predate
+it — Philips 1914, the ASEA and Siemens laboratories 1916, Radboud 1923 — and
+stretching the axis to the oldest founding year would make the useful range
+unusable. The axis stops at 1945; those entities stay included in any range that
+reaches the floor.
 
 **Interaction.** Drag a handle, or click the track — outside the selection the
 handle on that side is grabbed, which is what lets a range collapsed to a single
@@ -487,7 +540,7 @@ sensible view instead of an empty map.
 ## 15. Performance
 
 Budget: a first paint with no network beyond the three local files, and pan/zoom
-that stays smooth with 388 markers and 324 edges.
+that stays smooth with several hundred markers and edges.
 
 - Markers and edges are built **once** into static SVG. Filtering toggles
   `display` and classes; it never rebuilds the DOM.
@@ -507,12 +560,15 @@ A change that breaks one of these is a regression even if nothing throws.
    else.
 3. An entity without coordinates has no marker but keeps a card, a search
    result, a feed row and its graph edges.
-4. The floating panel and the feed render the same card from the same function.
-5. The focused entity is never hidden by a filter change.
-6. Descriptions are never truncated.
-7. Every user-visible string goes through `t()` and exists in both languages.
-8. Every string interpolated into HTML goes through `esc()`.
-9. The page never makes a network request.
+4. A date that is not the entity's own is never drawn as one: an unknown start
+   is solid only from 2020, dimmed back to its host's founding year, and hidden
+   before it.
+5. The floating panel and the feed render the same card from the same function.
+6. The focused entity is never hidden by a filter change.
+7. Descriptions are never truncated.
+8. Every user-visible string goes through `t()` and exists in both languages.
+9. Every string interpolated into HTML goes through `esc()`.
+10. The page never makes a network request.
 
 ---
 

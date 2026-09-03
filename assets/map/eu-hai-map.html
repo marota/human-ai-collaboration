@@ -257,6 +257,7 @@
   .dt-chips{display:flex;flex-wrap:wrap;gap:5px}
   .dt-chip{font-size:11px;color:var(--ink-soft);border:1px solid var(--rule-strong);border-radius:99px;padding:2px 9px}
   .dt-span{margin:0;font-size:12.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .dt-caveat{margin:4px 0 0;font-size:10.5px;line-height:1.45;color:var(--ink-faint);font-style:italic}
   .dt-ms{list-style:none;margin:8px 0 0;padding:0;border-left:1px solid var(--rule);display:grid;gap:6px}
   .dt-ms li{display:grid;grid-template-columns:78px 1fr;gap:8px;padding-left:10px;font-size:12px;position:relative}
   .dt-ms li::before{content:'';position:absolute;left:-3.5px;top:6px;width:6px;height:6px;border-radius:50%;
@@ -652,7 +653,9 @@ const I18N = {
     'sec.refs':'S\u2019appuie sur', 'sec.papers':'Publications', 'sec.links':'Autres liens',
     provBy:'Ajouté par', provConf:'confiance', provSrc:'Source :',
     noPlace:'Sans ancrage géographique',
-    timeTitle:'Période', timeAll:'Toutes les années', timeUndated:'sans date',
+    timeTitle:'Période', timeAll:'Toutes les années', timeUndated:'date incertaine', timeMaybe:'peut-être',
+    dateHost:'Année de fondation de l\u2019institution hôte : la date propre de cette équipe n\u2019est pas publiée. Elle borne le démarrage — la carte la montre pleine à partir de 2020, atténuée entre les deux, absente avant.',
+    dateApprox:'Date approchée, reconstituée à partir d\u2019indices indirects.',
     timeFrom:'Première année', timeTo:'Dernière année', timeFloor:'les fondations antérieures restent incluses',
     feedPill:'Fil', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
     feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
@@ -713,7 +716,9 @@ const I18N = {
     'sec.refs':'Builds on', 'sec.papers':'Publications', 'sec.links':'Other links',
     provBy:'Added by', provConf:'confidence', provSrc:'Source:',
     noPlace:'No geographic anchor',
-    timeTitle:'Period', timeAll:'All years', timeUndated:'undated',
+    timeTitle:'Period', timeAll:'All years', timeUndated:'unknown start', timeMaybe:'possibly',
+    dateHost:'Founding year of the host institution: this team\u2019s own start date is not published. It bounds the start — the map shows it solid from 2020, dimmed in between, and hides it before.',
+    dateApprox:'Approximate date, reconstructed from indirect evidence.',
     timeFrom:'First year', timeTo:'Last year', timeFloor:'earlier foundings stay included',
     feedPill:'Feed', feedTitle:'In view', feedHide:'Hide feed',
     feedEmpty:'Nothing in view — zoom out or widen the filters.',
@@ -795,7 +800,10 @@ function reg(arr, kind){ arr.forEach(d => {
   const [X,Y] = geo ? project(d.lon, d.lat) : [0,0];
   const tl = d.timeline || {};
   const y0 = year(tl.start), y1 = year(tl.end);
-  const it = { d, kind, domains, X, Y, id:d.id, geo, y0, y1, dated:(y0!=null||y1!=null) };
+  const dated = (y0!=null||y1!=null);
+  // `vague`: we do not know when this actually began — either no date at all,
+  // or only the founding year of the host institution.
+  const it = { d, kind, domains, X, Y, id:d.id, geo, y0, y1, dated, vague:(!dated || !!d.dateHost) };
   items.push(it); byId[d.id] = it;
 }); }
 reg(DATA.PROJECTS,'project'); reg(DATA.COMMONS,'commons'); reg(DATA.TEAMS,'team'); reg(DATA.FRAMEWORKS,'framework');
@@ -807,17 +815,27 @@ const YEARS = items.flatMap(it => [it.y0, it.y1]).filter(y => y!=null);
 // they stay included in any range reaching the floor, the axis just stops stretching.
 const YMIN = YEARS.length ? Math.max(1945, Math.min(...YEARS)) : 2000;
 const YMAX = YEARS.length ? Math.max(...YEARS) : 2030;
-const UNDATED = items.filter(it => !it.dated).length;
+const UNDATED = items.filter(it => it.vague).length;
 state.years = { a:YMIN, b:YMAX, undated:true };
 const timeOn = () => state.years.a > YMIN || state.years.b < YMAX;
-// A dated entity is kept when its span overlaps the selection. No recorded end
-// means "still running", so it stays visible for any range reaching its start.
-function inPeriod(it){
-  if (!timeOn()) return true;
-  if (!it.dated) return state.years.undated;
+// Everything on this map exists today, so it is certainly present from
+// PRESENT_FROM onwards. What an unknown start leaves open is only how far back
+// the work goes — and that is bounded below: work cannot predate the body that
+// hosts it. So a vague entity is solid in the 2020s, merely possible between
+// its host's founding year and then, and absent before that year.
+const PRESENT_FROM = 2020;
+// 'in' = matches · 'soft' = kept but not date-matched · 'out' = filtered away
+function periodState(it){
+  if (!timeOn()) return 'in';
+  if (it.vague){
+    // The host institution's founding year is a hard lower bound.
+    if (it.y0 != null && state.years.b < it.y0) return 'out';
+    if (state.years.b >= PRESENT_FROM) return 'in';
+    return state.years.undated ? 'soft' : 'out';
+  }
   const s = it.y0==null ? -Infinity : it.y0;
   const e = it.y1==null ?  Infinity : it.y1;
-  return s <= state.years.b && e >= state.years.a;
+  return (s <= state.years.b && e >= state.years.a) ? 'in' : 'out';
 }
 
 // adjacency
@@ -1021,8 +1039,10 @@ function visibleSet(){
     items.forEach(it=>{
       if (!state.layers[it.kind]) return;
       if (!it.domains.some(d=>state.domains.has(d))) return;
-      if (!inPeriod(it)) return;
+      const ps = periodState(it);
+      if (ps === 'out') return;
       vis.add(it.id);
+      if (ps === 'soft') dimmed.add(it.id);   // possible, not established
     });
   }
   if (state.focusId && byId[state.focusId]){
@@ -1230,13 +1250,17 @@ function chips(values, group){
     ? `<div class="dt-chips">${values.map(v=>`<span class="dt-chip">${esc(group?taxo(group,v):String(v).replace(/_/g,' '))}</span>`).join('')}</div>`
     : '';
 }
-function timelineHtml(tl){
+function timelineHtml(tl, d){
   if (!tl) return '';
-  const span = tl.end ? `${tl.start||'?'} → ${tl.end}` : (tl.start ? `${tl.start} →` : '');
+  const soft = d && (d.dateConf==='medium' || d.dateConf==='low');
+  const start = tl.start ? (soft ? '≈ '+tl.start : tl.start) : '';
+  const span = tl.end ? `${start||'?'} → ${tl.end}` : (start ? `${start} →` : '');
   const ms = (tl.milestones||[]).map(m =>
     `<li><span class="ms-d">${esc(m.date)}</span><span>${esc(m.label)}</span></li>`).join('');
   if (!span && !ms) return '';
-  return `${span?`<p class="dt-span">${esc(span)}</p>`:''}${ms?`<ul class="dt-ms">${ms}</ul>`:''}`;
+  const caveat = d && d.dateHost ? `<p class="dt-caveat">${esc(t('dateHost'))}</p>`
+               : (d && d.dateConf==='low' ? `<p class="dt-caveat">${esc(t('dateApprox'))}</p>` : '');
+  return `${span?`<p class="dt-span">${esc(span)}</p>`:''}${caveat}${ms?`<ul class="dt-ms">${ms}</ul>`:''}`;
 }
 function money(n){
   try { return new Intl.NumberFormat(LANG==='fr'?'fr-FR':'en-GB',
@@ -1335,7 +1359,7 @@ function cardHtml(it){
     </div>
     ${identity}
     ${dtSec(t('sec.focus'), chips(d.focus, 'focus'))}
-    ${dtSec(t('sec.timeline'), timelineHtml(tl))}
+    ${dtSec(t('sec.timeline'), timelineHtml(tl, d))}
     ${dtSec(t('sec.consortium'), consortiumHtml(d.consortium))}
     ${fundingSec}
     ${infraSec}
@@ -1459,7 +1483,7 @@ function renderFeed(){
       <button class="fd-row" data-open="${esc(it.id)}" aria-expanded="${it.id===focus}">
         <span class="glyph"><svg width="16" height="16" viewBox="-9 -9 18 18">${shapeSvg(it.domains,it.kind,it.kind==='team'?4.5:6,false)}</svg></span>
         <span class="nm">${esc(it.d.name)}</span>
-        <span class="mt">${esc([it.d.city,it.d.country].filter(Boolean).join(', '))}</span>
+        <span class="mt">${periodState(it)==='soft' ? esc(t('timeMaybe')) : esc([it.d.city,it.d.country].filter(Boolean).join(', '))}</span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
       ${it.id===focus ? `<div class="fd-card">${cardHtml(it)}</div>` : ''}

@@ -62,24 +62,25 @@ The data is organised into five layers, one YAML file per entity, plus the
 consortium relationships between them. The current snapshot holds:
 
 <ul class="tiles">
-  <li><strong>237</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
-  <li><strong>101</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
-  <li><strong>36</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
-  <li><strong>23</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
-  <li><strong>275</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
+  <li><strong>264</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
+  <li><strong>111</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
+  <li><strong>45</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
+  <li><strong>25</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
+  <li><strong>295</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
   <li><strong>27</strong><span>Countries</span><em>Europe in the broad sense, including UK, CH and NO</em></li>
 </ul>
 
 Infrastructure — testbeds, simulators, control-room labs, compute — is a layer
-of its own in the data (38 entries), but it has no markers of its own. Where a
+of its own in the data (41 entries), but it has no markers of its own. Where a
 facility is run by a team already on the map, it enriches that team's card with
-its operator, access model and capacity; the fifteen sites with no team of
+its operator, access model and capacity; the 18 sites with no team of
 their own carry a marker in the Teams layer.
 
-Nine entities have no coordinates and so no pin: the international standards
+Eleven entities have no coordinates and so no pin: the international standards
 (ISO 9241-210, IEC 61508, IEEE 7000, SAE J3016, ARP6983/ED-324) and the founding
-human–automation frameworks (Fitts' List, Sheridan &amp; Verplank, Parasuraman,
-Sheridan &amp; Wickens), plus one non-European commons. They are listed under
+human–automation models (Fitts' List, Sheridan &amp; Verplank, Parasuraman,
+Sheridan &amp; Wickens, Lee &amp; See on trust, Klein's ten challenges), plus one
+non-European commons. They are listed under
 **Off the map** in the side panel, and their cards read like any other.
 
 Clicking a marker opens a card built from the whole record, not a summary of it:
