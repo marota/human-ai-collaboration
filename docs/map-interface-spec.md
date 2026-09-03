@@ -264,18 +264,40 @@ configure the view live in the left panel. That split is the reason the period
 slider was moved out of the bottom bar: there should be one place to look for
 interactions.
 
-**The period pill has a fixed width budget, on purpose.** `.ctl-tr` is
-absolutely positioned with `right` but no `left`, so nothing stops an
-unconstrained child from growing leftward — past the sidebar's edge and into
-`#stage`'s `overflow:hidden`, where it is silently clipped rather than
-overlapping anything. That happened once: the pill grew a second batch of
-content (the *unknown start* toggle and the reset button) onto its one row
-only once a range was picked, and the wider pill clipped invisibly behind the
-sidebar's edge. The fix is structural, not a size tweak: the pill is two flex
-rows (`.tf-row`, always the slider; `.tf-row2`, the toggle and reset,
-`hidden` until engaged) under a column with a `max-width`, so engaging the
-filter grows the pill **downward**, never sideways. Anything added to either
-row shares that same fixed-width budget.
+**The period pill has a fixed width budget, on purpose — and the cluster
+around it does too.** `.ctl-tr` is absolutely positioned with `right` but no
+`left`, so nothing stops an unconstrained child from growing leftward — past
+the sidebar's edge and into `#stage`'s `overflow:hidden`, where it is clipped
+rather than overlapping anything. That happened twice, at two different
+layers of the same box:
+
+1. The pill grew a second batch of content (the *unknown start* toggle and
+   the reset button) onto its one row only once a range was picked, and the
+   wider pill clipped behind the sidebar. Fixed structurally: the pill is two
+   flex rows (`.tf-row`, always the slider; `.tf-row2`, the toggle and reset,
+   `hidden` until engaged) under a column with a `max-width`, so engaging the
+   filter grows the pill **downward**, never sideways.
+2. That `max-width` was first set to 320px, guessed rather than measured —
+   about 50px short of what "PERIOD" + a full four-digit range + the info
+   icon + the slider's fixed 172px actually need in the longer of the two
+   languages. Short by that much, the one child that cannot shrink (the
+   172px slider) visibly overflowed the pill's own rounded border on a wide
+   range. Fixed by measuring row 1's real content instead of estimating it
+   (`min(400px, calc(100vw - 28px))`, `overflow:hidden` as a second line of
+   defence if some future label ever exceeds it again).
+3. Even at the right budget, `.ctl-tr` itself still had no upper bound, so a
+   narrow-enough window with the feed panel open (which shrinks `#stage` by
+   344px) could still leave less room than the pill's ~370px minimum needs —
+   clipping its *left* portion (the label and the start of the range) rather
+   than overflowing its right one. Fixed by giving `.ctl-tr` a real
+   `max-width`, expressed with the same 312px/344px the `#app` grid already
+   uses for the sidebar and feed columns and reacting to `sb-hidden` /
+   `feed-open` the same way the grid does, so the cluster's own `flex-wrap`
+   has an actual width to wrap against and drops the buttons onto their own
+   line rather than letting anything clip.
+
+Anything added to either row of the pill shares the same fixed-width budget;
+anything added to the cluster shares the same wrap-safe bound.
 
 ---
 

@@ -193,7 +193,15 @@
      not "unknown start" is showing. */
   .tf{display:flex;flex-direction:column;gap:6px;padding:7px 13px;background:var(--surface);
     border:1px solid var(--rule);border-radius:15px;box-shadow:var(--shadow-md);
-    max-width:min(320px, calc(100vw - 28px))}
+    /* 400px was measured, not guessed: label + a full 4-digit-4-digit range +
+       the info icon + the slider's fixed 172px come to ~370-375px in the
+       longer of the two languages. The first attempt at this budget (320px)
+       was short by ~50px, so the slider — the one fixed-width, non-shrinking
+       child — visibly overflowed the pill's own border on a long range.
+       overflow:hidden is a second line of defence: if some future label ever
+       exceeds this budget again, the pill clips its own content instead of
+       leaking it into the sidebar or the feed panel next door. */
+    max-width:min(400px, calc(100vw - 28px));overflow:hidden}
   .tf-row{display:flex;align-items:center;gap:9px}
   .tf-row2{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .tf-row2[hidden]{display:none}
@@ -373,6 +381,26 @@
     #print-sheet .ps-item .m{font-family:var(--sans);font-size:8.5pt;color:#686f78}
     #print-sheet .ps-item p{font-size:10pt;line-height:1.5;margin:1mm 0 0}
     #print-sheet .ps-item a{color:#7d3f1f;font-family:var(--sans);font-size:8.5pt}
+  }
+
+  /* .ctl-tr is anchored by `right` with no `left`, so on its own it has no
+     upper bound on how wide it can grow — `flex-wrap` only helps once
+     there's an actual width to wrap against. These max-widths give it one,
+     in terms of the same 312px/344px the #app grid already uses for the
+     sidebar and feed columns, so the cluster (and .tf inside it, via
+     flex-wrap) is guaranteed to fit #stage's real current width — narrower
+     whenever the feed is open — rather than relying on a guessed pixel
+     budget on .tf alone staying accurate forever. Scoped to the same
+     min-width as the mobile query below is max-width, on purpose: on mobile
+     .ctl-tr already has left+right set (a real, simpler bound), and a
+     same-specificity, later-in-source rule there would win over these by
+     source order alone — scoping removes the ambiguity instead of relying
+     on it. */
+  @media (min-width:841px){
+    body.feed-open .ctl-tr{max-width:calc(100vw - 312px - 344px - 28px)}
+    body.sb-hidden .ctl-tr{max-width:calc(100vw - 28px)}
+    body.sb-hidden.feed-open .ctl-tr{max-width:calc(100vw - 344px - 28px)}
+    .ctl-tr{max-width:calc(100vw - 312px - 28px)}
   }
 
   /* ---------- mobile ---------- */
