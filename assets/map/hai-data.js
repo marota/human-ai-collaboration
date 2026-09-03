@@ -761,6 +761,10 @@ const EDGES = [
   {"project": "crexdata", "team": "bsc"},
   {"project": "silvanus", "team": "certh-iti"},
   {"project": "koios", "team": "bsc"},
+  {"project": "ai4realnet", "team": "flatland-association"},
+  {"project": "ai4realnet", "team": "uva-illc"},
+  {"project": "ai4realnet", "team": "polimi-airlab-rl"},
+  {"project": "aieffect", "team": "epri-europe"},
 ];
 
 const TAXO = {

@@ -112,7 +112,7 @@ regeneration; the shape of the table is what is normative, not the figures.
 | Teams | 268 | small circle | `data/teams/` + infrastructure with no matching team |
 | Commons | 25 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
-| Links | 295 | curved edge | `data/edges.yml` |
+| Links | 299 | curved edge | `data/edges.yml` |
 
 **Infrastructure has no layer of its own**, by design. Of its 41 entries, 23
 describe a facility run by a team already on the map: they enrich that team's
