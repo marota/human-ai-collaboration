@@ -103,16 +103,16 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
-Counts are a snapshot (3 September 2026) and move with every upstream
+Counts are a snapshot (13 September 2026) and move with every upstream
 regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
-| Projects & programmes | 111 | large circle | `data/projects/` |
-| Teams | 268 | small circle | `data/teams/` + infrastructure with no matching team |
-| Commons | 25 | dashed circle | `data/commons/` |
-| Frameworks | 45 | square | `data/frameworks/` |
-| Links | 299 | curved edge | `data/edges.yml` |
+| Projects & programmes | 113 | large circle | `data/projects/` |
+| Teams | 280 | small circle | `data/teams/` + infrastructure with no matching team |
+| Commons | 27 | dashed circle | `data/commons/` |
+| Frameworks | 47 | square | `data/frameworks/` |
+| Links | 308 | curved edge | `data/edges.yml` |
 
 **Infrastructure has no layer of its own**, by design. Of its 41 entries, 23
 describe a facility run by a team already on the map: they enrich that team's

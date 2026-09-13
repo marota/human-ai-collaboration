@@ -74,3 +74,4 @@ exclude:
   - Gemfile.lock
   - README.md
   - vendor
+  - scripts/upstream-patches

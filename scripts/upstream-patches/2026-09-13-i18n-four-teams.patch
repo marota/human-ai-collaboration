@@ -1,0 +1,83 @@
+From 58f08a1f4b89cb843c42845abe8dc058e7b95594 Mon Sep 17 00:00:00 2001
+From: Antoine Marot <amarot91@gmail.com>
+Date: Sun, 13 Sep 2026 13:45:10 +0000
+Subject: [PATCH] data: describe EPRI Europe, Flatland, PoliMi AIRLab and UvA
+ ILLC in both languages
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The four teams added on 3 September carried a description in their YAML
+file but no entry in data/i18n, so the French interface fell back to the
+English text on their cards. Adds the English entry (the normalised YAML
+description, as for every other entity) and a French translation for:
+
+- epri-europe — EPRI's European subsidiary in Dublin, coordinator of the
+  Horizon Europe AI-EFFECT testing and experimentation facility;
+- flatland-association — the Swiss non-profit maintaining the Flatland
+  railway rescheduling environment, partner in AI4REALNET;
+- polimi-airlab-rl — the reinforcement-learning group of AIRLab at
+  Politecnico di Milano;
+- uva-illc — the Institute for Logic, Language and Computation at the
+  University of Amsterdam.
+
+Every entity in the five layers now has a description in both languages.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01YF9QYm9GfknzHdRthjqJm3
+---
+ data/i18n/descriptions.en.yml | 16 ++++++++++++++++
+ data/i18n/descriptions.fr.yml | 16 ++++++++++++++++
+ 2 files changed, 32 insertions(+)
+
+diff --git a/data/i18n/descriptions.en.yml b/data/i18n/descriptions.en.yml
+index 196c1b7..e15e9e4 100644
+--- a/data/i18n/descriptions.en.yml
++++ b/data/i18n/descriptions.en.yml
+@@ -516,3 +516,19 @@ safran-helicopter-engines: 'Safran Helicopter Engines, headquartered at Bordes n
+ 
+ 
+   The work was a CIFRE thesis at ESTIA supervised within the chair (INCOSE International Symposium 2022, Springer 2025), prototyped and tested with the Bordes maintenance teams; Safran Helicopter Engines is also a historic partner of the ESTIA foundation. It illustrates HSI applied to industrial maintenance: a digital twin built as a partner in a decision, with tangibility and function allocation designed in from the start.'
++epri-europe: 'EPRI Europe is the European research arm of the Electric Power Research Institute, the utility-funded non-profit that has run collaborative electricity research since 1972. Established in Dublin in 2019 as EPRI Europe DAC, it runs independent energy research, development and demonstration with European utilities, system operators and regulators, with researchers working across several European countries from the Irish base.
++
++
++  It matters to this map as the coordinator of AI-EFFECT, the Horizon Europe Testing and Experimentation Facility for AI in the energy sector (2024–2027), where it holds the governance and coordination role across four national demonstration sites. The facility exists to let utilities test AI on real grid use cases — congestion management, demand response, distributed energy resources — under conditions where operators have to be able to understand and override what the models propose.'
++flatland-association: 'The Flatland Association is the Swiss non-profit, founded in Bern in July 2023, that maintains Flatland — the grid-world rescheduling environment in which multi-agent methods for railway traffic management are trained and compared. Flatland began as a competition series run by AIcrowd with SBB, Deutsche Bahn and SNCF; the association exists to keep the environment and its benchmarks alive as shared infrastructure once the challenges ended, and is a member of the OpenRail Association.
++
++
++  On this map it is the organisation behind the Flatland benchmark entry, and a partner in AI4REALNET, where Flatland is the railway environment against which AI assistance to traffic controllers is evaluated alongside Grid2Op for power grids and BlueSky for air traffic.'
++polimi-airlab-rl: 'The reinforcement-learning group of AIRLab, Politecnico di Milano''s artificial intelligence and robotics laboratory at DEIB, led by Marcello Restelli. Its work is the design and analysis of RL algorithms aimed at real problems rather than benchmarks — sequential decision-making under uncertainty, with the sample-efficiency and safety constraints that operating an actual network imposes.
++
++
++  It is Politecnico di Milano''s contribution to AI4REALNET, where RL agents are trained to propose actions to the human operators of power grids, railways and air traffic, and where the open question is less whether an agent can find a good action than whether an operator can judge it in time and overrule it.'
++uva-illc: 'The Institute for Logic, Language and Computation is the University of Amsterdam''s interdisciplinary institute for logic, computation and their application to reasoning and language. Its work on collective decision-making and multi-agent systems is the thread that connects it to this map: how a group of agents — human or machine — reaches a decision that the humans in the loop can still understand and accept.
++
++
++  In AI4REALNET the institute contributes to the human–AI side of network operation, including multi-agent reinforcement learning for power-grid topology control evaluated with TenneT, and links the project to the Dutch Hybrid Intelligence Centre programme on AI systems designed to work with people rather than replace them.'
+diff --git a/data/i18n/descriptions.fr.yml b/data/i18n/descriptions.fr.yml
+index 0dcbb4e..17251ec 100644
+--- a/data/i18n/descriptions.fr.yml
++++ b/data/i18n/descriptions.fr.yml
+@@ -516,3 +516,19 @@ safran-helicopter-engines: 'Safran Helicopter Engines, dont le siège est à Bor
+ 
+ 
+   Le travail a été une thèse CIFRE à l''ESTIA encadrée au sein de la chaire (INCOSE International Symposium 2022, Springer 2025), prototypé et testé avec les équipes de maintenance de Bordes ; Safran Helicopter Engines est aussi partenaire historique de la fondation ESTIA. Il illustre la HSI appliquée à la maintenance industrielle : un jumeau numérique construit comme partenaire d''une décision, avec la tangibilité et l''allocation de fonctions conçues dès l''origine.'
++epri-europe: 'EPRI Europe est la branche européenne de recherche de l''Electric Power Research Institute, l''organisme à but non lucratif financé par les électriciens qui conduit des recherches collaboratives sur l''électricité depuis 1972. Créée à Dublin en 2019 sous le nom d''EPRI Europe DAC, elle mène des travaux indépendants de recherche, développement et démonstration avec les énergéticiens, gestionnaires de réseau et régulateurs européens, ses chercheurs travaillant depuis la base irlandaise dans plusieurs pays d''Europe.
++
++
++  Elle compte pour cette carte comme coordinatrice d''AI-EFFECT, l''installation d''essai et d''expérimentation Horizon Europe pour l''IA dans le secteur de l''énergie (2024–2027), où elle assure la gouvernance et la coordination de quatre sites de démonstration nationaux. L''installation existe pour permettre aux énergéticiens de tester l''IA sur des cas d''usage réseau réels — gestion des congestions, effacement de la demande, ressources énergétiques distribuées — dans des conditions où les opérateurs doivent pouvoir comprendre ce que les modèles proposent et passer outre.'
++flatland-association: 'L''association Flatland est l''organisme suisse à but non lucratif, fondé à Berne en juillet 2023, qui maintient Flatland — l''environnement de replanification en monde-grille dans lequel les méthodes multi-agents de gestion du trafic ferroviaire sont entraînées et comparées. Flatland est né d''une série de compétitions organisées par AIcrowd avec les CFF, la Deutsche Bahn et la SNCF ; l''association existe pour garder vivants l''environnement et ses benchmarks comme infrastructure partagée une fois les défis terminés, et elle est membre de l''OpenRail Association.
++
++
++  Sur cette carte, elle est l''organisation qui porte l''entrée « benchmark Flatland », et un partenaire d''AI4REALNET, où Flatland est l''environnement ferroviaire sur lequel l''assistance par IA aux régulateurs du trafic est évaluée, aux côtés de Grid2Op pour les réseaux électriques et de BlueSky pour le trafic aérien.'
++polimi-airlab-rl: 'Le groupe d''apprentissage par renforcement de l''AIRLab, le laboratoire d''intelligence artificielle et de robotique du Politecnico di Milano rattaché au DEIB, dirigé par Marcello Restelli. Son travail porte sur la conception et l''analyse d''algorithmes d''apprentissage par renforcement visant des problèmes réels plutôt que des benchmarks — la décision séquentielle sous incertitude, avec les contraintes d''efficacité en échantillons et de sûreté qu''impose la conduite d''un réseau réel.
++
++
++  C''est la contribution du Politecnico di Milano à AI4REALNET, où des agents par renforcement sont entraînés à proposer des actions aux opérateurs humains des réseaux électriques, ferroviaires et aériens, et où la question ouverte est moins de savoir si un agent peut trouver une bonne action que si un opérateur peut la juger à temps et la refuser.'
++uva-illc: 'L''Institute for Logic, Language and Computation est l''institut interdisciplinaire de l''Université d''Amsterdam consacré à la logique, au calcul et à leur application au raisonnement et au langage. Ses travaux sur la décision collective et les systèmes multi-agents sont le fil qui le relie à cette carte : comment un groupe d''agents — humains ou machines — parvient à une décision que les humains dans la boucle peuvent encore comprendre et accepter.
++
++
++  Dans AI4REALNET, l''institut contribue au volet humain–IA de la conduite de réseau, notamment par l''apprentissage par renforcement multi-agents pour le contrôle de topologie des réseaux électriques évalué avec TenneT, et il relie le projet au programme néerlandais Hybrid Intelligence Centre sur les systèmes d''IA conçus pour travailler avec les personnes plutôt que les remplacer.'
+-- 
+2.43.0
+
