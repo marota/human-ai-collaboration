@@ -1,0 +1,1980 @@
+From 2af0bd00dda2790c7c4b7bd262d944de7406e590 Mon Sep 17 00:00:00 2001
+From: Antoine Marot <amarot91@gmail.com>
+Date: Sun, 13 Sep 2026 13:18:30 +0000
+Subject: [PATCH] =?UTF-8?q?data:=20add=20Guy=20Andr=C3=A9=20Boy's=20human?=
+ =?UTF-8?q?=20systems=20integration=20community?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Eighteen entities and nine edges so that the European map shows the
+cognitive-engineering and human systems integration (HSI) lineage built
+around Guy André Boy and the community linked to him.
+
+Teams (12): ESTIA-Recherche (Bidart), CentraleSupélec LGI (host of the
+FlexTech chair), EURISCO 1992–2008 (Toulouse, concluded), ENSC Bordeaux INP
+(HAIKU partner, HEAL lab with Thales), Ingenuity i/o (Ingescape), LAMIH
+Valenciennes (human–machine cooperation), ETH Zurich Work & Organizational
+Psychology (Gudela Grote), AFIS human-factors technical committee, Académie
+de l'air et de l'espace, Airbus Defence and Space HSI, Safran Helicopter
+Engines (SOMA digital twin), CEAM human factors unit (Mont-de-Marsan).
+
+Projects (2): FlexTech chair 2019–2024 with its industrial consortium;
+FlexTech-2 chair 2025–2030 (ESTIA, IRIT, SNCF, Ingenuity i/o).
+
+Frameworks (2): Cognitive Function Analysis & Orchestra model (1998–2013);
+Human Systems Integration — TOP model, PRODEC & systemic cognition
+(2020–2026), citing Technology in Society 74 (2023) 102298 and
+Systems 14(7) (2026) 851.
+
+Commons (2): INCOSE HSI Working Group & conference series (anchored at
+Biarritz, HSI2019); HCI-Aero conference series 1986–2016 (concluded).
+
+Also links the HAIKU consortium's Bordeaux INP partner to the new ENSC
+entry and adds EN/FR descriptions for every new entity. Sources and
+confidence levels are recorded in each entry's provenance; web pages could
+only be read through search summaries, so several dates and coordinates
+are marked approximate.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01YF9QYm9GfknzHdRthjqJm3
+---
+ data/commons/hci-aero.yml                     |  76 +++++++++++
+ data/commons/incose-hsi-community.yml         |  97 ++++++++++++++
+ data/edges.yml                                |  18 +++
+ .../cognitive-function-analysis.yml           |  71 ++++++++++
+ data/frameworks/human-systems-integration.yml |  92 +++++++++++++
+ data/i18n/descriptions.en.yml                 |  72 ++++++++++
+ data/i18n/descriptions.fr.yml                 |  72 ++++++++++
+ data/projects/flextech-2-chair.yml            |  77 +++++++++++
+ data/projects/flextech-chair.yml              | 124 ++++++++++++++++++
+ data/projects/haiku.yml                       |   6 +-
+ data/teams/academie-air-espace.yml            |  82 ++++++++++++
+ data/teams/afis-ct-facteurs-humains.yml       |  82 ++++++++++++
+ data/teams/airbus-ds-hsi.yml                  |  77 +++++++++++
+ data/teams/ceam-human-factors.yml             |  79 +++++++++++
+ data/teams/centralesupelec-lgi.yml            |  85 ++++++++++++
+ data/teams/ensc-bordeaux.yml                  |  79 +++++++++++
+ data/teams/estia-recherche.yml                | 117 +++++++++++++++++
+ data/teams/eth-wop-grote.yml                  |  85 ++++++++++++
+ data/teams/eurisco.yml                        |  89 +++++++++++++
+ data/teams/ingenuity-io.yml                   |  77 +++++++++++
+ data/teams/lamih-uphf.yml                     | 100 ++++++++++++++
+ data/teams/safran-helicopter-engines.yml      |  89 +++++++++++++
+ 22 files changed, 1743 insertions(+), 3 deletions(-)
+ create mode 100644 data/commons/hci-aero.yml
+ create mode 100644 data/commons/incose-hsi-community.yml
+ create mode 100644 data/frameworks/cognitive-function-analysis.yml
+ create mode 100644 data/frameworks/human-systems-integration.yml
+ create mode 100644 data/projects/flextech-2-chair.yml
+ create mode 100644 data/projects/flextech-chair.yml
+ create mode 100644 data/teams/academie-air-espace.yml
+ create mode 100644 data/teams/afis-ct-facteurs-humains.yml
+ create mode 100644 data/teams/airbus-ds-hsi.yml
+ create mode 100644 data/teams/ceam-human-factors.yml
+ create mode 100644 data/teams/centralesupelec-lgi.yml
+ create mode 100644 data/teams/ensc-bordeaux.yml
+ create mode 100644 data/teams/estia-recherche.yml
+ create mode 100644 data/teams/eth-wop-grote.yml
+ create mode 100644 data/teams/eurisco.yml
+ create mode 100644 data/teams/ingenuity-io.yml
+ create mode 100644 data/teams/lamih-uphf.yml
+ create mode 100644 data/teams/safran-helicopter-engines.yml
+
+diff --git a/data/commons/hci-aero.yml b/data/commons/hci-aero.yml
+new file mode 100644
+index 0000000..3df820a
+--- /dev/null
++++ b/data/commons/hci-aero.yml
+@@ -0,0 +1,76 @@
++id: hci-aero
++name: HCI-Aero — International Conference on Human-Computer Interaction in Aeronautics (1986–2016)
++kind: community
++status: concluded
++tier: ecosystem
++license: "N/A (conference series; proceedings AAAI Press / ACM)"
++repository_url: https://dl.acm.org/doi/proceedings/10.1145/2669592
++maintainer:
++  org: EURISCO (Toulouse) with ACM SIGCHI; founded and chaired by Guy André Boy
++  url: https://dblp.org/db/conf/hciaero/index.html
++  contact:
++size_indicator: "Biennial from 1986 to 2016; proceedings at AAAI Press (1998–2010) and ACM (2014–2016)"
++location:
++  country: FR
++  city: Toulouse
++  lat: 43.5657
++  lon: 1.4757
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - mixed_initiative
++domains:
++  - aviation
++related_initiative_ids:
++  - eurisco
++related_project_ids: []
++links:
++  homepage: https://dblp.org/db/conf/hciaero/index.html
++  papers:
++    - https://dl.acm.org/doi/proceedings/10.1145/2669592
++    - https://aaai.org/Library/HCI/hci02contents.php
++  twitter:
++  linkedin:
++timeline:
++  start: '1986'
++  end: '2016'
++  milestones:
++    - date: '1986'
++      label: First edition in Toulouse as "Human-Machine Interaction and Artificial Intelligence in Aerospace"
++    - date: '1998'
++      label: Renamed HCI-Aero; biennial, alternating Europe and North America, in cooperation with ACM SIGCHI (Montréal)
++    - date: '2000'
++      label: HCI-Aero 2000, Toulouse (EURISCO; proceedings edited by Abbott, Speyer and Boy)
++    - date: '2012'
++      label: HCI-Aero 2012, Brussels
++    - date: 2016-09
++      label: Last edition, HCI-Aero 2016, Paris (14–16 September, ACM proceedings edited by Boy)
++description: |
++  HCI-Aero was the conference series that Guy André Boy launched in Toulouse in 1986 —
++  first as "Human-Machine Interaction and Artificial Intelligence in Aerospace", renamed
++  HCI-Aero in 1998 — and ran every two years, alternating between Europe and North America,
++  in cooperation with ACM SIGCHI, with EURISCO organising the European editions and AAAI
++  then ACM publishing the proceedings. Its subject was the cockpit and the control room at
++  the moment automation and early AI entered them: authority sharing between crew and
++  automation, cognitive function analysis, intelligent assistants, air-traffic management.
++  Editions were held in Toulouse (1986, 2000), Montréal (1998), Cambridge MA (2002),
++  Seattle (2006), Cape Canaveral (2010), Brussels (2012), Santa Clara (2014) and Paris
++  (2016).
++
++  No edition has been held since Paris 2016; the community migrated to the INCOSE HSI
++  conference series that Boy founded in 2019. The entry is kept, concluded, so that the
++  period filter shows the thirty years of aerospace human–computer interaction work that
++  preceded today's human–AI teaming programmes.
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://en.wikipedia.org/wiki/Guy_Andr%C3%A9_Boy and https://catalog.libraries.psu.edu/catalog/28051480 (series
++    founded 1986 in Toulouse, renamed HCI-Aero 1998, biennial, ACM SIGCHI cooperation); https://aaai.org/Library/HCI/hci02contents.php
++    (AAAI proceedings, 2002); https://www.eyrolles.com/Informatique/Livre/hci-aero-2000-9782854285420/ (HCI-Aero 2000
++    Toulouse, eds. Abbott, Speyer, Boy); https://dl.acm.org/doi/proceedings/10.1145/2669592 (HCI-Aero 2014, Santa
++    Clara); https://researchr.org/publication/hciaero-2016 (Paris, 14–16 Sept 2016); https://dblp.org/db/conf/hciaero/index.html;
++    anchored at EURISCO, Toulouse — coordinates approximate; web search 2026-09 · timeline.start (high): first edition
++    1986, Toulouse
++  confidence: medium
+diff --git a/data/commons/incose-hsi-community.yml b/data/commons/incose-hsi-community.yml
+new file mode 100644
+index 0000000..4611668
+--- /dev/null
++++ b/data/commons/incose-hsi-community.yml
+@@ -0,0 +1,97 @@
++id: incose-hsi-community
++name: INCOSE Human Systems Integration Working Group & HSI conference series
++kind: community
++status: active
++tier: ecosystem
++license: "N/A (professional working group; proceedings via INCOSE / Wiley)"
++repository_url: https://hsi-wg.github.io/
++maintainer:
++  org: INCOSE Human Systems Integration Working Group (chair Grace Kennedy, co-chair Paul Lambertson; Guy André Boy chair 2014–2024)
++  url: https://www.incose.org/communities/working-groups-initiatives/human-systems-integration
++  contact: https://www.incose.org/communities/working-groups-initiatives/human-systems-integration
++size_indicator: "~90 members already at INCOSE IW2012; conferences 2019, 2021, 2024 and workshops 2020, 2022, 2023, 2025"
++location:
++  country: FR
++  city: Biarritz
++  lat: 43.4832
++  lon: -1.5586
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - oversight
++  - mixed_initiative
++domains:
++  - aviation
++  - defense
++  - critical_infrastructure
++related_initiative_ids:
++  - estia-recherche
++  - centralesupelec-lgi
++  - eth-wop-grote
++  - afis-ct-facteurs-humains
++related_project_ids:
++  - flextech-chair
++  - flextech-2-chair
++links:
++  homepage: https://www.incose.org/communities/working-groups-initiatives/human-systems-integration
++  papers:
++    - https://incose.onlinelibrary.wiley.com/toc/23345837/32/S1
++    - https://sebokwiki.org/wiki/Human_Systems_Integration
++    - https://www.incose.org/events/news/2023/10/26/press-release-hsi-primer
++  twitter:
++  linkedin: https://www.linkedin.com/company/incose-hsi
++timeline:
++  start: '2012'
++  end:
++  milestones:
++    - date: '2012'
++      label: Working group active with about 90 members at the INCOSE International Workshop (chair Jennifer McGovern Narkevicius)
++    - date: '2014'
++      label: Guy André Boy becomes chair of the working group (until 2024)
++    - date: 2019-09
++      label: HSI2019 — first international conference on human systems integration, Biarritz, hosted with ESTIA (11–13 September)
++    - date: 2020-10
++      label: HSI2020 workshop "From a dream to reality", virtual
++    - date: 2021-11
++      label: HSI2021 — second conference, virtual (16–19 November), with IEA; proceedings in INCOSE International Symposium 32(S1), Wiley
++    - date: 2023-10
++      label: HSI Primer volume 1 released; HSI section drafted for the INCOSE Systems Engineering Handbook 5th edition
++    - date: 2024-08
++      label: HSI2024 — third conference, Jeju (27–29 August), jointly with the IEA triennial congress and in cooperation with ACM SIGCHI
++    - date: 2025-11
++      label: HSI2025 workshop "HSI Now — people, practice and potential", virtual (5–7 November); Grace Kennedy chair
++    - date: 2026-05
++      label: Small HSI conference planned in Toulouse (May 2026); HSI2027 planned jointly with the IEA world congress
++description: |
++  The INCOSE Human Systems Integration Working Group is the standing community that turned
++  human systems integration into a recognised systems-engineering practice: its charter is
++  to ensure that the human elements of a system are addressed throughout the engineering
++  life cycle, and its products include the HSI Primer (2023), the HSI section of the
++  INCOSE Systems Engineering Handbook (5th edition, aligned with ISO/IEC/IEEE 15288:2023)
++  and the SEBoK article on HSI. Guy André Boy chaired it from 2014 to 2024 and founded its
++  conference and workshop series, organised in cooperation with ACM SIGCHI and the
++  International Ergonomics Association, which also runs an HSI technical committee.
++
++  The series began in Europe — HSI2019 in Biarritz, hosted with ESTIA, is why the entry is
++  anchored there — and alternates conferences (2019, 2021 virtual, 2024 Jeju) with
++  workshops (2020, 2022 Torrance, 2023 Seattle, 2025 virtual); a Toulouse edition is
++  planned for 2026 and a joint conference with the IEA world congress for 2027. For the
++  European human–AI collaboration landscape it is the venue where FlexTech, ESTIA,
++  CentraleSupélec, ETH Zurich, Airbus, Thales and Dassault contributions on human–AI
++  teaming, authority and tangibility are presented and reviewed.
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://www.incose.org/communities/working-groups-initiatives/human-systems-integration (charter);
++    incose.org IW2012 working-group report (90 members, chair Narkevicius); https://www.incose.org/event/cas-incose-webinar-196-hsi-for-complex-sociotechnical-systems/
++    (Boy chair 2014–2024); https://hsi-wg.github.io/conferences/HSI2025/schedule/ (Kennedy chair welcome);
++    https://www.nationalacademies.org/... (Lambertson co-chair, 2025); https://www.technopolepaysbasque.fr/en/all-news/article/the-hsi-2019-conference-arrives-in-the-basque-country.html
++    (HSI2019, 11–13 Sept 2019, Biarritz, with ESTIA); https://incose.onlinelibrary.wiley.com/toc/23345837/32/S1
++    (HSI2021 proceedings); https://www.incose.org/hsi-2024/ and https://easychair.org/cfp/HSI2024 (Jeju, 27–29 Aug
++    2024, with IEA and ACM SIGCHI); https://www.incose.org/events/news/2023/10/26/press-release-hsi-primer;
++    https://iea.cc/member/human-system-integration/ (IEA HSI TC; Toulouse 2026, HSI2027 plans); web search 2026-09 ·
++    timeline.start (medium): working group active with about 90 members at INCOSE IW2012, the earliest record found;
++    Boy chair from 2014
++  confidence: medium
+diff --git a/data/edges.yml b/data/edges.yml
+index a661649..d46a98d 100644
+--- a/data/edges.yml
++++ b/data/edges.yml
+@@ -602,3 +602,21 @@
+   team: polimi-airlab-rl
+ - project: aieffect
+   team: epri-europe
++- project: haiku
++  team: ensc-bordeaux
++- project: flextech-chair
++  team: estia-recherche
++- project: flextech-chair
++  team: centralesupelec-lgi
++- project: flextech-chair
++  team: ingenuity-io
++- project: flextech-chair
++  team: safran-helicopter-engines
++- project: flextech-chair
++  team: ceam-human-factors
++- project: flextech-2-chair
++  team: estia-recherche
++- project: flextech-2-chair
++  team: ingenuity-io
++- project: flextech-2-chair
++  team: sncf-ir
+diff --git a/data/frameworks/cognitive-function-analysis.yml b/data/frameworks/cognitive-function-analysis.yml
+new file mode 100644
+index 0000000..b2864b8
+--- /dev/null
++++ b/data/frameworks/cognitive-function-analysis.yml
+@@ -0,0 +1,71 @@
++id: cognitive-function-analysis
++name: Cognitive Function Analysis & the Orchestra model (Boy, 1998–2013)
++kind: guideline
++status: active
++tier: ecosystem
++legal_status:
++jurisdiction: FR
++issuing_body:
++  org: EURISCO — European Institute of Cognitive Sciences and Engineering (Guy André Boy)
++  url: https://doi.org/10.1017/dsj.2017.8
++adoption_date:
++location:
++  country: FR
++  city: Toulouse
++  lat: 43.5657
++  lon: 1.4757
++applies_to: []
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - mixed_initiative
++domains:
++  - aviation
++  - critical_infrastructure
++references:
++  - fitts-list-maba-maba
++links:
++  homepage: https://doi.org/10.1017/dsj.2017.8
++  official_text: https://doi.org/10.1016/j.arcontrol.2014.03.001
++  papers:
++    - https://doi.org/10.1017/dsj.2017.8
++    - https://doi.org/10.1016/j.arcontrol.2014.03.001
++timeline:
++  start: '1998'
++  end:
++  milestones:
++    - date: '1991'
++      label: Intelligent Assistant Systems (Academic Press) — assistance rather than automation
++    - date: '1998'
++      label: Cognitive Function Analysis published (Ablex)
++    - date: '2003'
++      label: Ingénierie cognitive — IHM et cognition (Hermès), the French-language reference
++    - date: '2011'
++      label: Handbook of Human-Machine Interaction — a human-centered design approach (Ashgate)
++    - date: '2013'
++      label: Orchestrating Human-Centered Design (Springer) — the Orchestra model of function allocation
++    - date: '2016'
++      label: Tangible Interactive Systems (Springer)
++description: |
++  Cognitive Function Analysis (CFA) is the cognitive-engineering method that Guy André Boy
++  formalised at EURISCO, the Airbus–Thales research institute in Toulouse, from the
++  automation studies of the 1980s and 1990s. A cognitive function transforms a task into an
++  activity and is described by its role, its context of validity and the resources it needs;
++  functions are allocated to and redistributed between humans and machines, and the analysis
++  follows them through human-in-the-loop simulation rather than fixing them once at design
++  time. It is the European counterpart of the Fitts-list tradition, with the difference that
++  allocation is treated as dynamic and context-dependent.
++
++  The Orchestra model (Orchestrating Human-Centered Design, 2013) extends it to
++  multi-agent safety-critical systems: composers write the "score" (procedures, rules),
++  conductors coordinate, and human and artificial agents play their parts with an
++  authority that is negotiated rather than fixed — the vocabulary later used for
++  human–AI teaming and for air-traffic authority sharing. Together with the notion of
++  tangible interactive systems (2016), CFA is the root of the human systems integration
++  framework carried by the FlexTech chair.
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'Boy, G.A. (1998) Cognitive Function Analysis, Ablex; Boy (2013) Orchestrating Human-Centered Design, Springer; Boy (2014) From automation to tangible interactive objects, Annual Reviews in Control 38(1) — https://doi.org/10.1016/j.arcontrol.2014.03.001; Boy (2017) Human-centered design of complex systems: an experience-based approach, Design Science 3 — https://doi.org/10.1017/dsj.2017.8; web search 2026-09 (EURISCO 1992–2008, Airbus & Thales institute, Toulouse) · timeline.start (high): Cognitive Function Analysis, Ablex, 1998'
++  confidence: high
+diff --git a/data/frameworks/human-systems-integration.yml b/data/frameworks/human-systems-integration.yml
+new file mode 100644
+index 0000000..cb8f517
+--- /dev/null
++++ b/data/frameworks/human-systems-integration.yml
+@@ -0,0 +1,92 @@
++id: human-systems-integration
++name: Human Systems Integration — TOP model, PRODEC & systemic cognition (Boy, 2020–2026)
++kind: guideline
++status: active
++tier: ecosystem
++legal_status:
++jurisdiction: international
++issuing_body:
++  org: FlexTech Chair (CentraleSupélec & ESTIA) — Guy André Boy, with the INCOSE HSI Working Group
++  url: https://www.flextechchair.org/
++adoption_date:
++location:
++  country: FR
++  city: Bidart
++  lat: 43.447
++  lon: -1.556
++applies_to:
++  - increasingly autonomous systems
++  - remote operations and digital twins
++  - human-AI teaming
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - mixed_initiative
++  - digital_twins
++  - oversight
++domains:
++  - aviation
++  - defense
++  - energy
++  - critical_infrastructure
++references:
++  - cognitive-function-analysis
++  - iso-9241-210
++links:
++  homepage: https://www.flextechchair.org/
++  official_text: https://doi.org/10.1201/9780429351686
++  papers:
++    - https://doi.org/10.1201/9780429351686
++    - https://doi.org/10.3233/WOR-220268
++    - https://doi.org/10.1002/sys.21751
++    - https://doi.org/10.1016/j.techsoc.2023.102298
++    - https://doi.org/10.3390/systems14010015
++    - https://doi.org/10.3390/systems14070851
++    - https://arxiv.org/abs/2201.12344
++timeline:
++  start: '2020'
++  end:
++  milestones:
++    - date: 2019-09
++      label: FlexTech chair launched (CentraleSupélec & ESTIA); first INCOSE HSI conference, Biarritz
++    - date: '2020'
++      label: Human–Systems Integration — From Virtual to Tangible (CRC Press)
++    - date: '2021'
++      label: Design for Flexibility — a human systems integration approach (Springer)
++    - date: '2022'
++      label: PRODEC method for human–machine teaming design (Work, with Chloé Morel); socioergonomics / TOP triptych
++    - date: '2023'
++      label: An epistemological approach to human systems integration (Technology in Society 74); INCOSE HSI Primer
++    - date: '2024'
++      label: PRODEC for HSI of increasingly autonomous systems (Systems Engineering 27); Human Systems Integration of Human-AI Teaming (IEEE ICHMS, Toronto); FlexTech spring school on human–AI teaming
++    - date: 2025-12
++      label: Systemic Cognition — a few epistemological clarifications (Systems 14(1))
++    - date: '2026'
++      label: Handbook of Sociotechnical Systems — a HSI approach (CRC Press); Systemic Cognition — on the complexity of context (Systems 14(7))
++description: |
++  Human systems integration (HSI), as framed by Guy André Boy, is the discipline that
++  integrates technology, organizations and people (the TOP model) over the whole life cycle
++  of a sociotechnical system — design, development, validation, operation, maintenance and
++  dismantling. It grew out of cognitive engineering and human-centered design and was made
++  a full discipline through the INCOSE HSI Working Group (chaired by Boy 2014–2024) and the
++  FlexTech chair. Its working concepts are flexibility rather than rigid automation,
++  tangibility (a virtual model must become physically and cognitively graspable),
++  sociotechnical maturity, and the distinction between procedural and declarative
++  knowledge; the PRODEC method (2022) turns them into an agile, scenario-based design
++  loop with human-in-the-loop simulation and digital twins.
++
++  Two recent papers anchor the framework for human–AI collaboration. The 2023
++  epistemological approach (Technology in Society) argues for a consistent terminology
++  and ontology of HSI — complexity, context, procedural versus declarative knowledge,
++  maturity. Systemic cognition (Systems, 2026) puts context at the centre: an STS is
++  understood incrementally through conceptual models built in context, so that emerging
++  behaviours discovered in operation are integrated back into the system. For a map of
++  human–AI decision-making in critical systems, HSI is the systems-engineering frame in
++  which oversight, mixed initiative and human–AI teaming are negotiated as function
++  allocation and authority, not bolted on as interfaces.
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'Boy (2020) Human–Systems Integration: From Virtual to Tangible, CRC Press — https://doi.org/10.1201/9780429351686; Boy & Morel (2022) The machine as a partner: human-machine teaming design using the PRODEC method, Work 73 — https://doi.org/10.3233/WOR-220268; Boy (2023) An epistemological approach to human systems integration, Technology in Society 74, 102298 — https://doi.org/10.1016/j.techsoc.2023.102298; Boy (2026) Systemic Cognition: On the Complexity of Context, Systems 14(7), 851 — https://doi.org/10.3390/systems14070851; Boy (2022) Socioergonomics, arXiv:2201.12344 / INCOSE IS 2022 https://doi.org/10.1002/iis2.12869; Boy, Masson, Durnerin & Morel (2024) PRODEC for HSI of increasingly autonomous systems, Systems Engineering 27(5) — https://doi.org/10.1002/sys.21751; Boy (2025) Systemic Cognition: a few epistemological clarifications, Systems 14(1), 15 — https://doi.org/10.3390/systems14010015; Boy (2020) FlexTech: from rigid to flexible HSI, in Systems Engineering in the Fourth Industrial Revolution (Wiley) — https://doi.org/10.1002/9781119513957.ch18; flextechchair.org; INCOSE HSI Primer press release Oct 2023; web search 2026-09 · timeline.start (high): HSI book, CRC Press, 2020'
++  confidence: high
+diff --git a/data/i18n/descriptions.en.yml b/data/i18n/descriptions.en.yml
+index ba829fa..196c1b7 100644
+--- a/data/i18n/descriptions.en.yml
++++ b/data/i18n/descriptions.en.yml
+@@ -444,3 +444,75 @@ wmu: Researches the human element of autonomous ships — operator skills, monit
+ xmanai: 'XMANAI (H2020 ICT-38-2020, grant 957362, Nov 2020–Apr 2024, EUR 6.0 M, coordinated by TXT e-tech in Milan with Fraunhofer FOKUS as scientific coordinator) built a ''glass-box'' explainable-AI platform for manufacturing, where hybrid and graph-based models are paired with explanation methods so that planners and quality engineers can understand and challenge AI recommendations before acting on them. Explanations were designed around the decision each human role has to take (demand forecasting, production planning, quality and process anomalies) and evaluated with operators in four plants: Ford Valencia, CNH Industrial, Whirlpool/Beko and Unimetrik, with Deep Blue and Politecnico di Milano covering human factors and trust. The 18-partner consortium also produced an XAI catalogue and reference architecture reused by later AI-for-manufacturing projects.'
+ york-cfaa: 'The Centre for Assuring Autonomy (CfAA) at the University of York is a GBP 10 million partnership with Lloyd''s Register Foundation, launched in January 2024 to succeed the Assuring Autonomy International Programme (AAIP, 2018–2023, GBP 12 million). Directed by Prof. John McDermid, it produces practical safety-assurance guidance for AI and autonomous systems and validates it on real deployments across automotive, health and social care, maritime, agriculture, manufacturing and aviation. It is the source of AMLAS (Assurance of Machine Learning for Autonomous Systems) and SACE (Safety Assurance of Autonomous Systems in Complex Environments), both already on this map as frameworks. Its human-AI angle is explicit: assurance cases have to state what the human operator is expected to do, what monitoring and override they retain, and whether that expectation is realistic given human-factors evidence.'
+ zhaw-cai: The Centre for Artificial Intelligence of ZHAW (Winterthur) works on trustworthy AI and decision support, and is a partner of AI4RealNet, where it contributes to explainable and human-centred AI for critical network operation.
++academie-air-espace: 'The Académie de l''air et de l''espace, founded in Toulouse in 1983, is the French learned society of aeronautics and space. Among its working themes the relation between crews, automation and now artificial intelligence recurs: Dossier 37 (2013) on dealing with unforeseen situations in flight, drawn from a colloquium with airline pilots on facing the unexpected; Dossier 42 (2018) on a more automated, interconnected aviation by 2050 and its companion study on transport-aircraft automation; and an international colloquium in November 2025 on AI applications in aeronautics, space and defence, whose synthesis stresses that the human–machine interface problems predate AI and multiply with it.
++
++
++  Guy André Boy has been a fellow of the academy since 2006 and one of its voices on human systems integration and cognitive engineering — the 2020 note "IA-t-il un pilote dans l''avion ?" and his contribution to the 2025 colloquium carry the HSI position into the French aerospace establishment. The academy sits in the ecosystem tier: it does not run research, but it frames how the aerospace community in Toulouse talks about authority, automation and AI in the cockpit.'
++afis-ct-facteurs-humains: 'AFIS, the Association Française d''Ingénierie Système, has been INCOSE''s French chapter since 1999 and gathers about a thousand systems engineers from industry, research and public agencies. Its Comité technique Facteurs Humains is the place where human factors and systems engineering are worked together in France: its declared aim is to make the human-centred approach and human–system integration (or human–machine teaming) a recognised systems-engineering practice, through method sheets, webinars and working sessions. It is co-led by practitioners from Airbus Defence and Space and Thales — the same industrial base that funded EURISCO and the FlexTech chair.
++
++
++  The committee relays Guy André Boy''s work to the French systems-engineering community: AFIS webinars presented his book Human–Systems Integration — From Virtual to Tangible and model-based human systems integration of human–AI teams. On this map it is the ecosystem-tier link between the INCOSE HSI working group and the French industrial practitioners who apply HSI to cockpits, mission systems and control rooms.'
++airbus-ds-hsi: 'Airbus Defence and Space''s human factors engineering department in Toulouse develops the human–machine interfaces of military air platforms, mission consoles and ground-control stations, and has been one of the few European industrial groups to publish how human systems integration is wired into the systems-engineering life cycle: a 2015 AHFE paper on implementing HSI and "non-functional characteristics" into the life cycle, followed in 2016 by its extension to model-based systems engineering, drawing on the EU FP7 HoliDes project on adaptive cooperative human–machine systems.
++
++
++  Its human-factors lead co-animates the human-factors technical committee of AFIS, the French INCOSE chapter, which promotes human–system integration and human–machine teaming as systems-engineering practice — the institutional channel through which Guy André Boy''s HSI framework reaches French defence programmes. On this map it stands for the industrial application of HSI to mission systems where a crew supervises increasingly autonomous functions.'
++ceam-human-factors: 'The Centre d''expertise aérienne militaire (CEAM), the French Air and Space Force''s Air Warfare Center at Mont-de-Marsan, runs an ergonomics and human factors unit that tests and specifies how aircrews will work with increasingly autonomous systems. Through the FlexTech chair it sponsored two doctoral projects: one on the future combat cloud and the interaction between pilots and virtual assistants, the other on the human-centred adaptation of hybrid (live, virtual, constructive) simulations enriched with AI for Air Force training. The centre also hosts "AI meetings" and engineering students working on AI for military aeronautics.
++
++
++  On this map it is the operational end-user of Guy André Boy''s HSI framework in defence: collaborative air combat where a human pilot remains in command of AI-assisted functions, designed and evaluated with human-in-the-loop simulation. The entry is kept at medium confidence — the unit''s own creation date and the theses'' titles were not published in full.'
++centralesupelec-lgi: 'The Laboratoire Génie Industriel of CentraleSupélec, on the Paris-Saclay campus, works on models, methods and tools for the whole life cycle of sociotechnical systems — design engineering, decision support for product-service systems, safety and risk, sustainable economy. From 2019 to 2024 it hosted, with ESTIA, the FlexTech chair on human systems integration of increasingly autonomous systems, held by Guy André Boy and co-led by the laboratory''s director Bernard Yannou: the chair''s PhD students were registered at Université Paris-Saclay in industrial engineering, and Boy''s papers of the period carry the LGI affiliation.
++
++
++  For the map it is the Île-de-France anchor of the HSI community: the place where the PRODEC method, the Reality Anchor digital-twin methodology and the human-in-the-loop simulation approach were supervised, and where the HSI module of the Paris-Saclay master in system science and design was built.'
++cognitive-function-analysis: 'Cognitive Function Analysis (CFA) is the cognitive-engineering method that Guy André Boy formalised at EURISCO, the Airbus–Thales research institute in Toulouse, from the automation studies of the 1980s and 1990s. A cognitive function transforms a task into an activity and is described by its role, its context of validity and the resources it needs; functions are allocated to and redistributed between humans and machines, and the analysis follows them through human-in-the-loop simulation rather than fixing them once at design time. It is the European counterpart of the Fitts-list tradition, with the difference that allocation is treated as dynamic and context-dependent.
++
++
++  The Orchestra model (Orchestrating Human-Centered Design, 2013) extends it to multi-agent safety-critical systems: composers write the "score" (procedures, rules), conductors coordinate, and human and artificial agents play their parts with an authority that is negotiated rather than fixed — the vocabulary later used for human–AI teaming and for air-traffic authority sharing. Together with the notion of tangible interactive systems (2016), CFA is the root of the human systems integration framework carried by the FlexTech chair.'
++ensc-bordeaux: 'ENSC is the French engineering school of "cognitique" — applied cognitive science and cognitive engineering — created in Bordeaux in 2003 as the Institut de cognitique and part of Bordeaux INP since 2009. It trains engineers with a dual competence in information technology and human sciences, with human factors, human/system integration and the cognitive uses of technology as its core, and its research is carried by the IMS laboratory (UMR CNRS 5218). Since 2009 it has run HEAL, the Human Engineering for Aerospace Lab, a joint laboratory with Thales Avionics and Thales Systèmes Aéroportés on crew workload, anticipation and situation awareness in cockpits.
++
++
++  On this map it is the Bordeaux INP partner of the Horizon Europe project HAIKU (2022–2025), which built and validated six human-centred AI assistants for cockpits, towers and airports, and the institutional home of the French cognitive-engineering school: the Institut de cognitique was founded in 2003 by Bernard Claverie with Guy André Boy, whose Ingénierie cognitive appeared the same year, and cognitive function analysis is part of its teaching lineage. Jean-Marc Salotti''s work on degraded situation awareness and on the human factors of cobotic systems extends the same line to space and manufacturing.'
++estia-recherche: 'ESTIA-Recherche is the research unit of ESTIA, the engineering school of the Basque Country technopole at Bidart, attached to the Université de Bordeaux and a member of Groupe ISAE. Its positioning — durable and empowering interfaces for human–human, human–system and system–system interaction — made it the natural European home of Guy André Boy''s human systems integration work when the FlexTech chair was created with CentraleSupélec in 2019: about twenty researchers across the two sites, CIFRE theses with TotalEnergies (a digital twin designed to support situation awareness in remote operations, the Reality Anchor methodology), Safran Helicopter Engines (SOMA, a multi-agent digital twin for engine maintenance), CS Group, the French Air and Space Force (collaborative air combat, virtual assistants) and SNCF, and the PRODEC scenario-based design method.
++
++
++  The unit also carries the tangible-interaction group (Nadine Couture) and Dimitri Masson''s human-centred framework for digital-twin design, so that "tangibility" — a virtual model becoming physically and cognitively graspable by operators — is worked on as a design property rather than a metaphor. ESTIA hosted HSI2019, the first INCOSE international conference on human systems integration, in Biarritz, and the 2024 spring school on human–AI teaming; since 2025 it leads the FlexTech-2 chair with IRIT in Toulouse.'
++eth-wop-grote: 'Gudela Grote''s chair of Work and Organizational Psychology at ETH Zurich studies how organisations and teams in high-risk systems manage uncertainty, how standardisation and flexibility trade off, and — increasingly — how AI reshapes work processes and accountability. Its empirical ground is railway operations (Swiss Federal Railways), air-traffic control and healthcare, with field studies feeding automation requirements: the 2016 study of en-route controllers showed that automation must support rather than remove the controllers'' own strategies for handling uncertainty.
++
++
++  The chair is the Swiss anchor of Guy André Boy''s network: Boy and Grote co-authored the work on authority in increasingly complex human–machine collaborative systems, applied to the evolution of air-traffic management (IEA 2009) and the "authority issue in organizational automation" chapter of Boy''s 2011 handbook, ETH hosted the announcement of the first INCOSE HSI conference, and Grote taught at the FlexTech spring school on human–AI teaming in 2024. On this map it represents the organisational side of human systems integration — who holds authority when a system becomes more autonomous.'
++eurisco: 'EURISCO (Institut européen de sciences et d''ingénierie cognitives) was the joint cognitive-engineering research institute of Airbus and Thomson-CSF/Thales, founded in Toulouse in 1992 and run until 2008 by Guy André Boy, who had come from ONERA''s cognitive ergonomics group and NASA Ames, with the test pilot Jean Pinet as co-founder and president in the 1990s. Its multidisciplinary staff — cognitive and social scientists, computer scientists, engineers, human-factors specialists — worked with a network of universities and engineering schools, and the institute traded as EURISCO International in its last years. It brought cognitive science into cockpit and air-traffic automation design at the moment glass cockpits and fly-by-wire raised the question of authority between crew and automation: cognitive function analysis, situation awareness and workload in highly automated cockpits, human-centred automation, procedure design and, later, authority sharing in future air-traffic management. It is the industrial origin of cognitive function analysis and of the Orchestra model, and it ran the HCI-Aero conference series with ACM SIGCHI.
++
++
++  The institute closed in 2008; its line of work moved with Boy to the Human-Centered Design Institute at Florida Tech and returned to Europe with the FlexTech chair in 2019. It is kept on the map as a concluded entry so that the period filter shows where the French cognitive-engineering community of the 1990s and 2000s was anchored.'
++flextech-2-chair: 'FlexTech-2 continues the FlexTech chair on human systems integration after its first five-year term. It is led by ESTIA in Bidart with IRIT, the Toulouse computer-science institute of Université de Toulouse where Philippe Palanque''s interactive critical systems group sits, and its founding industrial members are SNCF and Ingenuity i/o, the Toulouse company behind the Ingescape platform used for human-in-the-loop prototyping. Guy André Boy, now professor emeritus, is the chair''s advisor; the acting holder is a professor attached to ESTIA and IRIT.
++
++
++  The programme keeps the first chair''s agenda — flexibility rather than rigid automation, tangibility, PRODEC scenario-based design, digital twins of sociotechnical systems, human–AI teaming — and adds railway operations through SNCF. The entry is kept at medium confidence: the 2025 chair report names the partners and the 2025–2030 horizon, but the funding and the holder''s name were not retrievable when this was written.'
++flextech-chair: 'The FlexTech chair was a joint research and teaching chair of CentraleSupélec (Université Paris-Saclay) and ESTIA (Bidart, Basque Country), launched in September 2019 and held by Guy André Boy until 2024. Its subject was human systems integration in complex systems with increasing autonomy — the move "from HighTech to FlexTech": rather than automating and then patching the human back in, design flexibility, tangibility and the organisation into the system from the start, with human-in-the-loop simulation and digital twins as the working method.
++
++
++  Industrial partners brought the use cases: remote operations and digital twins for diagnosis (TotalEnergies), fleets of drones and mission systems (CS Group, Armée de l''Air et de l''Espace), helicopter-engine maintenance and support (Safran Helicopter Engines), avionics and mission systems (Thales), and the Ingescape interactive-systems platform (Ingenuity i/o) used to prototype the human–machine teaming scenarios. Theses were co-directed with Marija Jankovic at CentraleSupélec and co-advised at ESTIA and in the partner companies. The chair trained eight PhD students and some five hundred master-level students, produced about seventy papers, the PRODEC method, the Reality Anchor digital-twin methodology and the 2020 HSI reference book, and hosted the first INCOSE HSI conference in Biarritz. It closed with a synthesis lecture at ESTIA in February 2025; a FlexTech-2 chair led by ESTIA with IRIT (Toulouse), SNCF and Ingenuity i/o takes over.'
++hci-aero: 'HCI-Aero was the conference series that Guy André Boy launched in Toulouse in 1986 — first as "Human-Machine Interaction and Artificial Intelligence in Aerospace", renamed HCI-Aero in 1998 — and ran every two years, alternating between Europe and North America, in cooperation with ACM SIGCHI, with EURISCO organising the European editions and AAAI then ACM publishing the proceedings. Its subject was the cockpit and the control room at the moment automation and early AI entered them: authority sharing between crew and automation, cognitive function analysis, intelligent assistants, air-traffic management. Editions were held in Toulouse (1986, 2000), Montréal (1998), Cambridge MA (2002), Seattle (2006), Cape Canaveral (2010), Brussels (2012), Santa Clara (2014) and Paris (2016).
++
++
++  No edition has been held since Paris 2016; the community migrated to the INCOSE HSI conference series that Boy founded in 2019. The entry is kept, concluded, so that the period filter shows the thirty years of aerospace human–computer interaction work that preceded today''s human–AI teaming programmes.'
++human-systems-integration: 'Human systems integration (HSI), as framed by Guy André Boy, is the discipline that integrates technology, organizations and people (the TOP model) over the whole life cycle of a sociotechnical system — design, development, validation, operation, maintenance and dismantling. It grew out of cognitive engineering and human-centered design and was made a full discipline through the INCOSE HSI Working Group (chaired by Boy 2014–2024) and the FlexTech chair. Its working concepts are flexibility rather than rigid automation, tangibility (a virtual model must become physically and cognitively graspable), sociotechnical maturity, and the distinction between procedural and declarative knowledge; the PRODEC method (2022) turns them into an agile, scenario-based design loop with human-in-the-loop simulation and digital twins.
++
++
++  Two recent papers anchor the framework for human–AI collaboration. The 2023 epistemological approach (Technology in Society) argues for a consistent terminology and ontology of HSI — complexity, context, procedural versus declarative knowledge, maturity. Systemic cognition (Systems, 2026) puts context at the centre: an STS is understood incrementally through conceptual models built in context, so that emerging behaviours discovered in operation are integrated back into the system. For a map of human–AI decision-making in critical systems, HSI is the systems-engineering frame in which oversight, mixed initiative and human–AI teaming are negotiated as function allocation and authority, not bolted on as interfaces.'
++incose-hsi-community: 'The INCOSE Human Systems Integration Working Group is the standing community that turned human systems integration into a recognised systems-engineering practice: its charter is to ensure that the human elements of a system are addressed throughout the engineering life cycle, and its products include the HSI Primer (2023), the HSI section of the INCOSE Systems Engineering Handbook (5th edition, aligned with ISO/IEC/IEEE 15288:2023) and the SEBoK article on HSI. Guy André Boy chaired it from 2014 to 2024 and founded its conference and workshop series, organised in cooperation with ACM SIGCHI and the International Ergonomics Association, which also runs an HSI technical committee.
++
++
++  The series began in Europe — HSI2019 in Biarritz, hosted with ESTIA, is why the entry is anchored there — and alternates conferences (2019, 2021 virtual, 2024 Jeju) with workshops (2020, 2022 Torrance, 2023 Seattle, 2025 virtual); a Toulouse edition is planned for 2026 and a joint conference with the IEA world congress for 2027. For the European human–AI collaboration landscape it is the venue where FlexTech, ESTIA, CentraleSupélec, ETH Zurich, Airbus, Thales and Dassault contributions on human–AI teaming, authority and tangibility are presented and reviewed.'
++ingenuity-io: 'Ingenuity i/o is a Toulouse software company founded in 2012 by Stéphane Valès, an ENAC-trained air-traffic and computer engineer from the French aeronautical human-computer interaction community. Its product, Ingescape, is a model-based framework for distributed interactive software: agents, displays, 2D/3D interaction devices and simulators are described and orchestrated without a central broker, so that a control position, a cockpit or a supervision room can be prototyped and re-wired quickly, and the same models feed verification and human-factors evaluation.
++
++
++  It sits on this map because it is the tooling partner of the human systems integration community: Ingescape was the platform on which the FlexTech chair ran its human-in-the-loop simulations and PRODEC scenarios, it was taught at the 2024 spring school on human–AI teaming, and the company is a founding industrial member of the FlexTech-2 chair led by ESTIA and IRIT.'
++lamih-uphf: 'LAMIH is the multidisciplinary laboratory of the Université Polytechnique Hauts-de-France in Valenciennes — automatic control, mechanics, computer science and human sciences — and the historical home of the French school of human–machine cooperation. Patrick Millot''s Human–Machine Systems group, created in 1987, formalised cooperation between a human operator and an automated assistant as a problem of shared supervision, task allocation and common work space, with applications to air-traffic control, road traffic and metro or train supervision; Frédéric Vanderhaegen extended it to dissonance, resilience and human reliability, and the group has long been a pillar of the IFAC human–machine systems community.
++
++
++  Its link with Guy André Boy is a shared cognitive-engineering lineage rather than a common institution: Millot wrote the supervision and cooperation chapter of Boy''s Ingénierie cognitive (2003) and co-authored with him "Human-machine cooperation: a solution for life-critical systems?" (Work, 2012). Current work by Marie-Pierre Pacaux-Lemoine and colleagues moves the same questions to remote and autonomous train driving, human–robot teaming and human–cyber-physical-system cooperation in manufacturing — operator-in-the-loop decision-making in rail and industry, the core of this map.'
++safran-helicopter-engines: 'Safran Helicopter Engines, headquartered at Bordes near Pau, is the world''s leading helicopter-engine maker and runs its main production and R&D site there, transformed since 2010 under a "factory of the future" programme. Its place on this map comes from a human systems integration project run with the FlexTech chair: SOMA, a multi-agent, self-learning digital twin designed to support collaborative decision-making in helicopter-engine maintenance. Rather than an automated prescriptive-maintenance engine, SOMA coordinates human and artificial agents through stigmergy — each leaves traces the others use — so that maintenance professionals keep the decision while the twin accumulates and redistributes the knowledge.
++
++
++  The work was a CIFRE thesis at ESTIA supervised within the chair (INCOSE International Symposium 2022, Springer 2025), prototyped and tested with the Bordes maintenance teams; Safran Helicopter Engines is also a historic partner of the ESTIA foundation. It illustrates HSI applied to industrial maintenance: a digital twin built as a partner in a decision, with tangibility and function allocation designed in from the start.'
+diff --git a/data/i18n/descriptions.fr.yml b/data/i18n/descriptions.fr.yml
+index 7ddd205..0dcbb4e 100644
+--- a/data/i18n/descriptions.fr.yml
++++ b/data/i18n/descriptions.fr.yml
+@@ -444,3 +444,75 @@ wmu: Étudie le facteur humain des navires autonomes — compétences de l'opér
+ xmanai: 'XMANAI (H2020 ICT-38-2020, convention 957362, nov. 2020–avr. 2024, 6,0 M EUR, coordonné par TXT e-tech à Milan avec Fraunhofer FOKUS comme coordinateur scientifique) a construit une plateforme d''IA explicable « boîte de verre » pour l''industrie manufacturière, où des modèles hybrides et à base de graphes sont couplés à des méthodes d''explication afin que planificateurs et ingénieurs qualité puissent comprendre et contester les recommandations de l''IA avant d''agir. Les explications ont été conçues autour de la décision que chaque rôle humain doit prendre (prévision de la demande, planification de production, anomalies qualité et procédé) et évaluées avec des opérateurs dans quatre usines : Ford Valence, CNH Industrial, Whirlpool/Beko et Unimetrik, Deep Blue et le Politecnico di Milano assurant le volet facteurs humains et confiance. Le consortium de 18 partenaires a aussi produit un catalogue XAI et une architecture de référence réutilisés par des projets ultérieurs d''IA pour l''industrie.'
+ york-cfaa: 'Le Centre for Assuring Autonomy (CfAA) de l''université de York est un partenariat de 10 millions de livres avec la Lloyd''s Register Foundation, lancé en janvier 2024 pour prendre la suite de l''Assuring Autonomy International Programme (AAIP, 2018-2023, 12 millions de livres). Dirigé par le Pr John McDermid, il élabore des méthodes concrètes de démonstration de sécurité pour l''IA et les systèmes autonomes et les éprouve sur des déploiements réels dans l''automobile, la santé, le maritime, l''agriculture, l''industrie et l''aéronautique. C''est de là que viennent AMLAS et SACE, déjà présents sur la carte comme référentiels. L''angle humain-IA y est explicite : un dossier de sécurité doit dire ce que l''opérateur est censé faire, quelle surveillance et quelle capacité de reprise en main lui restent, et si cette attente tient face aux données des facteurs humains.'
+ zhaw-cai: Le Centre for Artificial Intelligence de la ZHAW (Winterthour) travaille sur l'IA de confiance et l'aide à la décision, et est partenaire d'AI4RealNet, où il contribue à une IA explicable et centrée sur l'humain pour la conduite de réseaux critiques.
++academie-air-espace: 'L''Académie de l''air et de l''espace, fondée à Toulouse en 1983, est la société savante française de l''aéronautique et de l''espace. Parmi ses thèmes de travail revient la relation entre équipages, automatisation et désormais intelligence artificielle : le Dossier 37 (2013) sur le traitement des situations imprévues en vol, issu d''un colloque avec des pilotes de ligne confrontés à l''imprévu ; le Dossier 42 (2018) sur une aviation plus automatique et interconnectée à l''horizon 2050 et son étude compagne sur l''automatisation des avions de transport ; et un colloque international en novembre 2025 sur les applications de l''IA en aéronautique, espace et défense, dont la synthèse souligne que les problèmes d''interface humain-machine préexistaient à l''IA et se multiplient avec elle.
++
++
++  Guy André Boy est membre titulaire de l''Académie depuis 2006 et l''une de ses voix sur l''intégration humain-systèmes et l''ingénierie cognitive — la note « IA-t-il un pilote dans l''avion ? » (2020) et sa contribution au colloque de 2025 portent la position HSI au sein de l''establishment aérospatial français. L''Académie relève de l''écosystème : elle ne conduit pas de recherche, mais elle cadre la manière dont la communauté aérospatiale toulousaine parle d''autorité, d''automatisation et d''IA dans le cockpit.'
++afis-ct-facteurs-humains: 'L''AFIS, Association française d''ingénierie système, est le chapitre français de l''INCOSE depuis 1999 et rassemble un millier d''ingénieurs système de l''industrie, de la recherche et des agences publiques. Son Comité technique Facteurs Humains est le lieu où facteurs humains et ingénierie système sont travaillés ensemble en France : son objectif affiché est de faire de l''approche centrée humain et de l''intégration humain-système (ou human-machine teaming) une pratique reconnue de l''ingénierie système, par des fiches méthodes, des webinaires et des sessions de travail. Il est co-animé par des praticiens d''Airbus Defence and Space et de Thales — la même base industrielle qui a financé EURISCO et la chaire FlexTech.
++
++
++  Le comité relaie les travaux de Guy André Boy vers la communauté française d''ingénierie système : des webinaires AFIS ont présenté son livre Human–Systems Integration — From Virtual to Tangible et l''intégration humain-systèmes fondée sur les modèles des équipes humain-IA. Sur cette carte, il est le maillon (niveau écosystème) entre le groupe de travail HSI de l''INCOSE et les praticiens industriels français qui appliquent la HSI aux cockpits, systèmes de mission et salles de conduite.'
++airbus-ds-hsi: 'Le département d''ingénierie des facteurs humains d''Airbus Defence and Space à Toulouse développe les interfaces humain-machine des plateformes aériennes militaires, des consoles de mission et des stations de contrôle au sol, et il est l''un des rares groupes industriels européens à avoir publié la manière dont l''intégration humain-systèmes s''articule au cycle de vie d''ingénierie système : un article AHFE de 2015 sur l''implémentation de la HSI et des « caractéristiques non fonctionnelles » dans le cycle de vie, prolongé en 2016 par son extension à l''ingénierie système fondée sur les modèles, en s''appuyant sur le projet européen FP7 HoliDes sur les systèmes humain-machine coopératifs et adaptatifs.
++
++
++  Sa responsable facteurs humains co-anime le comité technique Facteurs Humains de l''AFIS, chapitre français de l''INCOSE, qui promeut l''intégration humain-système et le human-machine teaming comme pratique d''ingénierie système — le canal institutionnel par lequel le cadre HSI de Guy André Boy atteint les programmes de défense français. Sur cette carte, l''entrée représente l''application industrielle de la HSI aux systèmes de mission où un équipage supervise des fonctions de plus en plus autonomes.'
++ceam-human-factors: 'Le Centre d''expertise aérienne militaire (CEAM), Air Warfare Center de l''Armée de l''Air et de l''Espace à Mont-de-Marsan, dispose d''une cellule ergonomie et facteurs humains qui teste et spécifie la façon dont les équipages travailleront avec des systèmes de plus en plus autonomes. Via la chaire FlexTech, elle a parrainé deux projets doctoraux : l''un sur le futur combat cloud et l''interaction entre pilotes et assistants virtuels, l''autre sur l''adaptation centrée humain des simulations hybrides (réel, virtuel, constructif) enrichies d''IA pour l''entraînement de l''armée de l''air. Le centre accueille aussi des « rencontres IA » et des élèves-ingénieurs travaillant sur l''IA pour l''aéronautique militaire.
++
++
++  Sur cette carte, il est l''utilisateur final opérationnel du cadre HSI de Guy André Boy dans la défense : le combat aérien collaboratif où un pilote humain reste aux commandes de fonctions assistées par l''IA, conçues et évaluées par simulation avec l''humain dans la boucle. L''entrée est maintenue à confiance moyenne — la date de création de la cellule et les titres complets des thèses n''ont pas été publiés.'
++centralesupelec-lgi: 'Le Laboratoire Génie Industriel de CentraleSupélec, sur le campus de Paris-Saclay, travaille sur les modèles, méthodes et outils couvrant tout le cycle de vie des systèmes sociotechniques — ingénierie de la conception, aide à la décision pour les systèmes produits-services, sûreté et risques, économie durable. De 2019 à 2024, il a accueilli, avec l''ESTIA, la chaire FlexTech sur l''intégration humain-systèmes des systèmes à autonomie croissante, tenue par Guy André Boy et co-dirigée par le directeur du laboratoire Bernard Yannou : les doctorants de la chaire étaient inscrits à l''Université Paris-Saclay en génie industriel, et les articles de Boy de cette période portent l''affiliation LGI.
++
++
++  Pour la carte, c''est l''ancrage francilien de la communauté HSI : le lieu où la méthode PRODEC, la méthodologie des « ancres de la réalité » pour les jumeaux numériques et l''approche par simulation avec humain dans la boucle ont été encadrées, et où a été construit le module HSI du master « System Science and Design » de Paris-Saclay.'
++cognitive-function-analysis: 'L''analyse des fonctions cognitives (Cognitive Function Analysis, CFA) est la méthode d''ingénierie cognitive que Guy André Boy a formalisée à EURISCO, l''institut de recherche Airbus–Thales de Toulouse, à partir des études sur l''automatisation des années 1980 et 1990. Une fonction cognitive transforme une tâche en activité et se décrit par son rôle, son contexte de validité et les ressources qu''elle requiert ; les fonctions sont allouées et redistribuées entre humains et machines, et l''analyse les suit en simulation avec humain dans la boucle plutôt que de les figer une fois pour toutes à la conception. C''est le pendant européen de la tradition de la liste de Fitts, à la différence que l''allocation y est traitée comme dynamique et dépendante du contexte.
++
++
++  Le modèle de l''Orchestre (Orchestrating Human-Centered Design, 2013) l''étend aux systèmes multi-agents critiques : les compositeurs écrivent la « partition » (procédures, règles), les chefs d''orchestre coordonnent, et les agents humains et artificiels jouent leur partie avec une autorité négociée plutôt que fixée — le vocabulaire repris ensuite pour la coopération humain-IA et le partage d''autorité en contrôle aérien. Avec la notion de systèmes interactifs tangibles (2016), la CFA est la racine du cadre d''intégration humain-systèmes porté par la chaire FlexTech.'
++ensc-bordeaux: 'L''ENSC est l''école d''ingénieurs française de « cognitique » — sciences cognitives appliquées et ingénierie cognitive — créée à Bordeaux en 2003 sous le nom d''Institut de cognitique et rattachée à Bordeaux INP depuis 2009. Elle forme des ingénieurs à double compétence en technologies de l''information et en sciences humaines, avec pour cœur les facteurs humains, l''intégration humain-système et les usages cognitifs des technologies ; sa recherche est portée par le laboratoire IMS (UMR CNRS 5218). Depuis 2009, elle anime HEAL, le Human Engineering for Aerospace Lab, laboratoire commun avec Thales Avionics et Thales Systèmes Aéroportés sur la charge de travail, l''anticipation et la conscience de la situation des équipages.
++
++
++  Sur cette carte, elle est le partenaire Bordeaux INP du projet Horizon Europe HAIKU (2022–2025), qui a construit et validé six assistants IA centrés humain pour cockpits, tours et aéroports, et le foyer institutionnel de l''école française d''ingénierie cognitive : l''Institut de cognitique a été fondé en 2003 par Bernard Claverie avec Guy André Boy, dont l''ouvrage Ingénierie cognitive paraît la même année, et l''analyse des fonctions cognitives fait partie de sa filiation pédagogique. Les travaux de Jean-Marc Salotti sur la conscience de situation dégradée et sur les facteurs humains des systèmes cobotiques prolongent la même lignée vers le spatial et le manufacturier.'
++estia-recherche: 'ESTIA-Recherche est l''unité de recherche de l''ESTIA, l''école d''ingénieurs de la technopole du Pays basque à Bidart, rattachée à l''Université de Bordeaux et membre du Groupe ISAE. Son positionnement — des interfaces durables et capacitantes pour les interactions humain-humain, humain-système et système-système — en a fait le foyer européen naturel des travaux d''intégration humain-systèmes de Guy André Boy lorsque la chaire FlexTech a été créée avec CentraleSupélec en 2019 : une vingtaine de chercheurs sur les deux sites, des thèses CIFRE avec TotalEnergies (un jumeau numérique conçu pour soutenir la conscience de la situation en opérations à distance, la méthodologie des « ancres de la réalité »), Safran Helicopter Engines (SOMA, jumeau numérique multi-agents pour la maintenance des moteurs), CS Group, l''Armée de l''Air et de l''Espace (combat aérien collaboratif, assistants virtuels) et la SNCF, ainsi que la méthode de conception par scénarios PRODEC.
++
++
++  L''unité porte aussi le groupe d''interaction tangible (Nadine Couture) et le cadre centré humain de Dimitri Masson pour la conception de jumeaux numériques, de sorte que la « tangibilité » — un modèle virtuel qui devient physiquement et cognitivement saisissable par les opérateurs — est travaillée comme une propriété de conception plutôt qu''une métaphore. L''ESTIA a accueilli HSI2019, première conférence internationale INCOSE sur l''intégration humain-systèmes, à Biarritz, ainsi que l''école de printemps 2024 sur la coopération humain-IA ; depuis 2025, elle pilote la chaire FlexTech-2 avec l''IRIT à Toulouse.'
++eth-wop-grote: 'La chaire de psychologie du travail et des organisations de Gudela Grote à l''ETH Zurich étudie comment les organisations et les équipes des systèmes à haut risque gèrent l''incertitude, comment standardisation et flexibilité s''arbitrent et — de plus en plus — comment l''IA remodèle les processus de travail et la responsabilité. Son terrain empirique est l''exploitation ferroviaire (CFF), le contrôle aérien et la santé, avec des études de terrain qui alimentent les exigences d''automatisation : l''étude de 2016 sur les contrôleurs en route a montré que l''automatisation doit soutenir, et non supprimer, les stratégies propres des contrôleurs pour gérer l''incertitude.
++
++
++  La chaire est l''ancrage suisse du réseau de Guy André Boy : Boy et Grote ont co-signé les travaux sur l''autorité dans les systèmes collaboratifs humain-machine de complexité croissante, appliqués à l''évolution de la gestion du trafic aérien (IEA 2009) et le chapitre « The authority issue in organizational automation » du handbook de Boy (2011) ; l''ETH a hébergé l''annonce de la première conférence HSI de l''INCOSE, et Grote a enseigné à l''école de printemps FlexTech sur la coopération humain-IA en 2024. Sur cette carte, elle représente le versant organisationnel de l''intégration humain-systèmes — qui détient l''autorité quand un système devient plus autonome.'
++eurisco: 'EURISCO (Institut européen de sciences et d''ingénierie cognitives) était l''institut de recherche commun en ingénierie cognitive d''Airbus et de Thomson-CSF/Thales, fondé à Toulouse en 1992 et dirigé jusqu''en 2008 par Guy André Boy, venu du groupe d''ergonomie cognitive de l''ONERA et de la NASA Ames, avec le pilote d''essais Jean Pinet comme cofondateur et président dans les années 1990. Son personnel pluridisciplinaire — cogniticiens, sociologues, informaticiens, ingénieurs, spécialistes des facteurs humains — travaillait avec un réseau d''universités et d''écoles d''ingénieurs, et l''institut opérait sous le nom d''EURISCO International dans ses dernières années. Il a introduit les sciences cognitives dans la conception de l''automatisation des cockpits et du contrôle aérien au moment où les glass cockpits et les commandes de vol électriques posaient la question de l''autorité entre équipage et automatisme : analyse des fonctions cognitives, conscience de la situation et charge de travail dans les cockpits hautement automatisés, automatisation centrée humain, conception des procédures et, plus tard, partage d''autorité dans la gestion du trafic aérien future. C''est l''origine industrielle de l''analyse des fonctions cognitives et du modèle de l''Orchestre, et il organisait la série de conférences HCI-Aero avec l''ACM SIGCHI.
++
++
++  L''institut a fermé en 2008 ; sa ligne de travail a suivi Boy au Human-Centered Design Institute de Florida Tech et est revenue en Europe avec la chaire FlexTech en 2019. Il est conservé sur la carte comme entrée terminée, afin que le filtre de période montre où la communauté française d''ingénierie cognitive des années 1990 et 2000 était ancrée.'
++flextech-2-chair: 'FlexTech-2 prolonge la chaire FlexTech sur l''intégration humain-systèmes après son premier mandat de cinq ans. Elle est pilotée par l''ESTIA à Bidart avec l''IRIT, l''institut d''informatique de Toulouse de l''Université de Toulouse où siège le groupe de Philippe Palanque sur les systèmes interactifs critiques, et ses membres industriels fondateurs sont la SNCF et Ingenuity i/o, la société toulousaine derrière la plateforme Ingescape utilisée pour le prototypage avec humain dans la boucle. Guy André Boy, désormais professeur émérite, est le conseiller de la chaire ; le titulaire par intérim est un professeur rattaché à l''ESTIA et à l''IRIT.
++
++
++  Le programme conserve l''agenda de la première chaire — flexibilité plutôt qu''automatisation rigide, tangibilité, conception par scénarios PRODEC, jumeaux numériques de systèmes sociotechniques, coopération humain-IA — et y ajoute l''exploitation ferroviaire via la SNCF. L''entrée est maintenue à confiance moyenne : le rapport 2025 de la chaire nomme les partenaires et l''horizon 2025–2030, mais le financement et le nom du titulaire n''ont pu être retrouvés au moment de la rédaction.'
++flextech-chair: 'La chaire FlexTech était une chaire de recherche et d''enseignement commune à CentraleSupélec (Université Paris-Saclay) et à l''ESTIA (Bidart, Pays basque), lancée en septembre 2019 et tenue par Guy André Boy jusqu''en 2024. Son objet était l''intégration humain-systèmes dans les systèmes complexes à autonomie croissante — le passage « de la HighTech à la FlexTech » : plutôt qu''automatiser puis rajouter l''humain après coup, concevoir la flexibilité, la tangibilité et l''organisation dans le système dès le départ, avec la simulation avec humain dans la boucle et les jumeaux numériques comme méthode de travail.
++
++
++  Les partenaires industriels ont apporté les cas d''usage : opérations à distance et jumeaux numériques pour le diagnostic (TotalEnergies), flottes de drones et systèmes de mission (CS Group, Armée de l''Air et de l''Espace), maintenance et soutien des moteurs d''hélicoptères (Safran Helicopter Engines), avionique et systèmes de mission (Thales), et la plateforme de systèmes interactifs Ingescape (Ingenuity i/o) utilisée pour prototyper les scénarios de coopération humain-machine. Les thèses ont été co-dirigées avec Marija Jankovic à CentraleSupélec et co-encadrées à l''ESTIA et dans les entreprises partenaires. La chaire a formé huit doctorants et quelque cinq cents étudiants de niveau master, produit environ soixante-dix publications, la méthode PRODEC, la méthodologie des « ancres de la réalité » pour les jumeaux numériques et l''ouvrage de référence HSI de 2020, et accueilli la première conférence HSI de l''INCOSE à Biarritz. Elle s''est close par une leçon de synthèse à l''ESTIA en février 2025 ; une chaire FlexTech-2 pilotée par l''ESTIA avec l''IRIT (Toulouse), la SNCF et Ingenuity i/o prend le relais.'
++hci-aero: 'HCI-Aero était la série de conférences que Guy André Boy a lancée à Toulouse en 1986 — d''abord sous le nom « Human-Machine Interaction and Artificial Intelligence in Aerospace », rebaptisée HCI-Aero en 1998 — et qui s''est tenue tous les deux ans, en alternance entre l''Europe et l''Amérique du Nord, en coopération avec l''ACM SIGCHI, EURISCO organisant les éditions européennes et l''AAAI puis l''ACM publiant les actes. Son sujet était le cockpit et la salle de contrôle au moment où l''automatisation et les premières IA y entraient : partage d''autorité entre équipage et automatisme, analyse des fonctions cognitives, assistants intelligents, gestion du trafic aérien. Les éditions se sont tenues à Toulouse (1986, 2000), Montréal (1998), Cambridge MA (2002), Seattle (2006), Cap Canaveral (2010), Bruxelles (2012), Santa Clara (2014) et Paris (2016).
++
++
++  Aucune édition n''a eu lieu depuis Paris 2016 ; la communauté a migré vers la série de conférences HSI de l''INCOSE fondée par Boy en 2019. L''entrée est conservée, terminée, afin que le filtre de période montre les trente années de travaux d''interaction humain-ordinateur en aérospatial qui ont précédé les programmes actuels de coopération humain-IA.'
++human-systems-integration: 'L''intégration humain-systèmes (Human Systems Integration, HSI), telle que la cadre Guy André Boy, est la discipline qui intègre technologie, organisations et personnes (le modèle TOP) sur tout le cycle de vie d''un système sociotechnique — conception, développement, validation, exploitation, maintenance et démantèlement. Issue de l''ingénierie cognitive et de la conception centrée humain, elle est devenue une discipline à part entière à travers le groupe de travail HSI de l''INCOSE (présidé par Boy de 2014 à 2024) et la chaire FlexTech. Ses concepts de travail sont la flexibilité plutôt que l''automatisation rigide, la tangibilité (un modèle virtuel doit devenir physiquement et cognitivement saisissable), la maturité sociotechnique et la distinction entre connaissances procédurales et déclaratives ; la méthode PRODEC (2022) en fait une boucle de conception agile par scénarios, avec simulation avec humain dans la boucle et jumeaux numériques.
++
++
++  Deux articles récents ancrent le cadre pour la collaboration humain-IA. L''approche épistémologique de 2023 (Technology in Society) plaide pour une terminologie et une ontologie cohérentes de la HSI — complexité, contexte, connaissances procédurales et déclaratives, maturité. La cognition systémique (Systems, 2026) place le contexte au centre : un système sociotechnique se comprend de manière incrémentale par des modèles conceptuels construits en contexte, de sorte que les comportements émergents découverts en exploitation sont réintégrés dans le système. Pour une carte de la décision humain-IA dans les systèmes critiques, la HSI est le cadre d''ingénierie système dans lequel supervision, initiative partagée et coopération humain-IA se négocient comme allocation de fonctions et autorité, et non comme des interfaces ajoutées après coup.'
++incose-hsi-community: 'Le groupe de travail Human Systems Integration de l''INCOSE est la communauté permanente qui a fait de l''intégration humain-systèmes une pratique reconnue de l''ingénierie système : sa charte est de veiller à ce que les éléments humains d''un système soient traités tout au long du cycle de vie d''ingénierie, et ses produits comprennent le HSI Primer (2023), la section HSI du Systems Engineering Handbook de l''INCOSE (5e édition, alignée sur l''ISO/IEC/IEEE 15288:2023) et l''article HSI du SEBoK. Guy André Boy l''a présidé de 2014 à 2024 et a fondé sa série de conférences et d''ateliers, organisée en coopération avec l''ACM SIGCHI et l''International Ergonomics Association, qui anime elle aussi un comité technique HSI.
++
++
++  La série a commencé en Europe — HSI2019 à Biarritz, accueillie avec l''ESTIA, est la raison pour laquelle l''entrée y est ancrée — et alterne conférences (2019, 2021 en ligne, 2024 à Jeju) et ateliers (2020, 2022 à Torrance, 2023 à Seattle, 2025 en ligne) ; une édition toulousaine est prévue en 2026 et une conférence conjointe avec le congrès mondial de l''IEA en 2027. Pour le paysage européen de la collaboration humain-IA, c''est le lieu où les contributions de FlexTech, de l''ESTIA, de CentraleSupélec, de l''ETH Zurich, d''Airbus, de Thales et de Dassault sur la coopération humain-IA, l''autorité et la tangibilité sont présentées et évaluées.'
++ingenuity-io: 'Ingenuity i/o est une société de logiciels toulousaine fondée en 2012 par Stéphane Valès, ingénieur ENAC en informatique et trafic aérien issu de la communauté française d''interaction humain-machine aéronautique. Son produit, Ingescape, est un cadre fondé sur les modèles pour les logiciels interactifs distribués : agents, affichages, dispositifs d''interaction 2D/3D et simulateurs sont décrits et orchestrés sans broker central, si bien qu''une position de contrôle, un cockpit ou une salle de supervision peuvent être prototypés et recâblés rapidement, les mêmes modèles alimentant la vérification et l''évaluation facteurs humains.
++
++
++  Elle figure sur cette carte parce qu''elle est le partenaire outillage de la communauté d''intégration humain-systèmes : Ingescape a été la plateforme sur laquelle la chaire FlexTech a fait tourner ses simulations avec humain dans la boucle et ses scénarios PRODEC, elle a été enseignée à l''école de printemps 2024 sur la coopération humain-IA, et la société est membre industriel fondateur de la chaire FlexTech-2 pilotée par l''ESTIA et l''IRIT.'
++lamih-uphf: 'Le LAMIH est le laboratoire pluridisciplinaire de l''Université Polytechnique Hauts-de-France à Valenciennes — automatique, mécanique, informatique et sciences humaines — et le foyer historique de l''école française de coopération humain-machine. Le groupe Systèmes Humain-Machine de Patrick Millot, créé en 1987, a formalisé la coopération entre un opérateur humain et un assistant automatisé comme un problème de supervision partagée, d''allocation de tâches et d''espace de travail commun, avec des applications au contrôle aérien, au trafic routier et à la supervision de métros ou de trains ; Frédéric Vanderhaegen l''a étendue à la dissonance, à la résilience et à la fiabilité humaine, et le groupe est depuis longtemps un pilier de la communauté IFAC des systèmes humain-machine.
++
++
++  Son lien avec Guy André Boy est une filiation partagée d''ingénierie cognitive plutôt qu''une institution commune : Millot a écrit le chapitre sur la supervision et la coopération de l''ouvrage Ingénierie cognitive dirigé par Boy (2003) et a co-signé avec lui « Human-machine cooperation: a solution for life-critical systems? » (Work, 2012). Les travaux actuels de Marie-Pierre Pacaux-Lemoine et de ses collègues déplacent les mêmes questions vers la conduite ferroviaire à distance et autonome, le teaming humain-robot et la coopération humain-système cyber-physique en production — la décision avec l''opérateur dans la boucle dans le ferroviaire et l''industrie, le cœur de cette carte.'
++safran-helicopter-engines: 'Safran Helicopter Engines, dont le siège est à Bordes près de Pau, est le premier motoriste mondial d''hélicoptères et y exploite son principal site de production et de R&D, transformé depuis 2010 dans le cadre d''un programme « usine du futur ». Sa place sur cette carte tient à un projet d''intégration humain-systèmes mené avec la chaire FlexTech : SOMA, un jumeau numérique multi-agents et auto-apprenant conçu pour soutenir la décision collaborative en maintenance des moteurs d''hélicoptères. Plutôt qu''un moteur de maintenance prescriptive automatisé, SOMA coordonne agents humains et artificiels par stigmergie — chacun laisse des traces que les autres exploitent — de sorte que les professionnels de la maintenance gardent la décision tandis que le jumeau accumule et redistribue la connaissance.
++
++
++  Le travail a été une thèse CIFRE à l''ESTIA encadrée au sein de la chaire (INCOSE International Symposium 2022, Springer 2025), prototypé et testé avec les équipes de maintenance de Bordes ; Safran Helicopter Engines est aussi partenaire historique de la fondation ESTIA. Il illustre la HSI appliquée à la maintenance industrielle : un jumeau numérique construit comme partenaire d''une décision, avec la tangibilité et l''allocation de fonctions conçues dès l''origine.'
+diff --git a/data/projects/flextech-2-chair.yml b/data/projects/flextech-2-chair.yml
+new file mode 100644
+index 0000000..c5d2387
+--- /dev/null
++++ b/data/projects/flextech-2-chair.yml
+@@ -0,0 +1,77 @@
++id: flextech-2-chair
++name: FlexTech-2 Chair — Human Systems Integration (ESTIA & IRIT, 2025–2030)
++kind: industrial_consortium
++status: active
++tier: core
++homepage: https://www.flextechchair.org/
++location:
++  country: FR
++  city: Bidart
++  lat: 43.447
++  lon: -1.556
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - mixed_initiative
++  - digital_twins
++  - oversight
++domains:
++  - rail
++  - aviation
++  - critical_infrastructure
++framework_ids:
++  - human-systems-integration
++commons_ids:
++  - incose-hsi-community
++infrastructure_ids: []
++consortium:
++  - org: ESTIA — École supérieure des technologies industrielles avancées
++    role: coordinator
++    country: FR
++    initiative_id: estia-recherche
++  - org: IRIT — Institut de Recherche en Informatique de Toulouse (Université de Toulouse)
++    role: partner
++    country: FR
++    initiative_id:
++  - org: SNCF
++    role: partner
++    country: FR
++    initiative_id: sncf-ir
++  - org: Ingenuity i/o
++    role: partner
++    country: FR
++    initiative_id: ingenuity-io
++funding:
++  source: Industrial chair membership (SNCF, Ingenuity i/o) hosted by ESTIA with IRIT
++  call:
++  grant:
++  budget_eur:
++  url: https://www.flextechchair.org/
++timeline:
++  start: '2025'
++  end: '2030'
++  milestones:
++    - date: 2025-02
++      label: Announced at the closing lecture of the first FlexTech chair (ESTIA, 12 February 2025)
++demonstrators: []
++deliverables: []
++description: |
++  FlexTech-2 continues the FlexTech chair on human systems integration after its first
++  five-year term. It is led by ESTIA in Bidart with IRIT, the Toulouse computer-science
++  institute of Université de Toulouse where Philippe Palanque's interactive critical
++  systems group sits, and its founding industrial members are SNCF and Ingenuity i/o, the
++  Toulouse company behind the Ingescape platform used for human-in-the-loop prototyping.
++  Guy André Boy, now professor emeritus, is the chair's advisor; the acting holder is a
++  professor attached to ESTIA and IRIT.
++
++  The programme keeps the first chair's agenda — flexibility rather than rigid automation,
++  tangibility, PRODEC scenario-based design, digital twins of sociotechnical systems,
++  human–AI teaming — and adds railway operations through SNCF. The entry is kept at
++  medium confidence: the 2025 chair report names the partners and the 2025–2030 horizon,
++  but the funding and the holder's name were not retrievable when this was written.
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'https://www.flextechchair.org/GuyABoy/flextech-2.html (FlexTech-2 led by ESTIA with IRIT, members SNCF and Ingenuity, 2025–2030; Boy as chair advisor); https://www.estia.fr/les-actualites/lecon-de-synthese-de-la-chaire-flextech/ (new chair with IRIT, SNCF, Ingenuity i/o announced at the 12 Feb 2025 lecture); La chaire FlexTech en 2025 (flextechchair.org); web search 2026-09 · timeline.start (medium): FlexTech-2 period given as 2025–2030 — flextechchair.org'
++  confidence: medium
+diff --git a/data/projects/flextech-chair.yml b/data/projects/flextech-chair.yml
+new file mode 100644
+index 0000000..539033a
+--- /dev/null
++++ b/data/projects/flextech-chair.yml
+@@ -0,0 +1,124 @@
++id: flextech-chair
++name: FlexTech Chair — Human Systems Integration of increasingly autonomous systems (CentraleSupélec & ESTIA)
++kind: industrial_consortium
++status: concluded
++tier: core
++homepage: https://www.flextechchair.org/
++location:
++  country: FR
++  city: Gif-sur-Yvette
++  lat: 48.7096
++  lon: 2.1646
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - mixed_initiative
++  - digital_twins
++  - oversight
++  - decision_support
++domains:
++  - aviation
++  - defense
++  - energy
++  - critical_infrastructure
++framework_ids:
++  - human-systems-integration
++  - cognitive-function-analysis
++commons_ids:
++  - incose-hsi-community
++infrastructure_ids: []
++consortium:
++  - org: CentraleSupélec — Laboratoire Génie Industriel (LGI), Université Paris-Saclay
++    role: coordinator
++    country: FR
++    initiative_id: centralesupelec-lgi
++  - org: ESTIA — École supérieure des technologies industrielles avancées
++    role: coordinator
++    country: FR
++    initiative_id: estia-recherche
++  - org: CS Group (now Sopra Steria)
++    role: partner
++    country: FR
++    initiative_id:
++  - org: TotalEnergies
++    role: partner
++    country: FR
++    initiative_id:
++  - org: Safran Helicopter Engines
++    role: partner
++    country: FR
++    initiative_id: safran-helicopter-engines
++  - org: Thales
++    role: partner
++    country: FR
++    initiative_id:
++  - org: Ingenuity i/o
++    role: partner
++    country: FR
++    initiative_id: ingenuity-io
++  - org: Armée de l'Air et de l'Espace — CEAM (French Air and Space Force)
++    role: partner
++    country: FR
++    initiative_id: ceam-human-factors
++funding:
++  source: Industrial chair sponsorship (CS Group, TotalEnergies, Safran Helicopter Engines, Thales, Ingenuity i/o, Armée de l'Air et de l'Espace) hosted by CentraleSupélec and ESTIA
++  call:
++  grant:
++  budget_eur:
++  url: https://www.centralesupelec.fr/chaire-flextech
++timeline:
++  start: 2019-09
++  end: 2024-12
++  milestones:
++    - date: 2019-09
++      label: Chair inaugurated at ESTIA (10 Sept) and CentraleSupélec (18 Sept); Guy André Boy chair holder, co-led with Bernard Yannou (LGI)
++    - date: 2019-09
++      label: HSI2019 — first INCOSE international conference on human systems integration, Biarritz
++    - date: '2020'
++      label: Human–Systems Integration — From Virtual to Tangible (CRC Press), the chair's reference text
++    - date: '2022'
++      label: PRODEC method published (Boy & Morel, Work)
++    - date: 2024-03
++      label: PRODEC for human systems integration of increasingly autonomous systems (Systems Engineering 27)
++    - date: 2024-05
++      label: FlexTech international spring school on human–AI teaming, Biarritz (27–31 May; Endsley, Grote, Palanque, Streitz, Valès)
++    - date: 2025-02
++      label: Closing "leçon de synthèse" at ESTIA (12 February 2025); FlexTech-2 prepared with IRIT, SNCF and Ingenuity i/o
++demonstrators: []
++deliverables:
++  - title: Eight PhD theses on human systems integration and increasingly autonomous systems (about seventy papers)
++  - title: Reality Anchor methodology — designing a digital twin to support situation awareness (J. Eng. Design 35, 2024)
++    url: https://doi.org/10.1080/09544828.2024.2336838
++  - title: PRODEC for human systems integration of increasingly autonomous systems (Systems Engineering 27, 2024)
++    url: https://doi.org/10.1002/sys.21751
++  - title: Human–Systems Integration — From Virtual to Tangible (CRC Press, 2020)
++    url: https://doi.org/10.1201/9780429351686
++  - title: PRODEC — procedural/declarative scenario-based design method (Work, 2022)
++    url: https://doi.org/10.3233/WOR-220268
++description: |
++  The FlexTech chair was a joint research and teaching chair of CentraleSupélec
++  (Université Paris-Saclay) and ESTIA (Bidart, Basque Country), launched in September 2019
++  and held by Guy André Boy until 2024. Its subject was human systems integration in
++  complex systems with increasing autonomy — the move "from HighTech to FlexTech": rather
++  than automating and then patching the human back in, design flexibility, tangibility and
++  the organisation into the system from the start, with human-in-the-loop simulation and
++  digital twins as the working method.
++
++  Industrial partners brought the use cases: remote operations and digital twins for
++  diagnosis (TotalEnergies), fleets of drones and mission systems (CS Group, Armée de l'Air
++  et de l'Espace), helicopter-engine maintenance and support (Safran Helicopter Engines),
++  avionics and mission systems (Thales), and the Ingescape interactive-systems platform
++  (Ingenuity i/o) used to prototype the human–machine teaming scenarios. Theses were
++  co-directed with Marija Jankovic at CentraleSupélec and co-advised at ESTIA and in the
++  partner companies. The chair trained eight PhD students and some five hundred
++  master-level students, produced about seventy papers, the PRODEC method, the Reality
++  Anchor digital-twin methodology and the 2020 HSI reference book, and hosted the first
++  INCOSE HSI conference in Biarritz.
++  It closed with a synthesis lecture at ESTIA in February 2025; a FlexTech-2 chair led by
++  ESTIA with IRIT (Toulouse), SNCF and Ingenuity i/o takes over.
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'https://www.centralesupelec.fr/chaire-flextech and https://www.centralesupelec.fr/sites/default/files/flextech_cp.pdf (launch Sept 2019, HSI of systems with increasing autonomy, HCD approach); https://www.estia.fr/recherche/flextech/ (partners CS Group, TotalEnergies, Safran Helicopter Engines, Thales, Ingenuity i/o, Armée de l''Air et de l''Espace; 8 PhD students, 500 students); https://www.estia.fr/les-actualites/lecon-de-synthese-de-la-chaire-flextech/ (chair ended 2024, synthesis lecture 12 Feb 2025); La chaire FlexTech en 2025 (flextechchair.org, FlexTech-2 with IRIT, SNCF, Ingenuity i/o); CCI Bayonne Pays Basque (spring school on human–AI teaming, 2024); web search 2026-09'
++  confidence: high
+diff --git a/data/projects/haiku.yml b/data/projects/haiku.yml
+index 904305d..8b1b079 100644
+--- a/data/projects/haiku.yml
++++ b/data/projects/haiku.yml
+@@ -65,7 +65,7 @@ consortium:
+   - org: Institut Polytechnique de Bordeaux
+     role: partner
+     country: FR
+-    initiative_id:
++    initiative_id: ensc-bordeaux
+   - org: London Luton Airport Operations Limited
+     role: partner
+     country: UK
+@@ -123,6 +123,6 @@ description: |
+ provenance:
+   added_by: amarot91
+   added_on: '2026-05-06'
+-  last_updated: '2026-09-02'
+-  source: CORDIS + haikuproject.eu + Deep Blue | Review 2026-09 web verification — https://cordis.europa.eu/project/id/101075332
++  last_updated: '2026-09-13'
++  source: CORDIS + haikuproject.eu + Deep Blue | Review 2026-09 web verification — https://cordis.europa.eu/project/id/101075332 | 2026-09-13 Bordeaux INP partner linked to ensc-bordeaux
+   confidence: high
+diff --git a/data/teams/academie-air-espace.yml b/data/teams/academie-air-espace.yml
+new file mode 100644
+index 0000000..d72ef93
+--- /dev/null
++++ b/data/teams/academie-air-espace.yml
+@@ -0,0 +1,82 @@
++id: academie-air-espace
++name: Académie de l'air et de l'espace (AAE) — automation, AI and the human in flight
++type: network
++status: active
++tier: ecosystem
++location:
++  country: FR
++  city: Toulouse
++  lat: 43.6125
++  lon: 1.4622
++  campus_id:
++affiliation:
++  org: Académie de l'air et de l'espace
++  parent:
++  url: https://academieairespace.com/
++focus_areas:
++  - human_factors
++  - oversight
++  - decision_support
++domains:
++  - aviation
++  - defense
++infrastructure: []
++project_ids: []
++framework_ids:
++  - human-systems-integration
++commons_ids: []
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Guy André Boy
++    role: Fellow (full member) since 2006; speaker at the 2025 colloquium on AI in aeronautics, space and defence
++    url: https://academieairespace.com/utilisateurs/guy-andr%C3%A9-boy/?lang=en
++links:
++  homepage: https://academieairespace.com/
++  papers:
++    - https://academieairespace.com/wp-content/uploads/2013/02/Doss37_eng.pdf
++    - https://academieairespace.com/wp-content/uploads/2018/05/AAE_Dossier-42_WEB_FR.pdf
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '1983'
++  end:
++  milestones:
++    - date: '1983'
++      label: Academy founded in Toulouse on the initiative of André Turcat
++    - date: 2011-11
++      label: Colloquium "Air transport pilots facing the unexpected" (DGAC, Paris), leading to Dossier 37 on unforeseen situations in flight (2013)
++    - date: '2018'
++      label: Dossier 42, "More automated, interconnected aviation by 2050", with the study on transport-aircraft automation
++    - date: 2025-11
++      label: International colloquium on AI applications in aeronautics, space and defence (Paris, 13–14 November); synthesis published January 2026
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://en.wikipedia.org/wiki/Acad%C3%A9mie_de_l'air_et_de_l'espace (founded 1983, Toulouse);
++    https://academieairespace.com/utilisateurs/guy-andr%C3%A9-boy/?lang=en (Boy member page; fellow since 2006 per
++    en.wikipedia.org/wiki/Guy_André_Boy); Dossier 37 (2013) https://academieairespace.com/wp-content/uploads/2013/02/Doss37_eng.pdf;
++    Dossier 42 (2018) https://academieairespace.com/wp-content/uploads/2018/05/AAE_Dossier-42_WEB_FR.pdf;
++    https://academieairespace.com/la-colloque-sur-les-applications-de-lia-sest-conclue-avec-succes/?lang=en and the
++    synthesis PDF (uploads/2026/01) for the AI colloquium; seat: ancien observatoire de Jolimont, Toulouse —
++    coordinates approximate; web search 2026-09 · timeline.start (high): Académie founded 1983 — academieairespace.com
++  confidence: medium
++description: |
++  The Académie de l'air et de l'espace, founded in Toulouse in 1983, is the French learned
++  society of aeronautics and space. Among its working themes the relation between crews,
++  automation and now artificial intelligence recurs: Dossier 37 (2013) on dealing with
++  unforeseen situations in flight, drawn from a colloquium with airline pilots on facing the
++  unexpected; Dossier 42 (2018) on a more automated, interconnected aviation by 2050 and its
++  companion study on transport-aircraft automation; and an international colloquium in
++  November 2025 on AI applications in aeronautics, space and defence, whose synthesis
++  stresses that the human–machine interface problems predate AI and multiply with it.
++
++  Guy André Boy has been a fellow of the academy since 2006 and one of its voices on human
++  systems integration and cognitive engineering — the 2020 note "IA-t-il un pilote dans
++  l'avion ?" and his contribution to the 2025 colloquium carry the HSI position into the
++  French aerospace establishment. The academy sits in the ecosystem tier: it does not run
++  research, but it frames how the aerospace community in Toulouse talks about authority,
++  automation and AI in the cockpit.
+diff --git a/data/teams/afis-ct-facteurs-humains.yml b/data/teams/afis-ct-facteurs-humains.yml
+new file mode 100644
+index 0000000..eafc0c7
+--- /dev/null
++++ b/data/teams/afis-ct-facteurs-humains.yml
+@@ -0,0 +1,82 @@
++id: afis-ct-facteurs-humains
++name: AFIS — Comité technique Facteurs Humains (French chapter of INCOSE)
++type: network
++status: active
++tier: ecosystem
++location:
++  country: FR
++  city: Paris
++  lat: 48.8566
++  lon: 2.3522
++  campus_id:
++affiliation:
++  org: AFIS — Association Française d'Ingénierie Système, Comité technique Facteurs Humains
++  parent: INCOSE (French chapter since the 1999 memorandum of understanding)
++  url: https://www.afis.fr/
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - oversight
++domains:
++  - aviation
++  - defense
++  - critical_infrastructure
++infrastructure: []
++project_ids: []
++framework_ids:
++  - human-systems-integration
++commons_ids:
++  - incose-hsi-community
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Meily Luy-Botteau
++    role: Co-animator of the CT Facteurs Humains (Airbus Defence and Space, UX / human factors / design thinking)
++    url: http://afis.community/webinaire-afis-facteurs-humains-et-ingenierie-systeme-fertilisation-croisee/meily-luy-botteau/
++links:
++  homepage: https://www.afis.fr/organisation-de-lafis-et-ses-comites-techniques/
++  papers: []
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '1998'
++  end:
++  milestones:
++    - date: '1998'
++      label: AFIS created by thirteen companies; memorandum of understanding with INCOSE in 1999
++    - date: 2021-03
++      label: Webinar "Facteurs humains et ingénierie système — quelle fertilisation croisée ?" (15 March 2021)
++    - date: '2021'
++      label: AFIS webinar by Guy André Boy, "Intégration humains-systèmes — du virtuel au tangible"
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://www.afis.fr/en/the_afis/ and https://www.afis.fr/en/our-activities/incose_international/ (created 1998
++    by 13 companies; INCOSE MoU 1999; about 1,000 individual and 50 organisational members);
++    https://www.afis.fr/organisation-de-lafis-et-ses-comites-techniques/ (CT Facteurs Humains, goals incl.
++    human-system integration / human-machine teaming as SE best practice);
++    https://www.afis.fr/webinaire-afis-facteurs-humains-et-ingenierie-systeme-fertilisation-croisee/ (15 March
++    2021); http://afis.community/.../meily-luy-botteau/ (CT FH lead, Airbus Defence and Space; method sheets with
++    Cédric Dejeux, Thales); https://www.afis.fr/les-webinaires-afis-integration-humains-systemes/ (Boy webinar);
++    https://www.afis.fr/webinaire-36-model-based-human-systems-integration-of-human-ai-teams/; the association's
++    seat city is Paris by default — coordinates are the city centre (low); web search 2026-09 · timeline.start
++    (high): AFIS founded 1998 — afis.fr (the technical committee's own creation year is a few years later)
++  confidence: medium
++description: |
++  AFIS, the Association Française d'Ingénierie Système, has been INCOSE's French chapter
++  since 1999 and gathers about a thousand systems engineers from industry, research and
++  public agencies. Its Comité technique Facteurs Humains is the place where human factors
++  and systems engineering are worked together in France: its declared aim is to make the
++  human-centred approach and human–system integration (or human–machine teaming) a
++  recognised systems-engineering practice, through method sheets, webinars and working
++  sessions. It is co-led by practitioners from Airbus Defence and Space and Thales — the
++  same industrial base that funded EURISCO and the FlexTech chair.
++
++  The committee relays Guy André Boy's work to the French systems-engineering community:
++  AFIS webinars presented his book Human–Systems Integration — From Virtual to Tangible and
++  model-based human systems integration of human–AI teams. On this map it is the
++  ecosystem-tier link between the INCOSE HSI working group and the French industrial
++  practitioners who apply HSI to cockpits, mission systems and control rooms.
+diff --git a/data/teams/airbus-ds-hsi.yml b/data/teams/airbus-ds-hsi.yml
+new file mode 100644
+index 0000000..babb2ff
+--- /dev/null
++++ b/data/teams/airbus-ds-hsi.yml
+@@ -0,0 +1,77 @@
++id: airbus-ds-hsi
++name: Airbus Defence and Space — Human Factors Engineering & Human Systems Integration (Toulouse)
++type: industrial_rd
++status: active
++tier: core
++location:
++  country: FR
++  city: Toulouse
++  lat: 43.603
++  lon: 1.38
++  campus_id:
++affiliation:
++  org: Airbus Defence and Space — Human Factors Engineering, military air systems and mission systems
++  parent: Airbus
++  url: https://www.airbus.com/en/products-services/defence
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - decision_support
++  - shared_situational_awareness
++domains:
++  - defense
++  - aviation
++infrastructure: []
++project_ids: []
++framework_ids:
++  - human-systems-integration
++commons_ids: []
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Meily Luy-Botteau
++    role: Head of UX, UI, human factors & design thinking, Multi Mission Systems; co-animator of the AFIS human-factors committee
++    url: http://afis.community/webinaire-afis-facteurs-humains-et-ingenierie-systeme-fertilisation-croisee/meily-luy-botteau/
++links:
++  homepage: https://www.airbus.com/en/products-services/defence
++  papers:
++    - https://doi.org/10.1016/j.promfg.2015.07.598
++    - https://www.researchgate.net/publication/304614711_Implementation_of_Human_System_Integration_into_the_System_Engineering_Lifecycle_and_Model_Based_System_Engineering_at_Airbus_Defence_and_Space
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '2015'
++  end:
++  milestones:
++    - date: '2015'
++      label: AHFE paper on implementing HSI and non-functional characteristics into the systems-engineering life cycle at Airbus Defence and Space
++    - date: '2016'
++      label: Follow-up on HSI in model-based systems engineering, building on the EU FP7 HoliDes project
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    Procedia Manufacturing 3 (2015), AHFE — "Implementation of Human System Integration (HSI) and non-functional
++    characteristics into the systems engineering lifecycle" (Airbus Defence and Space; DOI from the S2351978915002334
++    PII, medium); https://www.researchgate.net/publication/304614711 (2016 follow-up on HSI in MBSE, HoliDes);
++    http://afis.community/.../meily-luy-botteau/ (Airbus DS human factors lead, AFIS CT FH); Toulouse Saint-Martin
++    site — coordinates approximate; web search 2026-09 · timeline.start (medium): first published HSI implementation
++    paper 2015; the human factors engineering department itself is older
++  confidence: medium
++description: |
++  Airbus Defence and Space's human factors engineering department in Toulouse develops the
++  human–machine interfaces of military air platforms, mission consoles and ground-control
++  stations, and has been one of the few European industrial groups to publish how human
++  systems integration is wired into the systems-engineering life cycle: a 2015 AHFE paper
++  on implementing HSI and "non-functional characteristics" into the life cycle, followed in
++  2016 by its extension to model-based systems engineering, drawing on the EU FP7 HoliDes
++  project on adaptive cooperative human–machine systems.
++
++  Its human-factors lead co-animates the human-factors technical committee of AFIS, the
++  French INCOSE chapter, which promotes human–system integration and human–machine teaming
++  as systems-engineering practice — the institutional channel through which Guy André
++  Boy's HSI framework reaches French defence programmes. On this map it stands for the
++  industrial application of HSI to mission systems where a crew supervises increasingly
++  autonomous functions.
+diff --git a/data/teams/ceam-human-factors.yml b/data/teams/ceam-human-factors.yml
+new file mode 100644
+index 0000000..3944b08
+--- /dev/null
++++ b/data/teams/ceam-human-factors.yml
+@@ -0,0 +1,79 @@
++id: ceam-human-factors
++name: Armée de l'Air et de l'Espace — CEAM ergonomics & human factors unit (Mont-de-Marsan)
++type: industrial_rd
++status: active
++tier: core
++location:
++  country: FR
++  city: Mont-de-Marsan
++  lat: 43.91
++  lon: -0.51
++  campus_id:
++affiliation:
++  org: Centre d'expertise aérienne militaire (CEAM) — cellule ergonomie et facteurs humains
++  parent: Armée de l'Air et de l'Espace (French Air and Space Force)
++  url: https://air.defense.gouv.fr/
++focus_areas:
++  - human_factors
++  - mixed_initiative
++  - shared_situational_awareness
++  - decision_support
++domains:
++  - defense
++  - aviation
++infrastructure:
++  - Hybrid simulation and AI-based training environments of the Air Warfare Center (Mont-de-Marsan air base)
++project_ids:
++  - flextech-chair
++framework_ids:
++  - human-systems-integration
++commons_ids: []
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Jérôme Ranc
++    role: Head of the CEAM ergonomics and human factors unit; partner of the FlexTech chair
++    url: https://fondation.estia.fr/index.php/actualites/recherche-et-transfert-de-technologies/161-partenariat-avec-l-armee-de-l-air-dans-le-cadre-de-la-chaire-flextech
++links:
++  homepage: https://air.defense.gouv.fr/
++  papers: []
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '2015'
++  end:
++  milestones:
++    - date: '2015'
++      label: CEAM becomes the Air Warfare Center of the French Air Force
++    - date: '2021'
++      label: Partnership with the FlexTech chair — two PhD projects on collaborative air combat and hybrid simulation training
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://fondation.estia.fr/index.php/actualites/recherche-et-transfert-de-technologies/161-partenariat-avec-l-armee-de-l-air-dans-le-cadre-de-la-chaire-flextech
++    and https://fr.linkedin.com/pulse/larm%C3%A9e-de-lair-partenaire-destia-et-centrale-supelec-ceam (CEAM human
++    factors cell, head Jérôme Ranc; two theses: future combat cloud and pilot / virtual-assistant interaction;
++    human-centred adaptation of hybrid simulations for training); https://air.defense.gouv.fr/actualite/premieres_rencontres_intelligence_artificielle_du_CEAM
++    (CEAM AI meetings); https://www.centralesupelec.fr/chaire-flextech (Armée de l'Air et de l'Espace as chair
++    partner); Mont-de-Marsan air base 118 — coordinates approximate; partnership year 2021 is an estimate from the
++    news item; web search 2026-09 · timeline.start (medium): CEAM constituted as Air Warfare Center in 2015; the
++    ergonomics cell's own creation date is an estimate
++  confidence: medium
++description: |
++  The Centre d'expertise aérienne militaire (CEAM), the French Air and Space Force's Air
++  Warfare Center at Mont-de-Marsan, runs an ergonomics and human factors unit that tests
++  and specifies how aircrews will work with increasingly autonomous systems. Through the
++  FlexTech chair it sponsored two doctoral projects: one on the future combat cloud and the
++  interaction between pilots and virtual assistants, the other on the human-centred
++  adaptation of hybrid (live, virtual, constructive) simulations enriched with AI for Air
++  Force training. The centre also hosts "AI meetings" and engineering students working on
++  AI for military aeronautics.
++
++  On this map it is the operational end-user of Guy André Boy's HSI framework in defence:
++  collaborative air combat where a human pilot remains in command of AI-assisted functions,
++  designed and evaluated with human-in-the-loop simulation. The entry is kept at medium
++  confidence — the unit's own creation date and the theses' titles were not published in
++  full.
+diff --git a/data/teams/centralesupelec-lgi.yml b/data/teams/centralesupelec-lgi.yml
+new file mode 100644
+index 0000000..661832a
+--- /dev/null
++++ b/data/teams/centralesupelec-lgi.yml
+@@ -0,0 +1,85 @@
++id: centralesupelec-lgi
++name: CentraleSupélec — Laboratoire Génie Industriel (LGI), host of the FlexTech chair
++type: research_lab
++status: active
++tier: core
++location:
++  country: FR
++  city: Gif-sur-Yvette
++  lat: 48.7095
++  lon: 2.164
++  campus_id: plateau-de-saclay
++affiliation:
++  org: Laboratoire Génie Industriel (LGI, EA 2606), CentraleSupélec
++  parent: Université Paris-Saclay
++  url: https://www.centralesupelec.fr/fr/laboratoire-genie-industriel-lgi-ea-2606
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - decision_support
++  - digital_twins
++domains:
++  - critical_infrastructure
++  - energy
++  - aviation
++  - defense
++infrastructure: []
++project_ids:
++  - flextech-chair
++framework_ids:
++  - human-systems-integration
++commons_ids:
++  - incose-hsi-community
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Bernard Yannou
++    role: Professor, director of LGI (since 2015); co-lead of the FlexTech chair
++    url: https://www.centralesupelec.fr/recherche-portrait-de-bernard-yannou-directeur-du-laboratoire-de-genie-industriel
++  - name: Guy André Boy
++    role: FlexTech chair holder and professor, 2019–2024
++    url: https://www.flextechchair.org/guy-andre-boy.html
++  - name: Marija Jankovic
++    role: Professor, design engineering; co-director of the FlexTech chair's PhD theses
++    url: http://www.lgi.centralesupelec.fr/
++links:
++  homepage: http://www.lgi.centralesupelec.fr/
++  papers:
++    - https://doi.org/10.1080/09544828.2024.2336838
++    - https://doi.org/10.1002/sys.21751
++  twitter:
++  linkedin:
++funding:
++  - source: FlexTech chair (CS Group, TotalEnergies, Safran Helicopter Engines, Thales, Ingenuity i/o, Armée de l'Air et de l'Espace)
++    project: Human systems integration of increasingly autonomous systems, 2019–2024
++    grant:
++timeline:
++  start: '1998'
++  end:
++  milestones:
++    - date: 2019-09
++      label: FlexTech chair launched with ESTIA; inaugural lecture at CentraleSupélec on 18 September 2019
++    - date: 2022-09
++      label: First FlexTech PhD defended at Université Paris-Saclay (Reality Anchor digital twin, CIFRE TotalEnergies)
++    - date: 2025-07
++      label: FlexTech PhD on contextual information in design models of sociotechnical systems defended (Université Paris-Saclay)
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'https://www.centralesupelec.fr/fr/laboratoire-genie-industriel-lgi-ea-2606; https://rnsr.adc.education.fr/structure/199814131Y (RNSR id, created 1998); https://www.centralesupelec.fr/recherche-portrait-de-bernard-yannou-directeur-du-laboratoire-de-genie-industriel; http://www.lgi.centralesupelec.fr/en/node/286 (CHAIRE FlexTech page); https://www.centralesupelec.fr/lancement-de-la-chaire-flextech (chair co-led with Bernard Yannou, inaugural lecture 18 Sept 2019); https://www.estia.fr/les-actualites/soutenance-de-these-alexandre-disdier/ (defence 9 July 2025); 3 rue Joliot-Curie, Gif-sur-Yvette — coordinates approximate; web search 2026-09 · timeline.start (medium): LGI created 1998 (RNSR 199814131Y)'
++  confidence: medium
++description: |
++  The Laboratoire Génie Industriel of CentraleSupélec, on the Paris-Saclay campus, works
++  on models, methods and tools for the whole life cycle of sociotechnical systems —
++  design engineering, decision support for product-service systems, safety and risk,
++  sustainable economy. From 2019 to 2024 it hosted, with ESTIA, the FlexTech chair on
++  human systems integration of increasingly autonomous systems, held by Guy André Boy and
++  co-led by the laboratory's director Bernard Yannou: the chair's PhD students were
++  registered at Université Paris-Saclay in industrial engineering, and Boy's papers of
++  the period carry the LGI affiliation.
++
++  For the map it is the Île-de-France anchor of the HSI community: the place where the
++  PRODEC method, the Reality Anchor digital-twin methodology and the human-in-the-loop
++  simulation approach were supervised, and where the HSI module of the Paris-Saclay
++  master in system science and design was built.
+diff --git a/data/teams/ensc-bordeaux.yml b/data/teams/ensc-bordeaux.yml
+new file mode 100644
+index 0000000..6a7bbb9
+--- /dev/null
++++ b/data/teams/ensc-bordeaux.yml
+@@ -0,0 +1,79 @@
++id: ensc-bordeaux
++name: ENSC Bordeaux INP — École nationale supérieure de cognitique (HEAL lab with Thales)
++type: research_lab
++status: active
++tier: core
++location:
++  country: FR
++  city: Talence
++  lat: 44.8069
++  lon: -0.5951
++  campus_id:
++affiliation:
++  org: ENSC — École nationale supérieure de cognitique
++  parent: Bordeaux INP · IMS laboratory (UMR CNRS 5218), Cognitique & Ingénierie Humaine group
++  url: https://ensc.bordeaux-inp.fr/
++focus_areas:
++  - human_factors
++  - decision_support
++  - shared_situational_awareness
++  - cobots
++domains:
++  - aviation
++  - defense
++  - manufacturing
++infrastructure:
++  - HEAL — Human Engineering for Aerospace Lab, joint laboratory with Thales (since 2009)
++project_ids:
++  - haiku
++framework_ids:
++  - cognitive-function-analysis
++commons_ids: []
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Jean-Marc André
++    role: Professor, research director of ENSC; co-lead of the HEAL joint lab with Thales
++    url: https://ensc.bordeaux-inp.fr/fr/organisation-de-l-ensc
++  - name: Jean-Marc Salotti
++    role: Professor (AI, robotics, human factors of cobotic systems); IMS laboratory
++    url: https://www.ims-bordeaux.fr/fr/annuaire/5179-salotti-jean-marc
++links:
++  homepage: https://ensc.bordeaux-inp.fr/
++  papers: []
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '2003'
++  end:
++  milestones:
++    - date: 2003-08
++      label: Institut de cognitique (IdC) created by ministerial decree of 20 August 2003, founded by Bernard Claverie with Guy André Boy
++    - date: '2009'
++      label: Joins Bordeaux INP and becomes ENSC; HEAL joint lab created with Thales Avionics and Thales Systèmes Aéroportés
++    - date: 2022-09
++      label: Bordeaux INP partner of the Horizon Europe HAIKU project (human–AI teaming for aviation safety)
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'https://ensc.bordeaux-inp.fr/fr/historique-de-l-ensc (Institut de cognitique created by decree of 20 Aug 2003 out of IRASCA and the cognitive-sciences lab of Bernard Claverie; ENSC since 2009 within Bordeaux INP); en.wikipedia.org/wiki/Guy_André_Boy (Boy co-founder of ENSC with Claverie — medium); https://ensc.bordeaux-inp.fr/fr/l-entreprise-au-coeur-de-l-ecole-ensc (HEAL joint lab with Thales, 2009); https://ensc.bordeaux-inp.fr/fr/les-laboratoires-dadossement-de-lensc (IMS UMR 5218); CORDIS 101075332 lists Institut Polytechnique de Bordeaux as HAIKU partner — attribution to the ENSC/IMS human-factors group from web search 2026-09 (medium) · timeline.start (high): Institut de cognitique founded 2003 — ensc.bordeaux-inp.fr'
++  confidence: medium
++description: |
++  ENSC is the French engineering school of "cognitique" — applied cognitive science and
++  cognitive engineering — created in Bordeaux in 2003 as the Institut de cognitique and part
++  of Bordeaux INP since 2009. It trains engineers with a dual competence in information
++  technology and human sciences, with human factors, human/system integration and the
++  cognitive uses of technology as its core, and its research is carried by the IMS
++  laboratory (UMR CNRS 5218). Since 2009 it has run HEAL, the Human Engineering for
++  Aerospace Lab, a joint laboratory with Thales Avionics and Thales Systèmes Aéroportés
++  on crew workload, anticipation and situation awareness in cockpits.
++
++  On this map it is the Bordeaux INP partner of the Horizon Europe project HAIKU
++  (2022–2025), which built and validated six human-centred AI assistants for cockpits,
++  towers and airports, and the institutional home of the French cognitive-engineering
++  school: the Institut de cognitique was founded in 2003 by Bernard Claverie with Guy
++  André Boy, whose Ingénierie cognitive appeared the same year, and cognitive function
++  analysis is part of its teaching lineage. Jean-Marc Salotti's work on degraded situation awareness and on
++  the human factors of cobotic systems extends the same line to space and manufacturing.
+diff --git a/data/teams/estia-recherche.yml b/data/teams/estia-recherche.yml
+new file mode 100644
+index 0000000..0e623db
+--- /dev/null
++++ b/data/teams/estia-recherche.yml
+@@ -0,0 +1,117 @@
++id: estia-recherche
++name: ESTIA-Recherche — Human Systems Integration, tangible interaction & digital twins (Bidart)
++type: research_lab
++status: active
++tier: core
++location:
++  country: FR
++  city: Bidart
++  lat: 43.447
++  lon: -1.556
++  campus_id:
++affiliation:
++  org: ESTIA-Recherche (EstiaR), ESTIA Institute of Technology — Technopole Izarbel
++  parent: Université de Bordeaux, département Sciences de l'ingénierie et du numérique · Groupe ISAE · Institut Carnot ARTS
++  url: https://www.estia.fr/recherche/
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - digital_twins
++  - shared_situational_awareness
++  - mixed_initiative
++domains:
++  - energy
++  - aviation
++  - defense
++  - manufacturing
++  - rail
++infrastructure:
++  - Human-in-the-loop simulation and virtual-prototyping platforms of the FlexTech chair (Ingescape, Dassault Systèmes tools)
++  - Tangible-interaction lab (tangible.estia.fr)
++project_ids:
++  - flextech-chair
++  - flextech-2-chair
++framework_ids:
++  - human-systems-integration
++  - cognitive-function-analysis
++commons_ids:
++  - incose-hsi-community
++infrastructure_ids: []
++demonstrators:
++  - label: Reality Anchor methodology — a digital twin designed to support situation awareness (TotalEnergies case, J. Eng. Design 2024)
++    url: https://doi.org/10.1080/09544828.2024.2336838
++    kind: other
++    description: Three-step method — elicit reality anchors from task and activity analysis, prototype for human-in-the-loop tests, validate through situation awareness — from Camara Dit Pinto's CIFRE thesis with TotalEnergies.
++  - label: SOMA — multi-agent digital twin for helicopter-engine maintenance (INCOSE IS 2022, Safran Helicopter Engines)
++    url: https://doi.org/10.1002/iis2.12875
++    kind: other
++    description:
++contact:
++  - name: Guy André Boy
++    role: Professor Emeritus, chairman of ESTIA's scientific council; FlexTech chair holder 2019–2024, FlexTech-2 chair advisor
++    url: https://www.flextechchair.org/guy-andre-boy.html
++  - name: Nadine Couture
++    role: Professor, tangible interaction; former director of ESTIA-Recherche
++    url: https://tangible.estia.fr/
++  - name: Dimitri Masson
++    role: Assistant professor, HCI and human-centred digital-twin design (FIRE framework, Systems Engineering 2026)
++    url: https://doi.org/10.1002/sys.70014
++  - name: Éric Villeneuve
++    role: Associate professor, digital twins and human systems integration (Reality Anchor, SOMA)
++    url: https://www.estia.fr/recherche/
++links:
++  homepage: https://www.estia.fr/recherche/
++  papers:
++    - https://doi.org/10.1080/09544828.2024.2336838
++    - https://doi.org/10.1002/sys.70014
++    - https://doi.org/10.1002/iis2.12875
++    - https://doi.org/10.3233/WOR-220268
++  twitter:
++  linkedin:
++funding:
++  - source: FlexTech chair industrial partners (TotalEnergies, Safran Helicopter Engines, CS Group, Thales, Ingenuity i/o, Armée de l'Air et de l'Espace)
++    project: CIFRE theses and research programme 2019–2024
++    grant:
++  - source: FlexTech-2 chair (with IRIT; SNCF, Ingenuity i/o)
++    project: 2025–2030 continuation led by ESTIA
++    grant:
++timeline:
++  start: '1996'
++  end:
++  milestones:
++    - date: '1985'
++      label: Institute founded in Bidart by the CCI Bayonne Pays Basque; becomes ESTIA in 1996
++    - date: 2019-09
++      label: FlexTech chair inaugurated at ESTIA (10 Sept) and HSI2019, first INCOSE HSI conference, hosted in Biarritz (11–13 Sept)
++    - date: 2022-09
++      label: First FlexTech thesis defended (Reality Anchor digital twin, with TotalEnergies)
++    - date: 2024-05
++      label: FlexTech international spring school on human–AI teaming, Biarritz (Endsley, Grote, Palanque, Streitz, Valès)
++    - date: 2025-02
++      label: Closing lecture of the FlexTech chair; ESTIA leads FlexTech-2 with IRIT
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'https://sin.u-bordeaux.fr/les-unites-de-recherche/estia-recherche (EstiaR unit of the Université de Bordeaux SIN department); https://www.estia.fr/recherche/flextech/ (about twenty researchers at ESTIA and CentraleSupélec; theses with TotalEnergies, Safran, CS Group, SNCF); https://www.estia.fr/les-actualites/lecon-de-synthese-de-la-chaire-flextech/ (chair ended 2024, lecture 12 Feb 2025, FlexTech-2 with IRIT, SNCF, Ingenuity); https://www.technopolepaysbasque.fr/en/all-news/article/the-hsi-2019-conference-arrives-in-the-basque-country.html (HSI2019, 11–13 Sept 2019, Biarritz); https://www.estia.fr/campus-estia/localisation/ (Technopole Izarbel, 97 allée Théodore Monod, Bidart — coordinates approximate); Reality Anchor: https://doi.org/10.1080/09544828.2024.2336838; FIRE: https://doi.org/10.1002/sys.70014; SOMA: https://doi.org/10.1002/iis2.12875; fr.wikipedia.org (institute founded 1985, ESTIA since 1996); web search 2026-09 · timeline.start (medium): ESTIA created 1996 (institute founded 1985); the research unit''s own creation year is not published (RNSR 201420655V)'
++  confidence: medium
++description: |
++  ESTIA-Recherche is the research unit of ESTIA, the engineering school of the Basque
++  Country technopole at Bidart, attached to the Université de Bordeaux and a member of
++  Groupe ISAE. Its positioning — durable and empowering interfaces for human–human,
++  human–system and system–system interaction — made it the natural European home of Guy
++  André Boy's human systems integration work when the FlexTech chair was created with
++  CentraleSupélec in 2019: about twenty researchers across the two sites, CIFRE theses with
++  TotalEnergies (a digital twin designed to support situation awareness in remote
++  operations, the Reality Anchor methodology), Safran Helicopter Engines (SOMA, a
++  multi-agent digital twin for engine maintenance), CS Group, the French Air and Space
++  Force (collaborative air combat, virtual assistants) and SNCF, and the PRODEC
++  scenario-based design method.
++
++  The unit also carries the tangible-interaction group (Nadine Couture) and Dimitri
++  Masson's human-centred framework for digital-twin design, so that "tangibility" — a
++  virtual model becoming physically and cognitively graspable by operators — is worked
++  on as a design property rather than a metaphor. ESTIA hosted HSI2019, the first INCOSE
++  international conference on human systems integration, in Biarritz, and the 2024
++  spring school on human–AI teaming; since 2025 it leads the FlexTech-2 chair with IRIT
++  in Toulouse.
+diff --git a/data/teams/eth-wop-grote.yml b/data/teams/eth-wop-grote.yml
+new file mode 100644
+index 0000000..d74faa0
+--- /dev/null
++++ b/data/teams/eth-wop-grote.yml
+@@ -0,0 +1,85 @@
++id: eth-wop-grote
++name: ETH Zurich — Work and Organizational Psychology (Gudela Grote)
++type: research_lab
++status: active
++tier: core
++location:
++  country: CH
++  city: Zurich
++  lat: 47.3795
++  lon: 8.547
++  campus_id:
++affiliation:
++  org: Chair of Work and Organizational Psychology, Department of Management, Technology and Economics (D-MTEC)
++  parent: ETH Zurich
++  url: https://wop.ethz.ch/
++focus_areas:
++  - human_factors
++  - oversight
++  - mixed_initiative
++  - trust_calibration
++domains:
++  - aviation
++  - rail
++  - critical_infrastructure
++infrastructure: []
++project_ids: []
++framework_ids:
++  - human-systems-integration
++commons_ids:
++  - incose-hsi-community
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Gudela Grote
++    role: Professor of Work and Organizational Psychology (since 2000); co-author with Boy on authority in human–machine collaborative systems
++    url: https://wop.ethz.ch/people/person-detail.html?persid=78276
++links:
++  homepage: https://wop.ethz.ch/
++  papers:
++    - https://doi.org/10.1007/s10111-016-0373-3
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '2000'
++  end:
++  milestones:
++    - date: '2009'
++      label: Boy & Grote, "Authority in increasingly complex human and machine collaborative systems — application to the air traffic management evolution" (IEA World Congress, Beijing)
++    - date: '2011'
++      label: Boy & Grote, "The authority issue in organizational automation", in the Handbook of Human-Machine Interaction (Ashgate)
++    - date: '2016'
++      label: Field study of uncertainty management in en-route air-traffic control and requirements for automation (Cognition, Technology & Work)
++    - date: 2024-05
++      label: Instructor at the FlexTech international spring school on human–AI teaming (Biarritz)
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://wop.ethz.ch/people/person-detail.html?persid=78276 (full professor since 2000, PhD Georgia Tech 1987);
++    https://mtec.ethz.ch/research/areas/organisations/wop.html (uncertainty management, teamwork and
++    standardisation in high-risk systems, effects of AI on work); https://doi.org/10.1007/s10111-016-0373-3
++    (ATC uncertainty study, citing Boy & Grote 2009 and 2011); Boy (ed.) Handbook of Human-Machine Interaction,
++    Ashgate 2011 (chapter "The authority issue in organizational automation");
++    https://www.flextechchair.org/FTSpringSchool2024/index.html (spring school instructors); ETH-hosted HSI2019
++    flyer (ethz.ch/.../Flyer_HSI2019); Weinbergstrasse campus, coordinates approximate; web search 2026-09 ·
++    timeline.start (high): Grote full professor of Work and Organizational Psychology at ETH Zurich since 2000
++  confidence: medium
++description: |
++  Gudela Grote's chair of Work and Organizational Psychology at ETH Zurich studies how
++  organisations and teams in high-risk systems manage uncertainty, how standardisation and
++  flexibility trade off, and — increasingly — how AI reshapes work processes and
++  accountability. Its empirical ground is railway operations (Swiss Federal Railways),
++  air-traffic control and healthcare, with field studies feeding automation requirements:
++  the 2016 study of en-route controllers showed that automation must support rather than
++  remove the controllers' own strategies for handling uncertainty.
++
++  The chair is the Swiss anchor of Guy André Boy's network: Boy and Grote co-authored the
++  work on authority in increasingly complex human–machine collaborative systems, applied to
++  the evolution of air-traffic management (IEA 2009) and the "authority issue in
++  organizational automation" chapter of Boy's 2011 handbook, ETH hosted the announcement
++  of the first INCOSE HSI conference, and Grote taught at the FlexTech spring school on
++  human–AI teaming in 2024. On this map it represents the organisational side of human
++  systems integration — who holds authority when a system becomes more autonomous.
+diff --git a/data/teams/eurisco.yml b/data/teams/eurisco.yml
+new file mode 100644
+index 0000000..98eda86
+--- /dev/null
++++ b/data/teams/eurisco.yml
+@@ -0,0 +1,89 @@
++id: eurisco
++name: EURISCO — European Institute of Cognitive Sciences and Engineering (1992–2008)
++type: industrial_rd
++status: concluded
++tier: core
++location:
++  country: FR
++  city: Toulouse
++  lat: 43.5657
++  lon: 1.4757
++  campus_id:
++affiliation:
++  org: EURISCO — Institut européen de sciences et d'ingénierie cognitives
++  parent: Research institute of Airbus and Thales (Aérospatiale / Airbus Industrie and Thomson-CSF at founding)
++  url: https://www.flextechchair.org/guy-andre-boy.html
++focus_areas:
++  - human_factors
++  - human_computer_partnerships
++  - mixed_initiative
++  - decision_support
++domains:
++  - aviation
++  - critical_infrastructure
++infrastructure: []
++project_ids: []
++framework_ids:
++  - cognitive-function-analysis
++commons_ids:
++  - hci-aero
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Guy André Boy
++    role: Founder and chief executive (1992–2008); also professor at Université Toulouse II
++    url: https://www.flextechchair.org/guy-andre-boy.html
++  - name: Jean Pinet
++    role: Co-founder; Aérospatiale test pilot and former director of Aéroformation; president of EURISCO 1993–2001
++    url: https://academieairespace.com/utilisateurs/jean-pinet/?lang=en
++links:
++  homepage: https://www.flextechchair.org/guy-andre-boy.html
++  papers:
++    - https://doi.org/10.1016/j.arcontrol.2014.03.001
++  twitter:
++  linkedin:
++funding:
++  - source: Airbus
++    project: Founding and operating partner
++    grant:
++  - source: Thales (Thomson-CSF)
++    project: Founding and operating partner
++    grant:
++timeline:
++  start: '1992'
++  end: '2008'
++  milestones:
++    - date: '1992'
++      label: EURISCO founded in Toulouse by Guy André Boy and test pilot Jean Pinet as the cognitive-engineering institute of Airbus and Thomson-CSF/Thales
++    - date: '1998'
++      label: HCI-Aero series renamed and run with ACM SIGCHI; HCI-Aero 2000 held in Toulouse
++    - date: '1998'
++      label: Cognitive Function Analysis published from the institute's cockpit and automation studies
++    - date: '2008'
++      label: Institute closed; the team's line of work continues at Florida Tech (HCDi) and, from 2019, at the FlexTech chair
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'Web search 2026-09: Boy was President & CEO of EURISCO, research institute of Airbus and Thales, 1992–2008 (sciprofiles.com/profile/4755278; en.wikipedia.org/wiki/Guy_André_Boy; flextechchair.org/guy-andre-boy.html); institute address 4 avenue Édouard-Belin, Toulouse (Boy''s EURISCO-era papers, e.g. CHI 96 and HCI-Aero proceedings; fulbrightscholars.org institution record) — coordinates approximate; Jean Pinet co-founder and president 1993–2001 (concordereference.fr; academieairespace.com); Boy professor at Université Toulouse II (revel.unice.fr) · timeline.start (high): EURISCO founded 1992, closed 2008 — sciprofiles.com / flextechchair.org'
++  confidence: medium
++description: |
++  EURISCO (Institut européen de sciences et d'ingénierie cognitives) was the joint
++  cognitive-engineering research institute of Airbus and Thomson-CSF/Thales, founded in
++  Toulouse in 1992 and run until 2008 by Guy André Boy, who had come from ONERA's
++  cognitive ergonomics group and NASA Ames, with the test pilot Jean Pinet as co-founder
++  and president in the 1990s. Its multidisciplinary staff — cognitive and social
++  scientists, computer scientists, engineers, human-factors specialists — worked with a
++  network of universities and engineering schools, and the institute traded as EURISCO
++  International in its last years. It brought cognitive science into cockpit and
++  air-traffic automation design at the moment glass cockpits and fly-by-wire raised the
++  question of authority between crew and automation: cognitive function analysis,
++  situation awareness and workload in highly automated cockpits, human-centred
++  automation, procedure design and, later, authority sharing in future air-traffic
++  management. It is the industrial origin of cognitive function analysis and of the
++  Orchestra model, and it ran the HCI-Aero conference series with ACM SIGCHI.
++
++  The institute closed in 2008; its line of work moved with Boy to the Human-Centered
++  Design Institute at Florida Tech and returned to Europe with the FlexTech chair in
++  2019. It is kept on the map as a concluded entry so that the period filter shows where
++  the French cognitive-engineering community of the 1990s and 2000s was anchored.
+diff --git a/data/teams/ingenuity-io.yml b/data/teams/ingenuity-io.yml
+new file mode 100644
+index 0000000..863d9c8
+--- /dev/null
++++ b/data/teams/ingenuity-io.yml
+@@ -0,0 +1,77 @@
++id: ingenuity-io
++name: Ingenuity i/o — Ingescape platform for interactive critical systems (Toulouse)
++type: industrial_rd
++status: active
++tier: core
++location:
++  country: FR
++  city: Toulouse
++  lat: 43.572
++  lon: 1.485
++  campus_id:
++affiliation:
++  org: Ingenuity i/o SAS
++  parent:
++  url: https://ingescape.com/
++focus_areas:
++  - human_computer_partnerships
++  - human_factors
++  - shared_situational_awareness
++domains:
++  - aviation
++  - defense
++  - rail
++  - critical_infrastructure
++infrastructure: []
++project_ids:
++  - flextech-chair
++  - flextech-2-chair
++framework_ids:
++  - human-systems-integration
++commons_ids: []
++infrastructure_ids: []
++demonstrators:
++  - label: Ingescape — model-based framework for distributed interactive systems (orchestration of displays, 2D/3D interaction devices and agents)
++    url: https://ingescape.com/we/
++    kind: other
++    description:
++contact:
++  - name: Stéphane Valès
++    role: Founder and CEO (ENAC computer science and air traffic engineer); instructor "Ingescape Circle & PRODEC" at the 2024 FlexTech spring school
++    url: https://www.flextechchair.org/FTSpringSchool2024/stephane-vales.html
++links:
++  homepage: https://ingescape.com/
++  papers: []
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '2012'
++  end:
++  milestones:
++    - date: '2012'
++      label: Company founded in Toulouse
++    - date: 2024-05
++      label: Ingescape and PRODEC taught at the FlexTech international spring school on human–AI teaming
++    - date: '2025'
++      label: Industrial member of the FlexTech-2 chair (ESTIA & IRIT)
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: 'https://www.pappers.fr/entreprise/ingenuity-i-o-789452018 (SAS created 2012, Toulouse); https://ingescape.com/we/ (Ingescape framework); https://www.flextechchair.org/FTSpringSchool2024/stephane-vales.html; https://www.flextechchair.org/GuyABoy/flextech-2.html (member of FlexTech-2); https://www.centralesupelec.fr/chaire-flextech (chair partner); address 3 avenue de l''Europe, 31400 Toulouse — coordinates approximate; web search 2026-09 · timeline.start (high): company registered 2012 — pappers.fr'
++  confidence: medium
++description: |
++  Ingenuity i/o is a Toulouse software company founded in 2012 by Stéphane Valès, an
++  ENAC-trained air-traffic and computer engineer from the French aeronautical
++  human-computer interaction community. Its product, Ingescape, is a model-based framework
++  for distributed interactive software: agents, displays, 2D/3D interaction devices and
++  simulators are described and orchestrated without a central broker, so that a control
++  position, a cockpit or a supervision room can be prototyped and re-wired quickly, and
++  the same models feed verification and human-factors evaluation.
++
++  It sits on this map because it is the tooling partner of the human systems integration
++  community: Ingescape was the platform on which the FlexTech chair ran its
++  human-in-the-loop simulations and PRODEC scenarios, it was taught at the 2024 spring
++  school on human–AI teaming, and the company is a founding industrial member of the
++  FlexTech-2 chair led by ESTIA and IRIT.
+diff --git a/data/teams/lamih-uphf.yml b/data/teams/lamih-uphf.yml
+new file mode 100644
+index 0000000..c6a990f
+--- /dev/null
++++ b/data/teams/lamih-uphf.yml
+@@ -0,0 +1,100 @@
++id: lamih-uphf
++name: LAMIH (UMR CNRS 8201) — human–machine cooperation, Université Polytechnique Hauts-de-France
++type: research_lab
++status: active
++tier: core
++location:
++  country: FR
++  city: Valenciennes
++  lat: 50.3245
++  lon: 3.5125
++  campus_id:
++affiliation:
++  org: LAMIH — Laboratoire d'Automatique, de Mécanique et d'Informatique industrielles et Humaines (UMR CNRS 8201)
++  parent: Université Polytechnique Hauts-de-France / CNRS
++  url: https://www.uphf.fr/lamih
++focus_areas:
++  - human_computer_partnerships
++  - mixed_initiative
++  - human_factors
++  - shared_situational_awareness
++  - oversight
++domains:
++  - rail
++  - transport
++  - manufacturing
++  - critical_infrastructure
++infrastructure:
++  - Driving and supervision simulators (rail, road) for human-in-the-loop cooperation experiments
++project_ids: []
++framework_ids:
++  - cognitive-function-analysis
++commons_ids: []
++infrastructure_ids: []
++demonstrators: []
++contact:
++  - name: Marie-Pierre Pacaux-Lemoine
++    role: Associate professor (HDR), human–machine cooperation, remote train driving, human–robot teaming
++    url: https://www.uphf.fr/en/lamih/membres/pacaux-lemoine_marie-pierre
++  - name: Frédéric Vanderhaegen
++    role: Professor, human–machine systems, dissonance and resilience, IFAC human-machine systems community
++    url: https://www.uphf.fr/en/lamih/membres/vanderhaegen_frederic
++  - name: Patrick Millot
++    role: Professor emeritus; head of the Human–Machine Systems group 1987–2004, director of LAMIH 1996–2005
++    url: https://www.uphf.fr/lamih/es/membres/millot_patrick
++links:
++  homepage: https://www.uphf.fr/lamih
++  papers:
++    - https://doi.org/10.3233/WOR-2012-0033-4552
++    - https://www.researchgate.net/publication/343994517_Train_remote_driving_A_Human-Machine_Cooperation_point_of_view
++    - https://doi.org/10.1145/3624323.3624330
++  twitter:
++  linkedin:
++funding: []
++timeline:
++  start: '1987'
++  end:
++  milestones:
++    - date: '1987'
++      label: Human–Machine Systems group created under Patrick Millot (Valenciennes)
++    - date: '2003'
++      label: Millot's chapter on supervision and human–machine cooperation in Boy (ed.), Ingénierie cognitive (Hermès)
++    - date: '2012'
++      label: 'Millot & Boy, "Human-machine cooperation: a solution for life-critical systems?" (Work)'
++    - date: '2015'
++      label: LAMIH UMR CNRS 8201 in its current form after the merger with the TEMPO laboratory
++    - date: '2020'
++      label: Train remote driving studied as a human–machine cooperation problem (IEEE ICHMS)
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://www.uphf.fr/lamih and https://www.uphf.fr/en/lamih/shift (multidisciplinary lab, human-machine
++    cooperation for transport and manufacturing); https://www.uphf.fr/lamih/es/membres/millot_patrick (Millot:
++    HMS group head 1987-2004, LAMIH director 1996-2005); https://doi.org/10.3233/WOR-2012-0033-4552 (Millot &
++    Boy 2012); https://hal.science/tel-01300869/document (Millot chapter in Boy (ed.) 2003);
++    https://www.uphf.fr/en/lamih/membres/pacaux-lemoine_marie-pierre; IEEE ICHMS 2020 remote train driving;
++    AAMAS 2024 human-robot teaming (https://doi.org/10.1145/3624323.3624330); RNSR 201220427F (2015 merger);
++    campus Mont Houy, coordinates approximate; web search 2026-09 · timeline.start (medium): Human-Machine
++    Systems group headed by Millot from 1987 (uphf.fr); the laboratory in its current UMR form dates from 2015
++  confidence: medium
++description: |
++  LAMIH is the multidisciplinary laboratory of the Université Polytechnique Hauts-de-France
++  in Valenciennes — automatic control, mechanics, computer science and human sciences —
++  and the historical home of the French school of human–machine cooperation. Patrick
++  Millot's Human–Machine Systems group, created in 1987, formalised cooperation between a
++  human operator and an automated assistant as a problem of shared supervision, task
++  allocation and common work space, with applications to air-traffic control, road traffic
++  and metro or train supervision; Frédéric Vanderhaegen extended it to dissonance,
++  resilience and human reliability, and the group has long been a pillar of the IFAC
++  human–machine systems community.
++
++  Its link with Guy André Boy is a shared cognitive-engineering lineage rather than a
++  common institution: Millot wrote the supervision and cooperation chapter of Boy's
++  Ingénierie cognitive (2003) and co-authored with him "Human-machine cooperation: a
++  solution for life-critical systems?" (Work, 2012). Current work by Marie-Pierre
++  Pacaux-Lemoine and colleagues moves the same questions to remote and autonomous train
++  driving, human–robot teaming and human–cyber-physical-system cooperation in
++  manufacturing — operator-in-the-loop decision-making in rail and industry, the core of
++  this map.
+diff --git a/data/teams/safran-helicopter-engines.yml b/data/teams/safran-helicopter-engines.yml
+new file mode 100644
+index 0000000..e31d073
+--- /dev/null
++++ b/data/teams/safran-helicopter-engines.yml
+@@ -0,0 +1,89 @@
++id: safran-helicopter-engines
++name: Safran Helicopter Engines — digital twin for collaborative maintenance decisions (Bordes)
++type: industrial_rd
++status: active
++tier: core
++location:
++  country: FR
++  city: Bordes
++  lat: 43.259
++  lon: -0.283
++  campus_id:
++affiliation:
++  org: Safran Helicopter Engines — Bordes site (headquarters, production and R&D)
++  parent: Safran
++  url: https://www.safran-group.com/companies/safran-helicopter-engines
++focus_areas:
++  - decision_support
++  - digital_twins
++  - human_computer_partnerships
++  - mixed_initiative
++domains:
++  - aviation
++  - manufacturing
++infrastructure:
++  - SOMA prototype — multi-agent, self-learning digital twin for prescriptive helicopter-engine maintenance, tested with Bordes maintenance staff
++project_ids:
++  - flextech-chair
++framework_ids:
++  - human-systems-integration
++commons_ids: []
++infrastructure_ids: []
++demonstrators:
++  - label: SOMA — a multi-agent digital twin supporting collaborative decision-making in helicopter-engine maintenance
++    url: https://doi.org/10.1002/iis2.12875
++    kind: other
++    description: CIFRE thesis of Quentin Lorente (ESTIA / FlexTech chair) with Safran Helicopter Engines; stigmergic coordination between human and artificial agents for prescriptive maintenance.
++contact: []
++links:
++  homepage: https://www.safran-group.com/companies/safran-helicopter-engines
++  papers:
++    - https://doi.org/10.1002/iis2.12875
++    - https://doi.org/10.1007/978-3-032-18786-4_18
++    - https://hal.science/hal-04838137
++  twitter:
++  linkedin:
++funding:
++  - source: ANRT CIFRE with the FlexTech chair (ESTIA / CentraleSupélec)
++    project: Design of a human-centred digital twin for helicopter-engine maintenance (SOMA)
++    grant:
++timeline:
++  start: '2010'
++  end:
++  milestones:
++    - date: '2010'
++      label: Factory-of-the-future programme launched at the Bordes plant
++    - date: '2022'
++      label: SOMA digital twin for collaborative decision-making presented at the INCOSE International Symposium
++    - date: '2025'
++      label: SOMA published as a Springer chapter; thesis defended at ESTIA
++provenance:
++  added_by: review-2026-09-boy
++  added_on: '2026-09-13'
++  last_updated: '2026-09-13'
++  source: >-
++    https://www.safran-group.com/locations/france/safran-helicopter-engines-2077659 (Bordes headquarters and main
++    site); https://www.safran-group.com/news/manufacturing-40-transforming-our-factories-2021-11-16 (factory of the
++    future from 2010); https://doi.org/10.1002/iis2.12875 (Lorente et al., INCOSE IS 2022); https://hal.science/hal-04838137
++    and https://link.springer.com/chapter/10.1007/978-3-032-18786-4_18 (SOMA, with F. Thermy, E. Villeneuve, C. Merlo,
++    G.A. Boy; CIFRE with the FlexTech chair); https://www.estia.fr/agenda/soutenance-de-these-quentin-lorente/;
++    https://www.centralesupelec.fr/chaire-flextech (chair partner); avenue Joseph Szydlowski, Bordes — coordinates
++    approximate; web search 2026-09 · timeline.start (medium): factory-of-the-future programme at Bordes from 2010;
++    the site itself is much older (Turbomeca, 1938)
++  confidence: medium
++description: |
++  Safran Helicopter Engines, headquartered at Bordes near Pau, is the world's leading
++  helicopter-engine maker and runs its main production and R&D site there, transformed since
++  2010 under a "factory of the future" programme. Its place on this map comes from a
++  human systems integration project run with the FlexTech chair: SOMA, a multi-agent,
++  self-learning digital twin designed to support collaborative decision-making in
++  helicopter-engine maintenance. Rather than an automated prescriptive-maintenance engine,
++  SOMA coordinates human and artificial agents through stigmergy — each leaves traces the
++  others use — so that maintenance professionals keep the decision while the twin
++  accumulates and redistributes the knowledge.
++
++  The work was a CIFRE thesis at ESTIA supervised within the chair (INCOSE International
++  Symposium 2022, Springer 2025), prototyped and tested with the Bordes maintenance teams;
++  Safran Helicopter Engines is also a historic partner of the ESTIA foundation. It
++  illustrates HSI applied to industrial maintenance: a digital twin built as a partner in
++  a decision, with tangibility and function allocation designed in from the start.
+-- 
+2.43.0
+
