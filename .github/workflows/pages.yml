@@ -1,8 +1,8 @@
 name: Publish site
 
-# The Projects section is OFF by default. To publish a build that includes it,
+# The Projects section is ON by default. To publish a build that leaves it out,
 # run this workflow manually from the Actions tab and set `include_projects` to
-# true — nothing else changes.
+# false — nothing else changes.
 on:
   push:
     branches: [main]
@@ -11,7 +11,7 @@ on:
       include_projects:
         description: "Publish the Projects tab and its pages"
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -39,12 +39,12 @@ jobs:
       - name: Resolve the config chain
         id: cfg
         run: |
-          if [ "${{ inputs.include_projects }}" = "true" ]; then
-            echo "files=_config.yml,_config.with-projects.yml" >> "$GITHUB_OUTPUT"
-            echo "Building WITH the Projects section."
+          if [ "${{ inputs.include_projects }}" = "false" ]; then
+            echo "files=_config.yml,_config.without-projects.yml" >> "$GITHUB_OUTPUT"
+            echo "Building WITHOUT the Projects section."
           else
             echo "files=_config.yml" >> "$GITHUB_OUTPUT"
-            echo "Building WITHOUT the Projects section (default)."
+            echo "Building WITH the Projects section (default)."
           fi
 
       - name: Build
@@ -55,7 +55,7 @@ jobs:
       - name: Check the Projects section matches the requested mode
         run: |
           want="${{ inputs.include_projects }}"
-          [ "$want" = "true" ] || want=false
+          [ "$want" = "false" ] || want=true
           if [ -e _site/projects/index.html ]; then built=true; else built=false; fi
           echo "requested=$want built=$built"
           if [ "$want" != "$built" ]; then

@@ -24,12 +24,13 @@ lang: en
 # ---------------------------------------------------------------------------
 # Interrupteurs de fonctionnalités.
 # Un `feature:` posé sur une entrée de nav ou une carte d'accueil la masque tant
-# que le drapeau correspondant est faux. Pour publier AVEC les projets :
-#   jekyll build --config _config.yml,_config.with-projects.yml
-# ou, dans l'action GitHub Pages, lancer le workflow avec include_projects=true.
+# que le drapeau correspondant est faux. Les projets sont publiés par défaut.
+# Pour publier SANS eux :
+#   jekyll build --config _config.yml,_config.without-projects.yml
+# ou, dans l'action GitHub Pages, lancer le workflow avec include_projects=false.
 # ---------------------------------------------------------------------------
 features:
-  projects: false
+  projects: true
 
 # Navigation principale — l'ordre ici est l'ordre affiché.
 nav:
@@ -73,6 +74,3 @@ exclude:
   - Gemfile.lock
   - README.md
   - vendor
-  # Réactivés par _config.with-projects.yml, qui redéclare cette liste sans eux.
-  - projects
-  - assets/img/projects
