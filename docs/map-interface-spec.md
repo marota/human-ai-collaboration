@@ -293,7 +293,7 @@ fires no such event: the map kept the scale and offset of the old rectangle, and
 the counters kept measuring against it. `stageResized()` — called right after
 those class changes, where reading the new size forces the layout — keeps the
 reader's zoom and the same geography centred, re-derives `k0`, and lets
-`applyView()` bring the counts back in step (§9.1).
+`applyView()` bring the counts back in step (§9.2).
 
 **Every floating cluster carries its own width bound, not just an edge
 offset.** `.ctl-tr`, `.ctl-br` and `.ctl-bl` are all `position:absolute` with
@@ -332,9 +332,12 @@ added to the cluster shares the cluster's.
 
 ## 6. Filtering
 
-There is exactly one visibility predicate, `visibleSet()`, and it returns two
-sets: `vis` (rendered) and `dimmed` (rendered faintly). Everything else reads
-from it. Four independent axes combine with AND:
+There is exactly one filter predicate, `matchesFilters(it, skip)`, and exactly
+one visibility function, `visibleSet()`, built on it. `visibleSet()` returns
+three sets: `vis` (rendered), `dimmed` (rendered faintly) and `matched` (what
+the filters actually select, recorded before the focus override below). Every
+counter in the interface reads one of the three. Four independent axes combine
+with AND:
 
 1. **Layer** — four toggles.
 2. **Domain** — 17 checkboxes. An entity survives if *any* of its domains is
@@ -353,6 +356,27 @@ filter while reading.
 Aviation & ATM, Health, Human factors & XAI, Simulation & infrastructure). They
 reset the layers, the period and My map, so a preset is a clean slate rather
 than a modifier on the current state.
+
+### 6.1 A control's own count leaves its own axis out
+
+`matchesFilters(it, skip)` takes an axis to ignore, and `scopeItems(skip)`
+returns the entities that pass every *other* axis. That parameter exists because
+a control's count has to answer "how many would this bring in", which it cannot
+do while counting itself: a layer row whose figure collapsed to zero the moment
+you switched the layer off would be useless for deciding whether to switch it
+back on. So the Commons row skips `layer`, the *unknown start* checkbox skips
+`period`, and the period histogram skips `period`.
+
+The consequence to keep in mind when adding a control: **its own toggle must not
+move its own number, and every other filter must.** Both halves are load-bearing
+— the first makes the number a stable affordance, the second is what stops it
+drifting into a corpus constant that contradicts everything around it.
+
+In **My map** mode there are no filter axes: the pins and their neighbours
+replace them. `scopeItems()` returns that set instead, so the same counters
+describe the map the reader is actually looking at rather than a corpus they
+have left behind. The layer and domain controls are inert in this mode; their
+counts describe the My map set.
 
 ---
 
@@ -407,16 +431,65 @@ The provenance footer is not decoration. The map is a curated snapshot with
 uneven certainty, and a reader deciding whether to act on an entry needs to see
 that a date is a founding record or an estimate.
 
----
+**The related-entities counts are deliberately unfiltered**, and are the one
+place in the interface where that is right. `relSections()` lists every
+neighbour and counts all of them, whatever the filters currently select, because
+a consortium has the partners it has — hiding three of seventeen would
+misdescribe the entity rather than the view. Clicking a hidden neighbour opens
+it, and the focus override (§6) keeps it visible. This is the map's traversal
+commitment (§1) winning over its filter state; it is not an instance of the
+stale-count problem in §9.1, and should not be "fixed" into a filtered count.
 
 ## 9. The feed and the counters
 
-### 9.1 Counters follow the viewport
+### 9.1 Two readings, and every number says which one it is
 
-The four counters in the left panel count **what is on screen**, not what
-matches the filters. Zooming into central Europe changes them. The number
-matching the filters is shown underneath as a caption, so both readings are
-available and neither is ambiguous.
+There are only two quantities a *live* count on this page may report, and
+mixing them is the single most reliable way to make the interface look broken:
+
+| Reading | What it counts | Where it is used |
+|---|---|---|
+| **In view** | Entities with a marker inside the stage rectangle | the four header tiles, the feed header |
+| **Matches the filters** | Entities passing the filter axes (§6), off-map ones included | the caption, the layer rows, the *unknown start* count, the Off-the-map badge |
+
+A third quantity — the **corpus total** — belongs only where the page is
+describing itself rather than the current view: the welcome panel's rows, and
+the `title` on a count that has narrowed. It must never sit unlabelled next to a
+live number.
+
+**This is the rule that was broken, and how.** The layer rows showed
+`TOTALS[k]`, a corpus constant, in a panel where every neighbouring number was
+live. At the default view the coincidence held — Commons read 25, and 25 did
+match the filters — so the row looked like a live count. Two ordinary actions
+broke the illusion. Narrowing the period left the rows at 111 / 268 / 25 / 45
+while the map emptied. And switching every layer off but Commons put
+"Commons 25" two centimetres above a tile reading 24 — which was **in view**,
+and for a *different* set again: the tiles merged commons and frameworks into
+one "Resources" figure corresponding to no layer row at all. Three numbers,
+three meanings, none of them labelled.
+
+The same slip ran through the rest of the panel: the *unknown start* count
+("37", all of them teams) and the Off-the-map badge ("11") were corpus
+constants too, the latter contradicting the feed button that scrolls to it, and
+the period histogram drew all 449 entities whatever the reader had selected.
+
+The fixes are structural rather than cosmetic:
+
+- **One tile per layer.** Projects, Teams, Commons, Frameworks. Every headline
+  figure now traces to exactly one row in the Layers section, and each tile
+  carries its own reconciliation on hover — "24 in view · 25 match the filters"
+  — so the reader never has to work out which of the caption's eleven off-map
+  entities were commons.
+- **Countries leads the caption instead of taking a fifth tile.** It is not a
+  layer and has no control, and five tiles at 312 px clip "FRAMEWORKS".
+- **Every live count is recomputed in `refresh()`**, from the same predicate.
+
+### 9.2 Counters follow the viewport
+
+The four header tiles count **what is on screen**, not what matches the filters.
+Zooming into central Europe changes them. The number matching the filters is
+shown underneath as a caption, so both readings are available and neither is
+ambiguous.
 
 `updateInView()` projects each visible entity to screen coordinates and tests it
 against the stage rectangle with a 10 px margin. It is called from `refresh()`
@@ -426,14 +499,27 @@ counts without running per frame.
 When the stage measures zero — a hidden pane, printing — every placed marker is
 counted rather than none.
 
-**The gap has two causes, and both are named.** "In view" counts markers inside
-the stage rectangle, so it falls short of "match the filters" for two quite
-different reasons: entities whose marker is simply outside the current pan and
-zoom, and entities with no coordinates at all (§3.1, point 4), which can never be
-"in view" because there is no marker to be on- or off-screen. `updateInView()`
-tallies both — `state.offScreen` and `state.offMapMatch` — and the caption names
-them, so the numbers reconcile at any zoom: "449 match the filters (54 off
-screen, 11 off the map)".
+**The gap has three causes, and all three are named.** "In view" counts markers
+inside the stage rectangle, so it falls short of "match the filters" for two
+quite different reasons: entities whose marker is simply outside the current pan
+and zoom, and entities with no coordinates at all (§3.1, point 4), which can
+never be "in view" because there is no marker to be on- or off-screen.
+`updateInView()` tallies both — `state.offScreen` and `state.offMapMatch` — and
+the caption names them, so the numbers reconcile at any zoom: "449 match the
+filters (54 off screen, 11 off the map)".
+
+The third cause runs the other way, and makes the tiles *exceed* the match
+count: the focused entity is never hidden by a filter change (invariant 6), so
+an open card can be on screen while matching nothing. `visibleSet()` records
+`matched` before adding it, `state.matchCount` counts that set — so "N match the
+filters" can no longer be contradicted by the filters themselves — and the
+surplus is named as its own term, `state.keptOpen`: "in view · 0 match the
+filters (plus the open card)". Left unnamed it reads as an off-by-one, which is
+exactly what the caption exists to prevent.
+
+**My map is not a filter state**, so the caption does not claim to be one there:
+it reads "in view · 5 on your map". The previous wording announced how many
+entities matched filters that mode had already replaced.
 
 Naming only the off-map part, as an earlier version did, reads as though it
 accounts for the whole difference — which it does at the default fit, where every
@@ -441,7 +527,7 @@ placed marker is on screen, and stops being true the moment the reader zooms in.
 A reader who then sees "434" become "380" against an unchanged "11 off the map"
 has been handed an arithmetic problem with a missing term.
 
-### 9.2 The feed
+### 9.3 The feed
 
 A column listing the entities in view, sorted by layer then name, with a count
 in the header. It exists because a map shows *where* but not *what*: at any zoom
@@ -456,7 +542,7 @@ where the markers are dense, the reader cannot read the names.
   entities remain reachable.
 
 The header count (`#fd-count`) sits right where a reader's eye lands first, so
-it repeats the reconciliation from §9.1 there too rather than trusting the
+it repeats the reconciliation from §9.2 there too rather than trusting the
 sidebar caption to be noticed: **"IN VIEW 384 + 54 off screen + 11 off the
 map"**. Each part is a button, and each has its own remedy: `#fd-offscreen`
 fits the view so the off-screen markers come in, `#fd-offmap` reveals the
@@ -464,6 +550,14 @@ sidebar and scrolls the **Off the map** section into view. Reconciling the
 numbers by reading a caption in a different corner of the page asks more of the
 reader than restating the gap next to the number that prompted the question in
 the first place.
+
+**A button that promises a number has to land on that number.** `#fd-offmap`
+says "+ 1 off the map" and scrolls to a section whose badge used to read 11 —
+the count of every off-map entity, filters ignored — with eleven rows to match.
+The badge is now `state.offMapMatch`, the same figure the button quotes. The
+entities that do not match stay listed and stay clickable, because reaching them
+is what the section is for, but they are dimmed (`.pin-item.out`): badge and
+list then agree by inspection rather than by arithmetic the reader has to do.
 
 Hiding the feed reverts to the floating detail panel with the same card. The
 choice persists.
@@ -478,6 +572,15 @@ the DOM write, so panning across unchanged content costs nothing.
 A two-handle slider from **1945 to the data's own freshness date** with a
 per-year histogram of how many dated entities were running that year — the
 growth curve of the field, read directly.
+
+**The histogram is drawn from the filtered set, not the corpus** (§6.1): it
+skips the period axis, which it is the control for, and follows layer and domain
+like everything else. It is the backdrop the reader sizes the handles against,
+so drawing all 449 entities while they have narrowed to Commons would have them
+selecting from a population that is not on the map. Bars are normalised to the
+*filtered* peak rather than a fixed corpus peak — a 25-entity layer would
+otherwise draw a flat line one pixel high, and it is the curve's shape that is
+being read, not its height against other filter states.
 
 **Semantics.** A dated entity is kept when its span overlaps the selection. No
 recorded end means "still running", so it stays visible for any range reaching
@@ -534,6 +637,12 @@ between them the filter is tri-state rather than binary.
 with no year at all has no lower bound, so it stays `soft` however far back the
 range goes. The *unknown start* checkbox removes the whole set for a reader who
 wants only established dates.
+
+**Its count is the set it actually governs**, computed across every axis but the
+period (§6.1). All 37 undated entities are teams, so a reader filtered to
+Commons needs to see 0 there, not 37 — a figure that would name a set the
+checkbox beside it cannot change. Zero is also a useful signal in its own right:
+the switch has nothing to do in the current view.
 
 ### 10.2 What counts as an unknown start
 
@@ -709,8 +818,18 @@ A change that breaks one of these is a regression even if nothing throws.
     grow past `#stage`'s visible area — each carries an explicit width bound
     rather than relying on its content staying small (§5).
 12. The counters reconcile at every zoom level: in view + off screen + off the
-    map equals the number matching the filters. A gap the reader can see must
-    be a gap the interface names (§9.1).
+    map equals the number matching the filters, plus the open card when the
+    filters exclude it. A gap the reader can see must be a gap the interface
+    names (§9.2).
+13. **No count is a corpus constant unless it is labelled as one.** Every figure
+    the interface shows next to a live one is recomputed in `refresh()` from
+    `matchesFilters()` — header tiles, layer rows, the *unknown start* count,
+    the Off-the-map badge, the period histogram. The corpus totals survive in
+    exactly two places: the welcome panel, which describes the map rather than
+    the view, and the `title` of a count that has narrowed (§6.1, §9.1).
+14. **Every headline figure traces to one control.** A tile that aggregates two
+    layers has no row a reader can check it against, which is how "Commons 25"
+    and "Resources 24" came to sit two centimetres apart (§9.1).
 
 ---
 
@@ -734,4 +853,14 @@ appears in the panel and the feed at once.
 
 **A new layer** is the expensive one: `KINDS`, `TOTALS`, `MK_R`, the draw order,
 `shapeSvg()`, `relSections()`, the legend, the welcome rows and the generator
-all enumerate the four current layers.
+all enumerate the four current layers. It also needs a header tile — one per
+layer, no aggregates (invariant 14) — whose `<strong>` id is `st-<kind>`, since
+`renderStats()` and `updateLayerCounts()` address the tiles by kind rather than
+by a hand-written list. Five tiles do not fit the 312 px sidebar at a legible
+label size, so a fifth layer means rethinking that row, not squeezing it.
+
+**A new counter or filter control.** Two rules, both in §6.1 and §9.1: compute
+it from `matchesFilters()` / `scopeItems()` rather than from `items` or
+`TOTALS`, passing its own axis as `skip`; and update it from `refresh()`, not
+only from its own render function — `renderTime()` and `renderNoGeo()` run on
+language and preset changes, which is not when the filters move.

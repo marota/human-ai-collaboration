@@ -88,10 +88,18 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sd-empty{padding:14px;text-align:center;color:var(--ink-faint);font-size:12px}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
-  .stats div{background:var(--surface-alt);border:1px solid var(--rule);border-radius:7px;padding:7px 3px;text-align:center}
+  /* Exactly one tile per layer. The tiles used to merge commons and frameworks
+     into a single "Resources", a headline figure matching no layer row: with
+     frameworks switched off, "Commons 25" sat two centimetres above
+     "Resources 24" and read as a contradiction rather than as the two different
+     measurements they are (§9.1–9.2). Countries is not a layer and has no control,
+     so it leads the caption below instead of taking a fifth tile — five tiles
+     at this width clip "FRAMEWORKS". */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:12px}
+  .stats div{background:var(--surface-alt);border:1px solid var(--rule);border-radius:7px;padding:7px 1px;text-align:center;min-width:0}
   .stats strong{display:block;font-family:var(--serif);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
-  .stats span{display:block;font-size:8.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint);margin-top:2px}
+  .stats span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:0;color:var(--ink-faint);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{font-size:11px;font-weight:600;color:var(--ink-soft);padding:5px 11px;border:1px solid var(--rule);
@@ -127,6 +135,9 @@
   .pin-list{display:flex;flex-direction:column;gap:2px;margin:2px 0 8px}
   .pin-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font-size:12.5px;width:100%;text-align:left}
   .pin-item:hover{background:var(--accent-wash)}
+  /* Listed and still clickable, but visibly not part of what the filters
+     currently select — so the section's badge and its rows agree. */
+  .pin-item.out{opacity:.42}
   .pin-item .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pin-x{flex:none;color:var(--ink-faint);font-size:13px;line-height:1;padding:2px 4px;border-radius:5px}
   .pin-x:hover{color:var(--accent-deep);background:var(--accent-wash)}
@@ -452,10 +463,10 @@
         </div>
       </div>
       <div class="stats" aria-live="polite">
-        <div><strong id="st-proj">—</strong><span data-i18n="stProjects">Projets</span></div>
+        <div><strong id="st-project">—</strong><span data-i18n="stProjects">Projets</span></div>
         <div><strong id="st-team">—</strong><span data-i18n="stTeams">Équipes</span></div>
-        <div><strong id="st-res">—</strong><span data-i18n="stResources">Ressources</span></div>
-        <div><strong id="st-ctry">—</strong><span data-i18n="stCountries">Pays</span></div>
+        <div><strong id="st-commons">—</strong><span data-i18n="stCommons">Communs</span></div>
+        <div><strong id="st-framework">—</strong><span data-i18n="stFrameworks">Cadres</span></div>
       </div>
       <p class="stats-note" id="st-note"></p>
     </div>
@@ -669,7 +680,9 @@ const I18N = {
     title:'Collaboration humain–IA en Europe',
     lede:'Qui travaille sur la décision humain–IA dans les systèmes critiques — équipes, projets, communs et cadres, et les liens entre eux.',
     searchPh:'Rechercher une équipe, un projet, une ville…', searchEmpty:'Aucun résultat',
-    stProjects:'Projets', stTeams:'Équipes', stResources:'Ressources', stCountries:'Pays',
+    stProjects:'Projets', stTeams:'Équipes', stCommons:'Communs', stFrameworks:'Cadres',
+    stCountriesN:n=>`${n} pays`,
+    stTile:(v,m)=>`${v} dans la vue · ${m} ${m>1?'correspondent':'correspond'} aux filtres`,
     presetsTitle:'Vues de départ', layersTitle:'Couches', domainsTitle:'Domaines', reset:'Réinitialiser',
     all:'Tout', none:'Aucun',
     'grp.industrial':'Domaines industriels', 'grp.research':'Axes de recherche', 'grp.infra':'Infrastructures de recherche',
@@ -715,8 +728,13 @@ const I18N = {
     timeFrom:'Première année', timeTo:'Dernière année', timeFloor:'les fondations antérieures restent incluses',
     feedPill:'Fil', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
     feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
-    stNote:n=>`dans la vue · ${n} correspondent aux filtres`,
-    stNoteWhy:(n,why)=>`dans la vue · ${n} correspondent aux filtres (${why})`,
+    // Accord du verbe : « 0 / 1 correspond », « 25 correspondent ».
+    stNote:n=>`dans la vue · ${n} ${n>1?'correspondent':'correspond'} aux filtres`,
+    stNoteWhy:(n,why)=>`dans la vue · ${n} ${n>1?'correspondent':'correspond'} aux filtres (${why})`,
+    stNoteMyMap:n=>`dans la vue · ${n} sur votre carte`,
+    stKeptOpen:'plus la fiche ouverte',
+    layerCount:(n,tot)=>`${n} sur ${tot} avec les filtres actuels`,
+    nogeoCount:(n,tot)=>`${n} sur ${tot} ${n>1?'correspondent':'correspond'} aux filtres actuels`,
     stOffScreen:n=>`${n} hors écran`,
     stOffMap:n=>`${n} hors carte`,
     feedOffScreen:n=>`+ ${n} hors écran`,
@@ -740,7 +758,10 @@ const I18N = {
     title:'Human–AI Collaboration in Europe',
     lede:'Who works on human–AI decision-making in critical systems — teams, projects, commons and frameworks, and the links between them.',
     searchPh:'Search a team, a project, a city…', searchEmpty:'No matches',
-    stProjects:'Projects', stTeams:'Teams', stResources:'Resources', stCountries:'Countries',
+    stProjects:'Projects', stTeams:'Teams', stCommons:'Commons', stFrameworks:'Frameworks',
+    stCountriesN:n=>`${n} ${n===1?'country':'countries'}`,
+    // Verb agreement: "1 matches", "25 match".
+    stTile:(v,m)=>`${v} in view · ${m} ${m===1?'matches':'match'} the filters`,
     presetsTitle:'Starting views', layersTitle:'Layers', domainsTitle:'Domains', reset:'Reset',
     all:'All', none:'None',
     'grp.industrial':'Industrial domains', 'grp.research':'Research focus', 'grp.infra':'Research infrastructure',
@@ -786,8 +807,12 @@ const I18N = {
     timeFrom:'First year', timeTo:'Last year', timeFloor:'earlier foundings stay included',
     feedPill:'Feed', feedTitle:'In view', feedHide:'Hide feed',
     feedEmpty:'Nothing in view — zoom out or widen the filters.',
-    stNote:n=>`in view · ${n} match the filters`,
-    stNoteWhy:(n,why)=>`in view · ${n} match the filters (${why})`,
+    stNote:n=>`in view · ${n} ${n===1?'matches':'match'} the filters`,
+    stNoteWhy:(n,why)=>`in view · ${n} ${n===1?'matches':'match'} the filters (${why})`,
+    stNoteMyMap:n=>`in view · ${n} on your map`,
+    stKeptOpen:'plus the open card',
+    layerCount:(n,tot)=>`${n} of ${tot} under the current filters`,
+    nogeoCount:(n,tot)=>`${n} of ${tot} ${n===1?'matches':'match'} the current filters`,
     stOffScreen:n=>`${n} off screen`,
     stOffMap:n=>`${n} off the map`,
     feedOffScreen:n=>`+ ${n} off screen`,
@@ -832,7 +857,8 @@ const state = {
   domains: new Set(ALL_DOMS),
   layers: { project:true, team:true, commons:true, framework:true },
   years: null, // {a,b,undated} — filled once the data bounds are known
-  feed:false, inView:new Set(), matchCount:0, offMapMatch:0, offScreen:0,
+  feed:false, inView:new Set(), inFilter:new Set(),
+  matchCount:0, offMapMatch:0, offScreen:0, keptOpen:0,
   links:false, myMap:false,
   pins: new Set(JSON.parse(lsGet('hai-map-v2-pins')||'[]')),
   focusId:null, history:[], hIndex:-1,
@@ -908,6 +934,7 @@ function fmtAsOf(){
     { day:'numeric', month:'long', year:'numeric' }).format(d);
 }
 const UNDATED = items.filter(it => it.vague).length;
+const NOGEO = items.filter(it => !it.geo).length;
 state.years = { a:YMIN, b:YMAX, undated:true };
 const timeOn = () => state.years.a > YMIN || state.years.b < YMAX;
 // Everything on this map exists today, so it is certainly present from
@@ -1142,6 +1169,34 @@ function flyTo(id){
 }
 
 // ---------- visibility ----------
+// The three filter axes as one predicate. Every counter in the interface reads
+// it, so "matches the filters" means the same thing in the header tiles, the
+// layer rows, the period control and the off-the-map list — the alternative,
+// each control counting in its own terms, is what made a layer row say 25 while
+// the tile beneath it said 24 and the caption said both.
+// `skip` leaves one axis out: a control's own count has to answer "how many
+// would this bring in", which it cannot do while counting itself. A layer row
+// skips 'layer', the unknown-start checkbox skips 'period'.
+function matchesFilters(it, skip){
+  if (skip !== 'layer'  && !state.layers[it.kind]) return false;
+  if (skip !== 'domain' && !it.domains.some(d=>state.domains.has(d))) return false;
+  if (skip !== 'period' && periodState(it) === 'out') return false;
+  return true;
+}
+// My map replaces the filters rather than narrowing them, so in that mode the
+// set every counter reports on is the pins and their neighbours. Counting the
+// whole corpus there would describe a map the reader is not looking at.
+function myMapSet(){
+  const s = new Set();
+  state.pins.forEach(id=>{ if (byId[id]) s.add(id); });
+  state.pins.forEach(id=>nOf(id).forEach(n=>s.add(n)));
+  return s;
+}
+// The scope a control's own count is taken over, with its axis left out.
+function scopeItems(skip){
+  if (state.myMap) return [...myMapSet()].map(id=>byId[id]);
+  return items.filter(it=>matchesFilters(it, skip));
+}
 function visibleSet(){
   const vis = new Set(); const dimmed = new Set();
   if (state.myMap){
@@ -1149,22 +1204,23 @@ function visibleSet(){
     state.pins.forEach(id=>nOf(id).forEach(n=>{ if(!vis.has(n)){ vis.add(n); dimmed.add(n); } }));
   } else {
     items.forEach(it=>{
-      if (!state.layers[it.kind]) return;
-      if (!it.domains.some(d=>state.domains.has(d))) return;
-      const ps = periodState(it);
-      if (ps === 'out') return;
+      if (!matchesFilters(it)) return;
       vis.add(it.id);
-      if (ps === 'soft') dimmed.add(it.id);   // possible, not established
+      if (periodState(it) === 'soft') dimmed.add(it.id);   // possible, not established
     });
   }
+  // What actually matches, recorded before the focus override below adds an
+  // entity the filters exclude. The caption counts this one, so that "N match
+  // the filters" cannot be contradicted by the filters themselves.
+  const matched = new Set(vis);
   if (state.focusId && byId[state.focusId]){
     vis.add(state.focusId); dimmed.delete(state.focusId);
     nOf(state.focusId).forEach(n=>{ if (vis.has(n)) dimmed.delete(n); });
   }
-  return {vis, dimmed};
+  return {vis, dimmed, matched};
 }
 function refresh(){
-  const {vis, dimmed} = visibleSet();
+  const {vis, dimmed, matched} = visibleSet();
   const focus = state.focusId;
   const focusN = focus ? nOf(focus) : null;
   items.forEach(it=>{
@@ -1191,7 +1247,10 @@ function refresh(){
     el.setAttribute('stroke-opacity', focus ? 0.08 : 0.28);
   });
   styleHotEdges();
-  updateInView(vis); renderStats(); renderFeed();
+  // Every count in the panel is a reading of the same filter state, so they all
+  // move together or none of them can be trusted.
+  updateLayerCounts(); updateUndatedCount(); renderHist(); paintHist();
+  updateInView(vis, matched); renderStats(); updateNoGeo(); renderFeed();
   document.getElementById('links-row').setAttribute('aria-pressed', state.links);
   document.getElementById('links-pill').classList.toggle('active', state.links);
   document.getElementById('links-pill').setAttribute('aria-pressed', state.links);
@@ -1239,6 +1298,24 @@ function renderLayerRows(){
     const k = b.dataset.layer; state.layers[k] = !state.layers[k];
     b.setAttribute('aria-pressed', state.layers[k]); refresh();
   }));
+  updateLayerCounts();
+}
+// A facet count, not a corpus total: how many entities of this layer the other
+// filters currently leave, so the number answers the question the switch asks.
+// It leaves its own axis out, so toggling a layer never changes its own figure
+// — a count that fell to zero the moment you switched the layer off would be
+// useless for deciding whether to switch it back on.
+function updateLayerCounts(){
+  const n = { project:0, team:0, commons:0, framework:0 };
+  scopeItems('layer').forEach(it=>{ n[it.kind]++; });
+  document.querySelectorAll('.layer-row[data-layer]').forEach(b=>{
+    const k = b.dataset.layer, el = b.querySelector('.cnt');
+    el.textContent = n[k];
+    // The corpus total is what the number used to be; it stays one hover away
+    // so a narrowed figure can still be read against the whole.
+    const msg = n[k] === TOTALS[k] ? '' : t('layerCount')(n[k], TOTALS[k]);
+    el.title = msg; el.setAttribute('aria-label', msg);
+  });
 }
 function renderDomainGroups(){
   const host = document.getElementById('domain-groups');
@@ -1292,14 +1369,29 @@ function renderNoGeo(){
   const host = document.getElementById('f-nogeo');
   host.hidden = !arr.length;
   if (!arr.length) return;
-  document.getElementById('nogeo-count').textContent = arr.length;
   const list = document.getElementById('nogeo-list');
   list.innerHTML = arr.map(it=>`
-    <button class="pin-item" data-open="${esc(it.id)}">
+    <button class="pin-item" data-id="${esc(it.id)}" data-open="${esc(it.id)}">
       <span class="glyph">${glyphHtml(it.kind,14)}</span>
       <span class="nm">${esc(it.d.name)}</span>
     </button>`).join('');
   list.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>openEntity(b.dataset.open)));
+  updateNoGeo();
+}
+// The feed's "+ N off the map" button scrolls here, so this section's badge has
+// to be the same N: the count of off-map entities matching the filters, not the
+// eleven that exist. The rest stay listed and reachable — that is what the
+// section is for — but dimmed, so the badge and the list agree by inspection.
+function updateNoGeo(){
+  const host = document.getElementById('f-nogeo');
+  if (host.hidden) return;
+  const badge = document.getElementById('nogeo-count');
+  badge.textContent = state.offMapMatch;
+  const msg = state.offMapMatch === NOGEO ? '' : t('nogeoCount')(state.offMapMatch, NOGEO);
+  badge.title = msg; badge.setAttribute('aria-label', msg);
+  document.querySelectorAll('#nogeo-list [data-id]').forEach(b=>{
+    b.classList.toggle('out', !state.inFilter.has(b.dataset.id));
+  });
 }
 function togglePin(id){
   if (state.pins.has(id)) state.pins.delete(id);
@@ -1565,7 +1657,7 @@ gMarkers.addEventListener('pointerout', e=>{
 
 // ---------- in-view counts & feed ----------
 const KIND_ORDER = { project:0, team:1, commons:2, framework:3 };
-function updateInView(vis){
+function updateInView(vis, matched){
   const [w,h] = stageSize(); const pad = 10;
   const unmeasured = w < 2 || h < 2;          // hidden pane / print: count every placed marker
   state.inView = new Set();
@@ -1581,7 +1673,9 @@ function updateInView(vis){
     const sx = view.x + it.X*view.k, sy = view.y + it.Y*view.k;
     if (sx>=-pad && sx<=w+pad && sy>=-pad && sy<=h+pad) state.inView.add(it.id);
   });
-  state.matchCount = vis.size;
+  state.inFilter = matched || vis;
+  state.matchCount = state.inFilter.size;
+  state.keptOpen = vis.size - state.matchCount;   // 0, or the one open card
   state.offMapMatch = offMap;
   // The rest of the gap is pan/zoom: placed markers that are simply outside the
   // stage right now. Naming only the off-map part would imply it explains the
@@ -1589,25 +1683,48 @@ function updateInView(vis){
   state.offScreen = placed - state.inView.size;
 }
 function renderStats(){
-  let cp=0, ct=0, cr=0; const ctry = new Set();
+  const n = { project:0, team:0, commons:0, framework:0 }; const ctry = new Set();
   state.inView.forEach(id=>{ const it = byId[id];
-    if (it.kind==='project') cp++; else if (it.kind==='team') ct++; else cr++;
+    n[it.kind]++;
     if (it.d.country) ctry.add(it.d.country); });
-  document.getElementById('st-proj').textContent = cp;
-  document.getElementById('st-team').textContent = ct;
-  document.getElementById('st-res').textContent = cr;
-  document.getElementById('st-ctry').textContent = ctry.size;
+  // Per-layer match counts, so each tile can carry its own reconciliation with
+  // the layer row above it: the caption's "11 off the map" is a single figure
+  // spread across two layers, and a reader comparing "Commons 25" with "24"
+  // should not have to work out which of the eleven were commons.
+  const m = { project:0, team:0, commons:0, framework:0 };
+  state.inFilter.forEach(id=>{ m[byId[id].kind]++; });
+  KINDS.forEach(k=>{
+    const el = document.getElementById('st-'+k), tile = el.parentNode;
+    el.textContent = n[k];
+    const msg = t('stTile')(n[k], m[k]);
+    tile.title = msg;
+    // The tiles sit in an aria-live region, so the label has to stay in the
+    // accessible name — a bare tooltip would announce the reconciliation and
+    // drop which layer it belongs to.
+    tile.setAttribute('aria-label', tile.querySelector('span').textContent + ' — ' + msg);
+  });
   const why = [];
   if (state.offScreen) why.push(t('stOffScreen')(state.offScreen));
   if (state.offMapMatch) why.push(t('stOffMap')(state.offMapMatch));
-  document.getElementById('st-note').textContent = why.length
-    ? t('stNoteWhy')(state.matchCount, why.join(', '))
-    : t('stNote')(state.matchCount);
+  // The open card is the third reason the tiles can exceed what matches: it is
+  // never hidden by a filter change (invariant 6), so it can be on screen while
+  // matching nothing. Left unnamed it looks like an off-by-one.
+  if (state.keptOpen) why.push(t('stKeptOpen'));
+  // In My map mode there are no filters to match — the pins and their
+  // neighbours are the whole set — so the caption says so instead.
+  document.getElementById('st-note').textContent = [
+    ctry.size ? t('stCountriesN')(ctry.size) : null,   // "0 countries ·" is noise
+    state.myMap ? t('stNoteMyMap')(state.matchCount)
+      : (why.length ? t('stNoteWhy')(state.matchCount, why.join(', '))
+                    : t('stNote')(state.matchCount)),
+  ].filter(Boolean).join(' · ');
 }
 let ivTimer = null;
 function scheduleInView(){
   if (ivTimer) return;
-  ivTimer = setTimeout(()=>{ ivTimer = null; updateInView(visibleSet().vis); renderStats(); renderFeed(); }, 90);
+  ivTimer = setTimeout(()=>{ ivTimer = null;
+    const {vis, matched} = visibleSet();
+    updateInView(vis, matched); renderStats(); updateNoGeo(); renderFeed(); }, 90);
 }
 // A seventeen-partner consortium drew seventeen full-strength curves across the
 // whole map. That is ink, not information: which places are involved is already
@@ -1712,15 +1829,21 @@ const tfSpan = YMAX - YMIN || 1;
 const tfPct = y => ((y - YMIN) / tfSpan) * 100;
 
 function renderHist(){
-  // One bar per year: how many dated entities are running that year.
+  // One bar per year: how many dated entities are running that year — of those
+  // the other filters leave. The curve is the period control's own backdrop, so
+  // drawing all 449 while the reader has narrowed to Commons would size the
+  // handles against a population they are not selecting from.
   const n = tfSpan + 1;
   const counts = new Array(n).fill(0);
-  items.forEach(it => {
+  scopeItems('period').forEach(it => {
     if (!it.dated) return;
     const s = Math.max(YMIN, it.y0==null ? YMIN : it.y0);
     const e = Math.min(YMAX, it.y1==null ? YMAX : it.y1);
     for (let y=s; y<=e; y++) counts[y-YMIN]++;
   });
+  // Normalised to the filtered peak, not a fixed corpus peak: a 25-entity layer
+  // would otherwise draw a flat line one pixel high. The curve's shape is what
+  // is being read, not its height against other filter states.
   const peak = Math.max(1, ...counts);
   const svg = document.getElementById('tf-hist');
   svg.setAttribute('viewBox', `0 0 ${n} 20`);
@@ -1735,10 +1858,22 @@ function paintHist(){
     r.classList.toggle('on', y >= state.years.a && y <= state.years.b);
   });
 }
+// How many entities the unknown-start switch actually governs right now. It
+// is the period axis's own control, so it counts across every other axis but
+// not across the period — otherwise the figure would describe a set the switch
+// cannot change. Every one of the 37 is a team, so a reader filtered to Commons
+// was shown 37 for a set the switch could not touch; the honest figure is 0.
+function updateUndatedCount(){
+  const n = scopeItems('period').filter(it=>it.vague).length;
+  const el = document.getElementById('tf-undated-n');
+  el.textContent = n;
+  const msg = n === UNDATED ? '' : t('layerCount')(n, UNDATED);
+  el.title = msg; el.setAttribute('aria-label', msg);
+}
 function renderTime(){
   const {a,b} = state.years, on = timeOn();
   document.getElementById('tf-range').textContent = a===b ? String(a) : `${a} – ${b}`;
-  document.getElementById('tf-undated-n').textContent = UNDATED;
+  updateUndatedCount();
   document.getElementById('tf-undated').checked = state.years.undated;
   // The undated toggle and the reset only mean something once a range is
   // picked — both live in one row (§ "unfolds below", not beside the slider)
