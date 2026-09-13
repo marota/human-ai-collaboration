@@ -1,0 +1,23 @@
+# ---------------------------------------------------------------------------
+# Surcouche : publie le site SANS la section Projects.
+#
+#   jekyll build  --config _config.yml,_config.without-projects.yml
+#   jekyll serve  --config _config.yml,_config.without-projects.yml
+#
+# Jekyll fusionne les fichiers de config dans l'ordre : les clés ci-dessous
+# remplacent celles de _config.yml. `exclude` est redéclaré en entier — c'est
+# une liste, donc elle est remplacée, pas fusionnée — avec les pages projets
+# et leurs images en plus. Quand le drapeau est faux, l'entrée de nav, la carte
+# d'accueil, les quatre pages et leurs images ne sont pas construites du tout.
+# ---------------------------------------------------------------------------
+
+features:
+  projects: false
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - vendor
+  - projects
+  - assets/img/projects

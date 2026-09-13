@@ -53,12 +53,12 @@ et le coût marginal est faible une fois le PDF prêt.
 
 ## Publier avec ou sans la section Projects
 
-La section **Projects** est masquée par défaut. Le drapeau vit dans
+La section **Projects** est publiée par défaut. Le drapeau vit dans
 `_config.yml` :
 
 ```yaml
 features:
-  projects: false
+  projects: true
 ```
 
 Quand il est faux : l'entrée de nav, la carte d'accueil, les quatre pages et
@@ -67,17 +67,17 @@ cachées en CSS, elles n'existent pas dans le site publié.
 
 | Publier | Comment |
 |---|---|
-| **Sans Projects** (défaut) | `git push` sur `main` — le workflow s'en charge |
-| **Avec Projects** | Actions → *Publish site* → *Run workflow* → cocher `include_projects` |
+| **Avec Projects** (défaut) | `git push` sur `main` — le workflow s'en charge |
+| **Sans Projects** | Actions → *Publish site* → *Run workflow* → décocher `include_projects` |
 
 En local :
 
 ```bash
-jekyll serve                                              # sans Projects
-jekyll serve --config _config.yml,_config.with-projects.yml   # avec
+jekyll serve                                                     # avec Projects
+jekyll serve --config _config.yml,_config.without-projects.yml   # sans
 ```
 
-`_config.with-projects.yml` redéclare `exclude` en entier — c'est une liste,
+`_config.without-projects.yml` redéclare `exclude` en entier — c'est une liste,
 donc Jekyll la remplace au lieu de la fusionner. Si tu ajoutes une entrée à
 `exclude` dans `_config.yml`, pense à la reporter là-bas.
 
@@ -133,8 +133,7 @@ Deux sections méritent d'être maintenues à jour en priorité :
 ├── _layouts/                   # thème maison : default, home, page, post, series
 ├── _includes/                  # head, header, footer, series-list, lead-figure
 ├── _series/
-│   ├── 01..09-<titre>.md        # les neuf posts publiés, nettoyés
-│   └── 10-titre-a-remplacer.md  # gabarit : titre entre [ ] = « In preparation »
+│   └── 01..10-<titre>.md        # les dix posts publiés, nettoyés
 ├── projects/
 │   ├── index.md
 │   ├── co-study4grid.md
