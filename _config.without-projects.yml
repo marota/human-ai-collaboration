@@ -19,5 +19,6 @@ exclude:
   - Gemfile.lock
   - README.md
   - vendor
+  - scripts/upstream-patches
   - projects
   - assets/img/projects
