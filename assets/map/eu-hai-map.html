@@ -83,8 +83,9 @@
   .sd-group:first-child{border-top:none}
   .sd-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:6px 11px;font-size:12.5px;line-height:1.3}
   .sd-item:hover,.sd-item.sel{background:var(--accent-wash)}
-  .sd-item .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sd-item .mt{color:var(--ink-faint);font-size:10.5px;flex:none}
+  .sd-item .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sd-item .mt{color:var(--ink-faint);font-size:10.5px;flex:none;max-width:132px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sd-empty{padding:14px;text-align:center;color:var(--ink-faint);font-size:12px}
 
   .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
@@ -1385,8 +1386,14 @@ function consortiumHtml(list){
   if (!list || !list.length) return '';
   return `<ul class="dt-list">${list.map(c=>{
     const bits = [c.role?taxo('role',c.role):'', c.country].filter(Boolean).join(' · ');
-    const org = (c.ref && byId[c.ref])
+    // The org string is the consortium's own legal name — "Technische
+    // Universiteit Delft" — while the entity it resolves to is usually a named
+    // laboratory inside it. Naming the destination is the difference between a
+    // link the reader has to click to understand and one they can read.
+    const dest = c.ref ? byId[c.ref] : null;
+    const org = dest
       ? `<button class="dt-lk" data-open="${esc(c.ref)}">${esc(c.org)}</button>`
+        + (dest.d.name !== c.org ? ` <span class="m">→ ${esc(dest.d.name)}</span>` : '')
       : esc(c.org);
     return `<li>${org}${bits?` <span class="m">${esc(bits)}</span>`:''}</li>`;
   }).join('')}</ul>`;
@@ -1827,14 +1834,33 @@ let sdSel = -1;
 function runSearch(){
   const q = norm(searchInput.value.trim());
   if (q.length<2){ searchDrop.classList.remove('open'); return; }
-  const groups = KINDS.map(k=>({k, hits: items.filter(it=>it.kind===k && (norm(it.d.name).includes(q) || norm(it.d.city||'').includes(q))).slice(0,8)}))
-    .filter(g=>g.hits.length);
+  // Match on the entity's own name and city first, then on the body it belongs
+  // to. The rank matters more than the widening: without it a search for
+  // "universit" fills all eight slots with teams whose *parent* matches and
+  // evicts the ones actually called that.
+  const hitOf = it => {
+    if (norm(it.d.name).includes(q) || norm(it.d.city||'').includes(q)) return { rank:0 };
+    const aff = it.d.affiliation || {};
+    for (const via of [aff.org, aff.parent])
+      if (via && norm(via).includes(q)) return { rank:1, via };
+    return null;
+  };
+  const groups = KINDS.map(k=>{
+    const hits = [];
+    for (const it of items){
+      if (it.kind !== k) continue;
+      const h = hitOf(it);
+      if (h) hits.push({ it, rank:h.rank, via:h.via });
+    }
+    hits.sort((a,b)=>a.rank-b.rank);          // stable: ties keep their order
+    return { k, hits: hits.slice(0,8) };
+  }).filter(g=>g.hits.length);
   sdSel = -1;
   if (!groups.length){ searchDrop.innerHTML = `<div class="sd-empty">${esc(t('searchEmpty'))}</div>`; searchDrop.classList.add('open'); return; }
   searchDrop.innerHTML = groups.map(g=>`<div class="sd-group">${esc(t('kinds.'+g.k))}</div>` +
-    g.hits.map(it=>`<button class="sd-item" data-open="${esc(it.id)}">
+    g.hits.map(({it, via})=>`<button class="sd-item" data-open="${esc(it.id)}">
       <span class="glyph"><svg width="14" height="14" viewBox="-9 -9 18 18">${shapeSvg(it.domains,it.kind,it.kind==='team'?4.5:6,false)}</svg></span>
-      <span class="nm">${esc(it.d.name)}</span><span class="mt">${esc([it.d.city,it.d.country].filter(Boolean).join(', '))}</span>
+      <span class="nm">${esc(it.d.name)}</span><span class="mt">${esc([[it.d.city,it.d.country].filter(Boolean).join(', '), via].filter(Boolean).join(' · '))}</span>
     </button>`).join('')).join('');
   searchDrop.classList.add('open');
   searchDrop.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{

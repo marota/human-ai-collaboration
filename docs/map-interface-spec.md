@@ -393,7 +393,9 @@ Section order, each omitted when empty:
 7. Focus areas, as chips
 8. Timeline — span, then milestones on a rule
 9. Consortium — organisation, role, country; clickable when the reference
-   resolves
+   resolves, and followed by `→ <entity name>` when the two differ, which is
+   almost always: the row carries the consortium's legal name ("Technische
+   Universiteit Delft") while the entity is a named laboratory inside it
 10. Funding — source, call, grant, budget in locale-formatted euros
 11. Infrastructure — kind, operator, access model, capacity
 12. Demonstrators · Deliverables · Facilities hosted · Applies to · Builds on ·
@@ -586,6 +588,16 @@ Home/End to the bounds, with `role="slider"` and a live `aria-valuenow`.
 **Search** matches name or city, diacritic-insensitive, from two characters, and
 groups results by layer with at most eight per layer. Arrow keys and Enter
 select. It searches all entities, including those with no coordinates.
+
+It also matches a team's `affiliation.org` and `affiliation.parent`, because the
+name a reader knows is often the institution's, not the group's — "Deutsches
+Zentrum für Luft- und Raumfahrt" finds the DLR team whose own name says only
+"DLR". **Ranking carries this feature, not the widening.** Own-name and city
+matches rank ahead of affiliation-only ones, and the sort is stable; without
+that, a query like "universit" fills all eight slots with teams whose *parent*
+matches and evicts the ones actually called that. A row matched only through its
+affiliation appends that string after the city, so the reader can see why it is
+in the list.
 
 **Pins** ("My map") are a reader's own selection, held in `localStorage` and
 listed in the sidebar. My map mode shows only pins and their neighbours.
