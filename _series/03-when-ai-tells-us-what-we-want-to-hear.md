@@ -24,4 +24,4 @@ For an expert decision — a diagnosis, a trade, a control-room call — we need
 
 ---
 
-*Part {{ page.part }} of [a ten-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*
+*Part {{ page.part }} of [a thirteen-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*
