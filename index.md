@@ -4,7 +4,7 @@ title: Home
 eyebrow: Antoine Marot
 doi: "10.5281/zenodo.XXXXXXX"   # TODO: remplacer une fois le dépôt Zenodo publié
 series_intro: >-
-  A ten-part series on how humans and AI actually make joint decisions in
+  A thirteen-part series, in three sections, on how humans and AI actually make joint decisions in
   critical operations — what erodes expert judgement, what makes a partnership
   designable, and what would have to be measured for oversight to be more than
   a compliance box.
