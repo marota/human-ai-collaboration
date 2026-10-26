@@ -18,28 +18,152 @@ possible: the layer figures and the vocabulary group list are parsed out of the 
 the colour table and the domain filter groups out of the map's inline script, and
 `AS_OF` and `TAXO` are recomputed with the generator's own functions. A hand-edit to
 `hai-data.js` therefore fails here rather than passing by agreeing with itself.
+
+`hai-data.js` is no longer the whole payload, either. The page loads it and then an
+overlay — `hai-data-additions.js` — which merges entries added upstream since the
+last regeneration into `window.HAI_DATA` by id. So there are two payloads here:
+`GENERATED`, the generated file on its own, which is what §3.2's figures and §3.5's
+snapshot date document and the only thing the generator can be re-run against; and
+`PAYLOAD`, what the interface actually reads. Every count below is derived from one
+of those two rather than written down, because §3.2 says what any figure in this
+file would be worth: "Counts are a snapshot and move with every upstream
+regeneration; the shape of the table is what is normative, not the figures."
 """
 from __future__ import annotations
 
 import datetime
+import json
 import re
 import unittest
 from collections import Counter
 
-from tests._harness import SPEC, load_generator, load_payload, map_script
+from tests._harness import MAP_HTML, SPEC, load_generator, load_payload, map_script
 
 # ---------------------------------------------------------------- fixtures
 
-PAYLOAD = load_payload()
 SCRIPT = map_script()
 SPEC_TEXT = SPEC.read_text(encoding="utf-8")
 
 # The four layers that carry entities. EDGES is a relation, not a layer of cards,
 # and `reg()` in the map registers exactly these four.
 ENTITY_LAYERS = ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS")
+# Everything the payload keys by name — the cards and the relation between them.
+PAYLOAD_LAYERS = ENTITY_LAYERS + ("EDGES",)
 # layer name -> the `kind` the map tags it with (`reg(DATA.PROJECTS,'project')`, …)
 LAYER_KIND = {"PROJECTS": "project", "COMMONS": "commons",
               "TEAMS": "team", "FRAMEWORKS": "framework"}
+# The generated payload, as the page spells it in its own `<script src>`.
+GENERATED_SRC = "hai-data.js"
+
+# `assets/map/hai-data.js` exactly as the generator wrote it.
+GENERATED = load_payload()
+
+
+def page_data_scripts() -> list:
+    """Every `<script src="….js">` the page loads, in load order.
+
+    The page is the authority on what `window.HAI_DATA` ends up holding: §2 has
+    the data files loaded with plain `<script src>` before the inline module, so
+    everything listed here has run before the interface reads a single entity.
+    """
+    return re.findall(r'<script src="([^"]+\.js)"',
+                      MAP_HTML.read_text(encoding="utf-8"))
+
+
+def overlay_scripts() -> list:
+    """The data scripts the page loads on top of the generated payload.
+
+    Today there is one, `hai-data-additions.js`: entries added to the private
+    source repository after the last regeneration, merged into `window.HAI_DATA`
+    by id. It says of itself that it is temporary — once `hai-data.js` has been
+    regenerated it merges nothing and can be deleted — so it is discovered from
+    the page rather than named here, and this whole layer disappears on its own
+    when it goes.
+    """
+    return [s for s in page_data_scripts()
+            if s.startswith("hai-data") and s != GENERATED_SRC]
+
+
+def _json_object_after(text: str, marker: str) -> str:
+    """The `{…}` literal following `marker`, sliced by balancing braces so that a
+    brace inside a description string cannot end the slice early. Same ground
+    `load_payload()` stands on: these files are JavaScript, but every value in
+    them is a JSON literal, so they read back exactly without a JS runtime."""
+    i = text.index(marker) + len(marker)
+    depth, j, in_str, esc = 0, i, False, False
+    while j < len(text):
+        c = text[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[i:j + 1]
+        j += 1
+    raise AssertionError(f"unbalanced braces after {marker!r}")
+
+
+def overlay_additions() -> dict:
+    """Everything the overlays merge in, layer -> entries, pooled across them.
+
+    Each overlay carries its payload as a single `var ADD = {…}` object literal.
+    A key this file does not know about would land in the result unmerged, which
+    is why `PendingOverlay` pins the set of keys an overlay may carry.
+    """
+    out = {name: [] for name in PAYLOAD_LAYERS}
+    for src in overlay_scripts():
+        add = json.loads(_json_object_after(
+            (MAP_HTML.parent / src).read_text(encoding="utf-8"), "var ADD = "))
+        for layer, entries in add.items():
+            out.setdefault(layer, []).extend(entries)
+    return out
+
+
+ADDED = overlay_additions()
+
+
+def page_payload() -> dict:
+    """`window.HAI_DATA` as the interface finds it: the generated payload with
+    every overlay merged in, by the rule the overlays state and `PendingOverlay`
+    below checks against their source — an entry whose id is not already present
+    is appended, an edge whose project/team pair is not already present is
+    appended, nothing already there is ever replaced, and `AS_OF` moves to the
+    latest provenance touch of the result.
+
+    Deriving the merge here rather than reading the merged corpus back out of the
+    page is the point: the interface tests compare the rendered view against
+    `window.HAI_DATA`, and this file is what says `window.HAI_DATA` is the two
+    committed files and nothing else.
+    """
+    merged = dict(GENERATED)
+    for layer in ENTITY_LAYERS:
+        have = {o["id"] for o in GENERATED[layer]}
+        merged[layer] = list(GENERATED[layer]) + [o for o in ADDED[layer]
+                                                  if o["id"] not in have]
+    pairs = {(e["project"], e["team"]) for e in GENERATED["EDGES"]}
+    merged["EDGES"] = list(GENERATED["EDGES"]) + [
+        e for e in ADDED["EDGES"] if (e["project"], e["team"]) not in pairs]
+    dates = [GENERATED["AS_OF"]]
+    for layer in ENTITY_LAYERS:
+        for o in ADDED[layer]:
+            prov = o.get("prov") or {}
+            dates += [d for d in (prov.get("upd"), prov.get("on")) if d]
+    merged["AS_OF"] = max(d for d in dates if d)
+    return merged
+
+
+# What every test below reads, unless it is specifically about the generated file
+# or about the overlay.
+PAYLOAD = page_payload()
 
 
 def entities():
@@ -115,8 +239,11 @@ def spec_domain_groups() -> list:
     other") where the script uses short codes, so what travels from here is the
     shape: three groups, in that order, with those sizes. Which codes are the
     infrastructure ones is §3.1.2's business, below."""
-    sec = spec_section("Seventeen domain colours in three filter groups:",
-                       "Draw order")
+    # Anchored on the wording without its figure: the count in that sentence is
+    # what `spec_domain_colour_count()` parses, and a slice that spelled it out
+    # here would stop finding the section the moment the figure moved — turning
+    # a disagreement about the count into a crash about the parse.
+    sec = spec_section(" domain colours in three filter groups:", "Draw order")
     return [(m.group(1), [n.strip() for n in m.group(2).split(",")])
             for m in re.finditer(r"- \*\*(.+?)\*\* — (.+?)(?=\n- \*\*|\n\n)", sec, re.S)]
 
@@ -127,6 +254,44 @@ def spec_infra_domain_codes() -> set:
     names = re.search(r"The ([\w\s/]+?) codes are infrastructure categories",
                       SPEC_TEXT, re.S).group(1)
     return {n.strip() for n in names.split("/")}
+
+
+# The spec spells small figures out in words where it states them in prose.
+NUMBER_WORDS = ("zero", "one", "two", "three", "four", "five", "six", "seven",
+                "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+                "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+                "nineteen", "twenty")
+
+
+def spec_domain_colour_count() -> int:
+    """§4.2's own count of the domain colours, taken from the sentence that
+    introduces the filter groups ("Seventeen domain colours in three filter
+    groups"). Parsed rather than copied: the figure is a claim the spec makes
+    about the payload, so it belongs in the spec and nowhere else."""
+    word = re.search(r"(\w+) domain colours in \w+ filter groups", SPEC_TEXT).group(1)
+    return NUMBER_WORDS.index(word.lower())
+
+
+def spec_truncation_losses() -> tuple:
+    """§3.1's count of what the predecessor's 300-character cap destroyed — the
+    floor an untruncated payload has to clear, in English and in French."""
+    m = re.search(r"cutting (\d+) English and (\d+) French descriptions mid-word",
+                  SPEC_TEXT)
+    return int(m.group(1)), int(m.group(2))
+
+
+def spec_date_note_levels() -> tuple:
+    """The confidence levels §10.2 says the dating pass wrote into the
+    provenance note, read out of the pattern it quotes."""
+    m = re.search(r"wrote as `timeline\.start \(([\w|]+)\): <evidence>`", SPEC_TEXT)
+    return tuple(m.group(1).split("|"))
+
+
+def spec_prose_figures(start: str, end: str) -> list:
+    """Every integer stated in a stretch of spec prose, in order. The figures are
+    a snapshot like §3.2's table, so where a test needs them it reads them from
+    the sentence that documents them instead of restating them."""
+    return [int(n) for n in re.findall(r"\b(\d+)\b", spec_section(start, end))]
 
 
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -431,11 +596,14 @@ class Domains(unittest.TestCase):
         # uses — so the break is invisible: the marker looks deliberate.
         self.assertEqual(missing, [])
         # §4.2 both counts them — "Seventeen domain colours in three filter
-        # groups" — and lists them group by group. The figure is summed out of
-        # those bullets instead of copied here, so the spec and the payload
-        # cannot drift apart while this file keeps agreeing with itself.
+        # groups" — and lists them group by group. Both readings are taken from
+        # the spec rather than restated here: the bullets are summed, and the
+        # prose figure is parsed out of the sentence above them. So the spec and
+        # the payload cannot drift apart while this file keeps agreeing with
+        # itself, and the one number that is a claim about the corpus lives in
+        # the document that makes the claim.
         self.assertEqual(len(used), sum(len(n) for _, n in spec_domain_groups()))
-        self.assertEqual(len(used), 17)
+        self.assertEqual(len(used), spec_domain_colour_count())
 
     def test_3_2_every_lead_domain_has_a_colour(self):
         # Edge colour follows the source entity's lead domain (§4.3):
@@ -702,14 +870,21 @@ class Freshness(unittest.TestCase):
         # would change on every no-op regeneration and break the empty-diff
         # invariant (§3). Running the real function over the committed payload
         # proves the committed value is the derived one.
-        self.assertEqual(load_generator().data_as_of(PAYLOAD), PAYLOAD["AS_OF"])
+        gen = load_generator()
+        self.assertEqual(gen.data_as_of(GENERATED), GENERATED["AS_OF"])
+        # And over the corpus the page ends up with: the overlay recomputes
+        # `AS_OF` for itself, which §3.5's rule does not license it to do
+        # differently just because the entries arrived in a second file. So the
+        # generator's own function has to reproduce the date the reader is shown
+        # as well as the one in the generated file.
+        self.assertEqual(gen.data_as_of(PAYLOAD), PAYLOAD["AS_OF"])
 
     def test_3_5_as_of_is_drawn_from_every_layer_not_just_the_ones_that_win(self):
         # §3.5: "the most recent provenance.last_updated / added_on across every
         # entity in every layer". Neither check above can see a layer that is
-        # skipped, because today's maximum happens to sit in TEAMS and COMMONS:
-        # a `data_as_of()` that stopped scanning FRAMEWORKS would still return
-        # 2026-09-03 and still agree with the payload. So each layer in turn is
+        # skipped, because the maximum only ever sits in some of them: a
+        # `data_as_of()` that stopped scanning FRAMEWORKS would still return the
+        # same date and still agree with the payload. So each layer in turn is
         # given a date past the others, over the committed payload, and the
         # derived date has to follow it there.
         gen = load_generator()
@@ -736,17 +911,25 @@ class Freshness(unittest.TestCase):
         self.assertGreater(len(at_max), 0)
 
     def test_3_2_the_spec_s_snapshot_date_is_the_payload_s_as_of(self):
-        # §3.2 dates its counts "(3 September 2026)"; §3.5 defines AS_OF as the
-        # freshness date. They describe the same snapshot, so they have to agree
-        # — this is what catches a regeneration that updated the figures in the
-        # table and left the date behind it.
+        # §3.2 dates its counts; §3.5 defines AS_OF as the freshness date. The
+        # table and the date describe the same snapshot of the same file, so they
+        # have to agree — this is what catches a regeneration that updated the
+        # figures in the table and left the date behind it. It is the generated
+        # file's own AS_OF, for the same reason the figures above are the
+        # generated file's own counts.
         m = re.search(r"Counts are a snapshot \((\d+) (\w+) (\d{4})\)", SPEC_TEXT)
         self.assertIsNotNone(m)
         day, month, yearv = m.groups()
         months = ["January", "February", "March", "April", "May", "June", "July",
                   "August", "September", "October", "November", "December"]
         dated = datetime.date(int(yearv), months.index(month) + 1, int(day))
-        self.assertEqual(dated.isoformat(), PAYLOAD["AS_OF"])
+        self.assertEqual(dated.isoformat(), GENERATED["AS_OF"])
+        # The reader is shown the overlay's recomputed date instead, and an
+        # overlay carries entries added *after* the regeneration it is waiting
+        # for. So it can only move the freshness date forward. An overlay that
+        # moved it back would be claiming the corpus got staler by growing, and
+        # would pull the period axis in over entities it had just added.
+        self.assertGreaterEqual(PAYLOAD["AS_OF"], GENERATED["AS_OF"])
 
 
 class Descriptions(unittest.TestCase):
@@ -772,13 +955,16 @@ class Descriptions(unittest.TestCase):
         self.assertEqual(cut, [])
 
     def test_3_1_3_the_descriptions_the_old_cap_would_have_cut_are_intact(self):
-        # §3.1.3 counts the damage precisely: the 300-character cap cut 29 English
-        # and 39 French descriptions mid-word. So at least that many must now run
-        # past 300 characters — the assertion that actually fails if a cap is
-        # reintroduced, where "none is exactly 300" would not.
+        # §3.1.3 counts the damage precisely — so precisely that the two figures
+        # are read out of the sentence that states them rather than copied here:
+        # the cap cut N English and M French descriptions mid-word, so at least
+        # that many must now run past 300 characters. This is the assertion that
+        # actually fails if a cap is reintroduced, where "none is exactly 300"
+        # would not.
+        english, french = spec_truncation_losses()
         over = Counter(f for _, _, f, s in self.desc_fields() if len(s) > 300)
-        self.assertGreaterEqual(over["desc_en"], 29)
-        self.assertGreaterEqual(over["desc_fr"], 39)
+        self.assertGreaterEqual(over["desc_en"], english)
+        self.assertGreaterEqual(over["desc_fr"], french)
 
     def test_3_1_3_paragraph_breaks_are_preserved_and_wrapped_lines_re_joined(self):
         # A YAML block scalar arrives hard-wrapped. §3.1.3: paragraph breaks are
@@ -834,14 +1020,19 @@ class LayerTable(unittest.TestCase):
         # count, update the table in §3.2 and this test will go green again. It
         # earns its place by also failing on the thing that must never happen —
         # a hand-edit of hai-data.js that adds or drops an entity.
+        #
+        # The table documents the generated file, which is what §3.2's own
+        # pipeline diagram produces, so that is what it is compared against. The
+        # corpus the reader actually sees is larger while an overlay is pending;
+        # tying the two together is `PendingOverlay`'s job, below.
         _, rows = spec_layer_rows()
         documented = {r[0]: int(r[1]) for r in rows}
         self.assertEqual(documented, {
-            "Projects & programmes": len(PAYLOAD["PROJECTS"]),
-            "Teams": len(PAYLOAD["TEAMS"]),
-            "Commons": len(PAYLOAD["COMMONS"]),
-            "Frameworks": len(PAYLOAD["FRAMEWORKS"]),
-            "Links": len(PAYLOAD["EDGES"]),
+            "Projects & programmes": len(GENERATED["PROJECTS"]),
+            "Teams": len(GENERATED["TEAMS"]),
+            "Commons": len(GENERATED["COMMONS"]),
+            "Frameworks": len(GENERATED["FRAMEWORKS"]),
+            "Links": len(GENERATED["EDGES"]),
         })
 
     def test_3_2_infrastructure_has_no_layer_of_its_own(self):
@@ -856,12 +1047,20 @@ class LayerTable(unittest.TestCase):
         merged = [o for o in infra if o.get("type") != "infrastructure"]
         standalone = [o for o in infra if o.get("type") == "infrastructure"]
         self.assertEqual(len(merged) + len(standalone), len(infra))
-        # Documented split (same snapshot caveat as the figures above): 41 entries,
-        # 23 merged into an existing team, 18 rendered as team markers.
-        prose = spec_section("**Infrastructure has no layer of its own**",
-                             "### 3.3 Entity fields")
-        self.assertEqual(re.findall(r"\b(\d+)\b", prose), ["41", "23", "18"])
-        self.assertEqual([len(infra), len(merged), len(standalone)], [41, 23, 18])
+        # Documented split (same snapshot caveat as the figures above): N entries,
+        # of which some merge into an existing team and the rest render as team
+        # markers. All three figures are read out of the sentence that states
+        # them, in the order it states them, so a regeneration that moves them
+        # fails against the documentation rather than against this file — and the
+        # arithmetic that makes the split a split is checked on those same
+        # parsed figures.
+        figures = spec_prose_figures(
+            "**Infrastructure has no layer of its own**", "### 3.3 Entity fields")
+        self.assertEqual(len(figures), 3)       # a fourth figure would go unread
+        total, into_teams, as_markers = figures
+        self.assertEqual(into_teams + as_markers, total)
+        self.assertEqual([len(infra), len(merged), len(standalone)],
+                         [total, into_teams, as_markers])
 
     def test_3_2_a_merged_infrastructure_entry_adds_its_domain_code_to_the_team(self):
         # §3.2: merging "adds their infrastructure domain code to its marker".
@@ -1046,15 +1245,23 @@ class PerLayerFields(unittest.TestCase):
         # ever `true` and only alongside a medium/low confidence — the map keys
         # `vague` off it, and a `dateHost` on a high-confidence date would move an
         # entity out of the period filter's solid range for no reason.
+        # §10.2 names the levels firmest first, which is the order the host-year
+        # case needs: it is the one that is never the firmest reading of a start.
+        firmest, *softer = spec_date_note_levels()
+        levels = (firmest,) + tuple(softer)
         for layer, o in entities():
             if "dateConf" in o:
                 with self.subTest(layer=layer, id=o["id"]):
-                    self.assertIn(o["dateConf"], ("high", "medium", "low"))
+                    self.assertIn(o["dateConf"], levels)
                     self.assertRegex(o["prov"].get("src", ""), r"timeline\.start \(")
             if "dateHost" in o:
                 with self.subTest(layer=layer, id=o["id"]):
                     self.assertIs(o["dateHost"], True)
-                    self.assertIn(o.get("dateConf"), ("medium", "low"))
+                    # Everything but the firmest level: §10.2's host-year case is
+                    # a note that admits the sub-unit's own date was not found,
+                    # which is never a high-confidence start.
+                    self.assertIn(o.get("dateConf"), softer)
+                    self.assertNotEqual(o["dateConf"], firmest)
                     self.assertTrue((o.get("timeline") or {}).get("start"))
 
     def test_3_3_dateConf_and_dateHost_reproduce_the_note_they_were_parsed_from(self):
@@ -1077,12 +1284,122 @@ class PerLayerFields(unittest.TestCase):
             with self.subTest(layer=layer, id=o["id"]):
                 self.assertEqual(got, recomputed)
         # Per-entity equality still holds if a regeneration dropped the notes and
-        # the fields together, so the volume is pinned too: snapshot figures, same
-        # caveat as §3.2's table, and the floor that keeps the loop non-vacuous.
-        conf = Counter(o["dateConf"] for o in all_entities() if "dateConf" in o)
-        self.assertEqual(sorted(conf), ["high", "low", "medium"])
-        self.assertEqual(sum(conf.values()), 204)
-        self.assertEqual(sum(1 for o in all_entities() if o.get("dateHost")), 25)
+        # the fields together, so the volume is checked too — but derived from
+        # the notes rather than pinned to a figure, because the population moves
+        # with every regeneration exactly as §3.2's table does.
+        #
+        # The derivation goes round `date_quality()` instead of through it. The
+        # note is matched with the generator's own two patterns, `DATE_NOTE` and
+        # `HOST_YEAR` — the same move §3.2's INFRA_KIND check makes — and the
+        # branching that turns a match into a field is re-stated here. A
+        # `date_quality()` that lost its host-year branch would agree with the
+        # payload entity by entity above and disagree with this.
+        #
+        # First, that `DATE_NOTE` reads the form §10.2 documents — "the dating
+        # pass wrote `timeline.start (high|medium|low): <evidence>`" — for each
+        # level the spec names, so the pattern cannot be quietly narrowed to a
+        # subset of the notes and take the derivation below with it.
+        firmest, *softer = spec_date_note_levels()
+        levels = (firmest,) + tuple(softer)
+        for level in levels:
+            probe = f"timeline.start ({level}): Estimate: Example started 2020"
+            with self.subTest(level=level):
+                m = gen.DATE_NOTE.search(probe)
+                self.assertIsNotNone(m)
+                self.assertEqual(m.group(1), level)
+        notes = {}
+        for o in all_entities():
+            m = gen.DATE_NOTE.search(o["prov"].get("src", ""))
+            if m:
+                notes[o["id"]] = (m.group(1), m.group(2).strip())
+        self.assertEqual(sorted(notes),
+                         sorted(o["id"] for o in all_entities() if "dateConf" in o))
+        self.assertEqual({i: c for i, (c, _) in notes.items()},
+                         {o["id"]: o["dateConf"] for o in all_entities()
+                          if "dateConf" in o})
+        # All three levels are in use, so none of the three branches is dead.
+        self.assertEqual(sorted({c for c, _ in notes.values()}), sorted(levels))
+        self.assertEqual(sorted(o["id"] for o in all_entities() if o.get("dateHost")),
+                         sorted(i for i, (c, note) in notes.items()
+                                if c in softer and gen.HOST_YEAR.search(note)))
+        # And the host-year case is populated: an empty one would make the line
+        # above an equality between two empty lists.
+        self.assertGreater(sum(1 for o in all_entities() if o.get("dateHost")), 0)
+
+
+class PendingOverlay(unittest.TestCase):
+    """§2 / §3.2 — the payload arrives in two files, and the second only adds.
+
+    `hai-data.js` is generated from the private source repository; entries added
+    there since the last regeneration reach the reader through an overlay script
+    that merges them into `window.HAI_DATA`. Everything above derives its figures
+    from that merge, so the merge rule itself is what has to hold: if an overlay
+    replaced or dropped an entry instead of appending one, `page_payload()` would
+    be modelling a corpus the page never has, and every count in this file would
+    be measured against the wrong population.
+
+    These checks read the overlay's own source, not `page_payload()`'s output.
+    """
+
+    def overlay_sources(self):
+        return [(src, (MAP_HTML.parent / src).read_text(encoding="utf-8"))
+                for src in overlay_scripts()]
+
+    def test_2_every_overlay_is_loaded_after_the_generated_payload(self):
+        # Load order is the whole mechanism: the overlay reads `window.HAI_DATA`
+        # and returns early if it is not there yet (`if (!D) return;`), so an
+        # overlay placed above `hai-data.js` would merge nothing at all and fail
+        # silently — the page would render the generated corpus and look fine.
+        srcs = page_data_scripts()
+        self.assertIn(GENERATED_SRC, srcs)
+        for src in overlay_scripts():
+            with self.subTest(overlay=src):
+                self.assertGreater(srcs.index(src), srcs.index(GENERATED_SRC))
+                self.assertTrue((MAP_HTML.parent / src).is_file())
+
+    def test_3_2_an_overlay_carries_only_the_layers_the_payload_keys(self):
+        # A key this file does not merge would sit in the overlay unread: new
+        # TAXO groups that never reach `taxo()`, or a sixth layer with no `reg()`
+        # call behind it. §3.4's vocabulary tests read the generated TAXO table
+        # directly, which is only sound while no overlay ships one.
+        for src, text in self.overlay_sources():
+            add = json.loads(_json_object_after(text, "var ADD = "))
+            with self.subTest(overlay=src):
+                self.assertLessEqual(set(add), set(PAYLOAD_LAYERS))
+                self.assertGreater(len(add), 0)
+                for layer in ENTITY_LAYERS:
+                    self.assertTrue(all(o.get("id") for o in add.get(layer, [])))
+                for edge in add.get("EDGES", []):
+                    self.assertEqual(sorted(edge), ["project", "team"])
+
+    def test_3_2_an_overlay_appends_and_never_rewrites_what_it_merges_into(self):
+        # The merge is append-only by construction: it pushes onto the arrays
+        # already on `window.HAI_DATA` and never assigns one, splices one or
+        # drops an element. That is what makes the corpus the page holds the
+        # union of the two files rather than whichever of them ran last, and it
+        # is also what makes the overlay a harmless no-op once `hai-data.js` has
+        # been regenerated with the same entries in it.
+        for src, text in self.overlay_sources():
+            with self.subTest(overlay=src):
+                self.assertRegex(text, r"\.push\(")
+                for destructive in (r"D\[\s*layer\s*\]\s*=[^=]", r"D\.EDGES\s*=[^=]",
+                                    r"\.splice\(", r"\.shift\(", r"\.pop\(\s*\)\s*;",
+                                    r"delete\s+D"):
+                    self.assertNotRegex(text, destructive)
+
+    def test_3_2_an_overlay_never_ships_the_same_entry_twice(self):
+        # Within one overlay, and across several: a repeated id reaches the merge
+        # as two entries, the second of which is dropped on the `have` check, so
+        # a duplicate is invisible in the rendered map and visible only as a
+        # discrepancy between the file and what it contributes. A repeated edge
+        # pair would be dropped the same way. Checked on the pooled additions so
+        # that two overlays colliding with each other is caught as well.
+        for layer in ENTITY_LAYERS:
+            ids = [o["id"] for o in ADDED[layer]]
+            with self.subTest(layer=layer):
+                self.assertEqual(sorted(i for i, n in Counter(ids).items() if n > 1), [])
+        pairs = [(e["project"], e["team"]) for e in ADDED["EDGES"]]
+        self.assertEqual(sorted(p for p, n in Counter(pairs).items() if n > 1), [])
 
 
 if __name__ == "__main__":

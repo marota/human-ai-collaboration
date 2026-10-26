@@ -63,16 +63,30 @@ export function tiles(page) {
     })));
 }
 
-/** The layer rows, as rendered. */
+/** The layer rows, as rendered.
+ *
+ *  A row whose layer holds placeless entities renders its figure split at that
+ *  seam — "23+7": 23 with a marker, 7 without, 30 matching the filters. `count`
+ *  stays the whole, so a test about what matches the filters reads the same
+ *  number whether or not the split is showing; `placed` and `offMap` expose the
+ *  two halves for the tests that are about the split itself. */
 export function layerRows(page) {
   return page.evaluate(() =>
-    [...document.querySelectorAll('.layer-row[data-layer]')].map((b) => ({
-      kind: b.dataset.layer,
-      count: Number(b.querySelector('.cnt').textContent),
-      title: b.querySelector('.cnt').title,
-      on: b.getAttribute('aria-pressed') === 'true',
-      label: b.querySelector('.lbl').textContent,
-    })));
+    [...document.querySelectorAll('.layer-row[data-layer]')].map((b) => {
+      const cnt = b.querySelector('.cnt');
+      const offEl = cnt.querySelector('.off');
+      const offMap = offEl ? Number(offEl.textContent.replace('+', '')) : 0;
+      const placed = Number(cnt.firstChild.textContent);
+      return {
+        kind: b.dataset.layer,
+        count: placed + offMap,
+        placed,
+        offMap,
+        title: cnt.title,
+        on: b.getAttribute('aria-pressed') === 'true',
+        label: b.querySelector('.lbl').textContent,
+      };
+    }));
 }
 
 export const caption = (page) => page.locator('#st-note').textContent();

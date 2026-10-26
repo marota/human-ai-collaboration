@@ -5,20 +5,34 @@
 // invariants 2 (shape means layer, colour means domain) and 3 (an entity
 // without coordinates has no marker but keeps everything else).
 //
-// Two habits run through the file:
+// Four habits run through the file:
 //
 //  * Expectations are derived from the payload on disk, re-implementing the
-//    rule the spec states, rather than read back out of the page. hai-data.js
-//    is loaded here in Node, *before* the page's jitter pass mutates it in
-//    place, so the tests can say what a marker's coordinates ought to be and
-//    not merely that the page agrees with itself.
+//    rule the spec states, rather than read back out of the page. The data
+//    scripts are loaded here in Node, *before* the page's jitter pass mutates
+//    the payload in place, so the tests can say what a marker's coordinates
+//    ought to be and not merely that the page agrees with itself.
+//  * No count is written down. §3.2 says the figures in the spec's own table
+//    "are a snapshot and move with every upstream regeneration; the shape of
+//    the table is what is normative, not the figures" — so a corpus size, an
+//    off-map population, a fan width or a dashed-link count is computed from
+//    the payload and the page is then held to it exactly. Where a count only
+//    served to show a test was not vacuous, what is asserted is the thing it
+//    stood for: that both branches of a partition are populated, that two sets
+//    are the same set, that a fixture really sits on the boundary it was
+//    chosen for.
+//  * Fixtures are chosen by property — the widest domain split, the narrowest
+//    fan, the longest name that still fits the label — rather than by id,
+//    except where an entity is itself the subject of the test. A regeneration
+//    that renames or retires an entity then re-picks the fixture instead of
+//    silently voiding the test.
 //  * Where a claim is visual, both halves are asserted: the internal state
 //    (`edges`, `hotEdges`, `view.k`, `k0`) and the attribute a reader's eye
 //    actually lands on (stroke-opacity, stroke-dasharray, display).
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { openMap, settleCounts, setLayers, toggleLayer, fitAll, snapshot } from './_map.js';
+import { openMap, settleCounts, setLayers, toggleLayer, fitAll, snapshot, MAP_PATH } from './_map.js';
 
 // ---------------------------------------------------------------- the payload
 
@@ -26,10 +40,38 @@ import { openMap, settleCounts, setLayers, toggleLayer, fitAll, snapshot } from 
 // to reach the repository; import.meta is not available here.
 const repoFile = (rel) => path.join(__dirname, '..', '..', rel);
 
-/** hai-data.js as committed — the generated payload, unmutated. */
+// The page under test, as a repository path — the committed artefact, or the
+// doctored copy a mutation run points MAP_PATH at. Its data scripts are read
+// from its own directory, so a mutation copy is modelled from the same payload
+// it loads.
+const MAP_FILE = MAP_PATH.replace(/^\/+/, '').split(/[?#]/)[0];
+
+/** The payload the page is given, as committed and unmutated.
+ *
+ *  It is no longer a single file: `hai-data-additions.js` merges further
+ *  entities into `window.HAI_DATA` by id after `hai-data.js` has defined it,
+ *  and says it becomes a no-op once the generated file catches up. So the
+ *  payload is *every script the page loads that touches HAI_DATA*, applied in
+ *  the page's own order — discovered by reading the page rather than named
+ *  here, so a shim appearing, being renamed, or being folded back into the
+ *  generated file cannot leave this model reasoning about half a corpus.
+ *
+ *  Nothing circular is going on: these files are the input the page is handed,
+ *  not the code under test. The jitter pass, the projection and the edge list
+ *  below are still re-implemented here from §4.1–§4.3, and a merge that lost or
+ *  duplicated an entity would put the page and this model out of step — which
+ *  the id-for-id comparisons in §4.1 and §4.2 are there to report. */
 function loadPayload() {
+  const page = fs.readFileSync(repoFile(MAP_FILE), 'utf8');
+  const dir = path.dirname(MAP_FILE);
   const w = {};
-  new Function('window', fs.readFileSync(repoFile('assets/map/hai-data.js'), 'utf8'))(w);
+  for (const [, src] of page.matchAll(/<script[^>]+\bsrc="([^"]+)"/g)) {
+    if (/^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(src)) continue;   // nothing off-site
+    const js = fs.readFileSync(repoFile(path.join(dir, src)), 'utf8');
+    if (!js.includes('HAI_DATA')) continue;                     // e.g. europe-geo.js
+    new Function('window', js)(w);
+  }
+  if (!w.HAI_DATA) throw new Error(`${MAP_FILE} loads no script that defines HAI_DATA`);
   return w.HAI_DATA;
 }
 
@@ -43,6 +85,15 @@ function loadGeoConstants() {
     return Number(m[1]);
   };
   return { W: num('W'), H: num('H'), LAM0: num('LAM0'), PHI1: num('PHI1'), S: num('S'), TX: num('TX'), TY: num('TY') };
+}
+
+/** The same file, parsed whole, so the drawn basemap can be compared with the
+ *  geometry it is supposed to be. Read inside the one test that needs it: it is
+ *  a megabyte of path data and every other test here wants only the header. */
+function loadGeoFile() {
+  const w = {};
+  new Function('window', fs.readFileSync(repoFile('assets/map/europe-geo.js'), 'utf8'))(w);
+  return w.HAI_GEO;
 }
 
 const RAW = loadPayload();
@@ -67,6 +118,15 @@ const SPEC_GROUPS = {
 // §4.2's radius column, and §4.2's draw order.
 const SPEC_R = { project: 8.5, commons: 7.5, framework: 6, team: 4.5 };
 const SPEC_DRAW_ORDER = ['team', 'commons', 'framework', 'project'];
+
+/** The table above in the form CSS answers in. A marker's fill is an attribute
+ *  and comes back as the hex that was written; a swatch's colour is a style and
+ *  comes back resolved, so the two channels have to be compared through this. */
+function rgbOf(hex) {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) throw new Error('not a six-digit hex colour: ' + hex);
+  return `rgb(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)})`;
+}
 
 // §4.1's "twenty capital labels give orientation", with the coordinates written
 // out by hand from an atlas. The page's own CAPITALS table is the thing under
@@ -196,6 +256,67 @@ function fanBase(n) {
   const fan = Math.min(1, Math.max(0, (n - 4) / 12));
   return { op: 0.85 - 0.45 * fan, w: 1.8 - 0.6 * fan };
 }
+
+/** Every entity that has a fan, widest first, ties to the lower id. */
+const FAN_RANK = (() => {
+  const n = new Map(MODEL.all.map((m) => [m.id, 0]));
+  for (const e of RELATIONS.drawn) { n.set(e.a, n.get(e.a) + 1); n.set(e.b, n.get(e.b) + 1); }
+  return [...n].filter(([, k]) => k > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+})();
+const widestFan = (ok = () => true) => FAN_RANK.find(([, n]) => ok(n));
+const narrowestFan = (ok = () => true) => [...FAN_RANK].reverse().find(([, n]) => ok(n));
+
+/** The places on §4.3's attenuation ramp worth a fixture, filled with whatever
+ *  entity in today's payload sits there. The spec pins the ramp's ends — 0.85
+ *  "at four neighbours or fewer", 0.40 "at sixteen or more" — so a fixture is
+ *  chosen by where its fan falls rather than named, and a regeneration cannot
+ *  quietly turn the sixteen-link fixture into a five-link one. Ties go to the
+ *  lower id, so a regeneration that leaves the widths alone leaves the
+ *  fixtures alone; a landmark the corpus does not reach drops out rather than
+ *  being faked, and `fanFixture()` says so where a test depends on it. */
+const FAN_LANDMARKS = {
+  sole: { why: 'the narrowest fan there is', at: narrowestFan() },
+  plateauHigh: { why: 'the widest fan still on the 0.85 plateau', at: widestFan((n) => n <= 4) },
+  ramp: { why: 'the widest fan below sixteen', at: widestFan((n) => n > 4 && n < 16) },
+  plateauLow: { why: 'the narrowest fan on the 0.40 plateau', at: narrowestFan((n) => n >= 16) },
+  widest: { why: 'the widest fan in the corpus', at: widestFan() },
+};
+const fanFixture = (key) => {
+  const f = FAN_LANDMARKS[key];
+  if (!f.at) throw new Error(`no entity in this payload provides ${f.why}`);
+  return { id: f.at[0], n: f.at[1], why: f.why };
+};
+
+/** The widest fan that reaches a team *and* something that is not a team —
+ *  the fixture "an edge needs both ends visible" needs, because hiding the
+ *  team layer has to leave part of that fan standing and take the rest. */
+const MIXED_FAN = (() => {
+  for (const [id, n] of FAN_RANK) {
+    const ends = fanOf(id).map((e) => (e.a === id ? e.b : e.a));
+    const teams = ends.filter((o) => MODEL.byId.get(o).kind === 'team').length;
+    if (teams > 0 && teams < ends.length) return { id, n };
+  }
+  return null;
+})();
+
+/** The entity a test should reach for when it needs a marker of a given shape:
+ *  the widest domain split in `kind`, which is the hardest case the payload
+ *  offers and the one a silent cap on the domain list would show up in. Ties to
+ *  the lower id, so the choice is stable across regenerations. */
+const widestSplit = (ok) => MODEL.all
+  .filter((m) => m.placed && ok(m))
+  .sort((a, b) => b.domains.length - a.domains.length || (a.id < b.id ? -1 : 1))[0];
+
+/** …and the counterpart: the plainest marker of a kind, for the single-domain
+ *  cases. Payload order, so it is the same entity from run to run. */
+const soleDomain = (kind) => MODEL.all.find((m) => m.placed && m.kind === kind && m.domains.length === 1);
+
+/** The longest name of a labelled (that is, non-team) marker, optionally
+ *  bounded — §4.2's truncation rule has a boundary at 34 characters and the
+ *  corpus is what decides how close to it a test can get. */
+const longestName = (ok = () => true) => MODEL.all
+  .filter((m) => m.placed && m.kind !== 'team' && ok(m))
+  .sort((a, b) => b.d.name.length - a.d.name.length || (a.id < b.id ? -1 : 1))[0];
 
 // ------------------------------------------------------------ page-side reads
 
@@ -338,6 +459,101 @@ async function pickHoverable(page, ids) {
 /** Move the real pointer onto a marker that pickHoverable() vouched for. */
 async function hoverMarker(page, at) {
   await page.mouse.move(at.x, at.y);
+}
+
+/** `#map` is `inset:0` inside `#stage`, so one rectangle serves for both. It is
+ *  needed by every gesture test because `view.x` is measured from that
+ *  rectangle's top-left corner while a pointer event's `clientX` is measured
+ *  from the viewport — and the 312 px sidebar of §5 is the whole of the
+ *  difference. Converting between the two is what the handlers do with
+ *  `- rect.left`, and getting it wrong moves every pointer zoom sideways by the
+ *  width of the sidebar. */
+const mapBox = (page) => page.evaluate(() => {
+  const r = document.getElementById('map').getBoundingClientRect();
+  return { left: r.left, top: r.top, w: r.width, h: r.height };
+});
+
+/** The world point under a point of the stage, and back again, from the view
+ *  alone. "Zoomed about X" is the claim that one chosen point does not move. */
+const worldUnder = (v, px, py) => [(px - v.x) / v.k, (py - v.y) / v.k];
+const screenOf = (v, wx, wy) => [v.x + wx * v.k, v.y + wy * v.k];
+
+const viewOf = (page) => page.evaluate(() => ({ x: view.x, y: view.y, k: view.k, k0, focus: state.focusId }));
+
+/** Where a marker is on screen right now. */
+const centreOf = (page, id) => page.evaluate((wanted) => {
+  const r = mkEls[wanted].getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}, id);
+
+/** Wait for a gesture to land. Playwright resolves `mouse.wheel()` and
+ *  `mouse.dblclick()` when the event has been sent, not when the page has run
+ *  its handler, so a read taken straight afterwards can be the view from
+ *  before. */
+const waitForK = (page, from) => page.waitForFunction((k) => view.k !== k, from);
+
+/** A marker a real pointer can reach, with room around it for a gesture.
+ *  Markers overlap — that is what the jitter pass is for — so the fixture has
+ *  to be discovered rather than named, the same reason pickHoverable() exists;
+ *  `pad` reserves the room the gesture needs on each side. Candidates are tried
+ *  farthest from the stage centre first, because the centre is where #z-in,
+ *  #z-out and fitView() all already anchor and so the one place where an
+ *  anchoring bug cannot show. */
+async function pickForGesture(page, pad = {}) {
+  const want = { l: 90, r: 90, t: 90, b: 90, ...pad };
+  const order = await page.evaluate((p) => {
+    const st = document.getElementById('stage').getBoundingClientRect();
+    const out = [];
+    for (const id in mkEls) {
+      const el = mkEls[id];
+      if (el.style.display === 'none') continue;
+      const b = el.getBoundingClientRect();
+      const x = b.left + b.width / 2, y = b.top + b.height / 2;
+      if (x < st.left + p.l || x > st.right - p.r || y < st.top + p.t || y > st.bottom - p.b) continue;
+      out.push({ id, d: Math.hypot(x - (st.left + st.width / 2), y - (st.top + st.height / 2)) });
+    }
+    return out.sort((a, b) => b.d - a.d).map((o) => o.id);
+  }, want);
+  expect(order.length, 'no marker has room on the stage for this gesture').toBeGreaterThan(0);
+  return pickHoverable(page, order);
+}
+
+/** A point of the stage over open water: inside #map, over no marker. */
+async function pickEmptySea(page) {
+  const sea = await page.evaluate(() => {
+    const st = document.getElementById('stage').getBoundingClientRect();
+    for (let fy = 0.18; fy < 0.9; fy += 0.06) {
+      for (let fx = 0.12; fx < 0.9; fx += 0.06) {
+        const x = Math.round(st.left + fx * st.width), y = Math.round(st.top + fy * st.height);
+        const hit = document.elementFromPoint(x, y);
+        if (hit && hit.closest('#map') && !hit.closest('.mk')) return { x, y };
+      }
+    }
+    return null;
+  });
+  expect(sea, 'no point of the stage is open water').not.toBe(null);
+  return sea;
+}
+
+/** Every glyph of a key, in document order: the shapes inside its `.glyph` svg
+ *  with the outline last, and the row's own label. The sidebar's layer rows and
+ *  the legend on the map are both read through this one function, so the two
+ *  keys are pinned to the same table and cannot drift apart. */
+function glyphRows(page, rowSelector) {
+  return page.evaluate((sel) => [...document.querySelectorAll(sel)].map((row) => {
+    const svg = row.querySelector('.glyph svg');
+    const shapes = [...svg.querySelectorAll('circle,rect,path')];
+    const o = shapes[shapes.length - 1];
+    const lbl = row.querySelector('.lbl');
+    return {
+      key: row.dataset.layer || null,
+      text: (lbl ? lbl.textContent : row.textContent).trim(),
+      size: svg.getAttribute('width'),
+      tags: shapes.map((s) => s.tagName),
+      outline: o.tagName, r: o.getAttribute('r'), rx: o.getAttribute('rx'),
+      dash: o.getAttribute('stroke-dasharray'), sw: o.getAttribute('stroke-width'),
+    };
+  }), rowSelector);
 }
 
 // =========================================================== §4.1 projection
@@ -498,6 +714,52 @@ test.describe('§4.1 projection and basemap', () => {
       expect(expectMarkerAt(g.transform, m.X, m.Y, m.id), `${m.id} counter-scale`).toBe(got.inv);
     }
   });
+
+  test('§4.1 the basemap is the payload\'s own pre-projected geometry, drawn verbatim', async ({ page }) => {
+    // "Geometry is pre-projected in europe-geo.js, so the runtime does one
+    // trigonometric pass over the entity coordinates and nothing else."
+    //
+    // This is the one geometry channel on the page that was compared with
+    // nothing. Every §4.1 projection test, every capital label, every marker
+    // placement and all eleven §4.4 zoom tests read entity coordinates and
+    // project(); the coastlines under them were only ever filtered for
+    // escapable characters and counted (integrity.spec.js), and `#g-grat` was
+    // not mentioned anywhere in the suite — the graticule was not asserted to
+    // be drawn at all. Re-project, round, simplify or reorder the outlines at
+    // runtime and a reader sees warped coastlines under correctly-placed
+    // markers, which §3.1 says is exactly the kind of wrongness a reader will
+    // not recognise as a bug.
+    const GEOF = loadGeoFile();
+    await openMap(page);
+    const drawn = await page.evaluate(() => ({
+      countries: [...document.querySelectorAll('#g-countries path.country')].map((p) => p.getAttribute('d')),
+      grat: [...document.querySelectorAll('#g-grat path.grat')].map((p) => p.getAttribute('d')),
+      tCountries: document.getElementById('g-countries').getAttribute('transform'),
+      tGrat: document.getElementById('g-grat').getAttribute('transform'),
+    }));
+    // Not vacuous: both layers carry geometry to compare.
+    expect(GEOF.countries.length).toBeGreaterThan(40);
+    expect(GEOF.grat.length, 'a graticule of no lines would make the comparison empty').toBeGreaterThan(0);
+    expect(drawn.countries).toHaveLength(GEOF.countries.length);
+    expect(drawn.grat).toHaveLength(GEOF.grat.length);
+    // Element for element *and* in order: later siblings paint on top, so a
+    // reordering is as wrong as a reshaping. Compared one at a time because a
+    // failing toEqual() over 65 half-kilobyte strings prints a diff nobody can
+    // read; the message names the country instead.
+    GEOF.countries.forEach((c, i) => {
+      expect(drawn.countries[i] === c.d,
+        `country ${i} should be ${c.n}: "${c.d.slice(0, 40)}…" but the page drew "${String(drawn.countries[i]).slice(0, 40)}…"`)
+        .toBe(true);
+    });
+    GEOF.grat.forEach((d, i) => {
+      expect(drawn.grat[i] === d,
+        `graticule line ${i} should be "${d.slice(0, 40)}…" but the page drew "${String(drawn.grat[i]).slice(0, 40)}…"`)
+        .toBe(true);
+    });
+    // And nothing is bent after the fact: a transform on either layer would
+    // slide the coastlines out from under markers that are where they belong.
+    expect([drawn.tCountries, drawn.tGrat]).toEqual([null, null]);
+  });
 });
 
 // =============================================================== §4.2 jitter
@@ -563,20 +825,29 @@ test.describe('§4.2 the jitter pass', () => {
 
   test('§4.2 the jitter is per layer group, so a team and a project in one cell still overlap', async ({ page }) => {
     // The spec says "jittered … per layer group", and that is visible in the
-    // data: Aalto's digital-twin team and the FCAI programme carry the very
-    // same coordinates, each alone in its own group, so neither moves and the
-    // two markers coincide. Asserted so that widening the jitter to one global
-    // pass — which would separate them — cannot happen unnoticed.
+    // data: a team and an entity of another layer can carry the very same
+    // coordinates and still be alone in their own group, so neither moves and
+    // the two markers coincide. Asserted so that widening the jitter to one
+    // global pass — which would separate them — cannot happen unnoticed. The
+    // pair is looked up in the payload rather than named, so a regeneration
+    // that moves one of them re-picks another instead of voiding the test.
     await openMap(page);
-    const pair = ['aalto-dt', 'fcai'];
+    const cell = (m) => m.rawLat.toFixed(2) + ',' + m.rawLon.toFixed(2);
+    const lone = PLACED.filter((m) => m.groupSize === 1);
+    const found = lone
+      .filter((m) => m.kind === 'team')
+      .map((t) => [t, lone.find((o) => o.kind !== 'team' && cell(o) === cell(t))])
+      .find(([, o]) => o);
+    expect(found, 'no two layer groups share a cell, so nothing can overlap').not.toBe(undefined);
+    const pair = found.map((m) => m.id);
     for (const id of pair) expect(MODEL.byId.get(id).groupSize, id).toBe(1);
     const got = await page.evaluate((ids) => ids.map((id) => ({
       lat: byId[id].d.lat, lon: byId[id].d.lon, X: byId[id].X, Y: byId[id].Y, kind: byId[id].kind,
     })), pair);
     expect(got[0].kind).toBe('team');
-    expect(got[1].kind).toBe('project');
-    expect(got[0].lat).toBe(MODEL.byId.get('aalto-dt').rawLat);
-    expect(got[1].lat).toBe(MODEL.byId.get('fcai').rawLat);
+    expect(got[1].kind, `${pair[1]} must be in another layer group`).not.toBe('team');
+    expect(got[0].lat).toBe(found[0].rawLat);
+    expect(got[1].lat).toBe(found[1].rawLat);
     expect([got[0].X, got[0].Y]).toEqual([got[1].X, got[1].Y]);
   });
 
@@ -696,13 +967,53 @@ test.describe('§4.2 markers, and invariant 2', () => {
     expect(seen.energy.kinds.sort()).toEqual([...KINDS].sort());
   });
 
+  test('inv.2 the domain key carries the marker colour — filter swatches and card badges', async ({ page }) => {
+    // Invariant 2 is a claim about a channel, and a channel a reader cannot
+    // decode is not one. Every colour assertion in the suite reads marker
+    // fills; the two surfaces that say what a fill *means* are elsewhere — the
+    // domain filter's swatch and the card's domain badges — and both were read
+    // for their count and their text but never for their colour. Swapping two
+    // entries so that the swatch disagreed with the marker, or collapsing
+    // either site to a constant, left a key that lies about the map and failed
+    // nothing.
+    await openMap(page);
+    const sw = await page.evaluate(() => [...document.querySelectorAll('#domain-groups input[data-dom]')].map((cb) => ({
+      dom: cb.dataset.dom,
+      bg: getComputedStyle(cb.parentNode.querySelector('.dot')).backgroundColor,
+    })));
+    expect(sw.map((x) => x.dom).sort()).toEqual(Object.keys(SPEC_COLORS).sort());
+    for (const x of sw) expect(x.bg, `the ${x.dom} swatch`).toBe(rgbOf(SPEC_COLORS[x.dom]));
+    // Seventeen swatches, seventeen colours: a table collapsed onto one colour
+    // would satisfy every per-domain check above if the markers collapsed too.
+    expect(new Set(sw.map((x) => x.bg)).size, 'the swatches must be pairwise distinct').toBe(17);
+
+    // The card's badges, on the entity whose pie the slice test below pins —
+    // the widest domain split in the corpus, so the badge row is the longest
+    // the card ever draws. The expected order is the entity's own domain order
+    // out of the payload, which is the order the slices are asserted in, so
+    // swatch, badge and slice all hang off one table and cannot disagree.
+    const subject = widestSplit((m) => m.kind !== 'framework');
+    const id = subject.id;
+    const want = MODEL.byId.get(id).domains;
+    expect(want.length, `${id} must carry more than one domain to have a badge row`).toBeGreaterThan(1);
+    await focusEntity(page, id);
+    const host = await cardHost(page);
+    const dots = await page.evaluate((sel) =>
+      [...document.querySelectorAll(sel + ' .dt-dom .dot')].map((d) => getComputedStyle(d).backgroundColor), host);
+    expect(dots).toHaveLength(want.length);
+    want.forEach((dom, i) => {
+      expect(dots[i], `${id} badge ${i} is the ${dom} badge`).toBe(rgbOf(SPEC_COLORS[dom]));
+    });
+  });
+
   test('inv.2 two entities of the same layer and domains draw the identical marker', async ({ page }) => {
     // The sharpest reading of "neither channel encodes anything else": if layer
     // and domain set are all that a marker shows, then two entities agreeing on
     // both must produce byte-identical markup. Status, tier, funding, date
-    // confidence, pin count — none of them may reach the glyph. Seventy groups
-    // in the corpus have more than one member, and half of those disagree on
-    // status or tier, so a leak would be caught here rather than by eye.
+    // confidence, pin count — none of them may reach the glyph. Scores of
+    // groups in the corpus have more than one member and disagree on status or
+    // tier, so a leak would be caught here rather than by eye; how many there
+    // are today is computed below rather than written down.
     await openMap(page);
     const groups = await page.evaluate(() => {
       const out = {};
@@ -719,18 +1030,32 @@ test.describe('§4.2 markers, and invariant 2', () => {
       return out;
     });
     const shared = Object.entries(groups).filter(([, v]) => v.ids.length > 1);
-    expect(shared.length, 'layer + domain groups with more than one member').toBeGreaterThan(50);
     for (const [key, v] of shared) {
       expect(v.markup, `${key} (${v.ids.slice(0, 3).join(', ')}…) must draw one marker`).toHaveLength(1);
     }
+    // The groups the payload actually contains, so that the comparison above
+    // covers every one of them: a page that drew half its markers into a
+    // single group would satisfy the loop and fail here.
+    const byLayerAndDomains = new Map();
+    for (const m of PLACED) {
+      const key = m.kind + '|' + m.domains.join(',');
+      if (!byLayerAndDomains.has(key)) byLayerAndDomains.set(key, []);
+      byLayerAndDomains.get(key).push(m.id);
+    }
+    const wantShared = [...byLayerAndDomains].filter(([, ids]) => ids.length > 1);
+    expect(shared.length, 'layer + domain groups with more than one member').toBe(wantShared.length);
+    expect(wantShared.length, 'the payload must contain at least one such group').toBeGreaterThan(0);
+    expect(shared.map(([k]) => k).sort()).toEqual(wantShared.map(([k]) => k).sort());
     // Not vacuous: within those groups, entities really do differ in ways the
     // marker must ignore.
-    const varying = shared.filter(([, v]) =>
-      new Set(v.ids.map((id) => {
-        const m = MODEL.byId.get(id);
-        return m.d.status + '/' + m.d.tier;
-      })).size > 1);
-    expect(varying.length, 'groups whose members disagree on status or tier').toBeGreaterThan(20);
+    const tell = (id) => {
+      const m = MODEL.byId.get(id);
+      return m.d.status + '/' + m.d.tier;
+    };
+    const varying = shared.filter(([, v]) => new Set(v.ids.map(tell)).size > 1);
+    const wantVarying = wantShared.filter(([, ids]) => new Set(ids.map(tell)).size > 1);
+    expect(varying.length, 'groups whose members disagree on status or tier').toBe(wantVarying.length);
+    expect(wantVarying.length, 'some group must disagree, or the claim is untested').toBeGreaterThan(0);
   });
 
   test('§4.2 a multi-domain circle is equal pie slices, one per domain, in the entity\'s own order', async ({ page }) => {
@@ -738,8 +1063,17 @@ test.describe('§4.2 markers, and invariant 2', () => {
     // 2π/n, starting at twelve o'clock, coloured in the entity's domain order —
     // which is its lead domain first, not the palette's order.
     await openMap(page);
-    for (const id of ['tailor', 'ai4realnet', 'tecnatom-simulators', 'aicrowd']) {
+    // One fixture per circle layer — the widest domain split each of them
+    // offers, which is the hardest pie that layer can be asked to draw.
+    const pies = ['project', 'team', 'commons'].map((k) => widestSplit((m) => m.kind === k));
+    pies.forEach((fx, i) => {
+      expect(fx, `layer ${['project', 'team', 'commons'][i]} has no placed entity`).not.toBe(undefined);
+      expect(fx.domains.length, `${fx.id} must be multi-domain to draw a pie at all`).toBeGreaterThan(1);
+    });
+    for (const { id } of pies) {
       const mk = await markerParts(page, id);
+      // The domain list is the payload's, not whatever the page kept.
+      expect(mk.domains, `${id} domains`).toEqual(MODEL.byId.get(id).domains);
       const n = mk.domains.length;
       expect(n, id).toBeGreaterThan(1);
       expect(mk.bodyTag, id).toBe('g');
@@ -765,40 +1099,58 @@ test.describe('§4.2 markers, and invariant 2', () => {
       expect(outline.fill, `${id} outline`).toBe('none');
       expect(outline.r, `${id} outline radius`).toBe(String(r));
     }
-    // The wedge order is the entity's own domain list. TAILOR leads on `multi`,
-    // which sits fourteenth in the palette, so a palette-ordered pie would put
-    // hf or xai first.
-    const tailor = await markerParts(page, 'tailor');
-    expect(tailor.domains).toEqual(['multi', 'xai', 'hf']);
-    expect(tailor.shapes.slice(0, 3).map((s) => s.fill))
-      .toEqual([SPEC_COLORS.multi, SPEC_COLORS.xai, SPEC_COLORS.hf]);
+    // The wedge order is the entity's own domain list, not the palette's. The
+    // fixture is the widest pie the palette would reorder — its lead domain
+    // sits late in §4.2's table, so a palette-ordered pie would open on
+    // another colour entirely.
+    const PALETTE = [...SPEC_GROUPS.industrial, ...SPEC_GROUPS.research, ...SPEC_GROUPS.infra];
+    const paletteOrder = (doms) => doms.slice().sort((a, b) => PALETTE.indexOf(a) - PALETTE.indexOf(b));
+    const own = widestSplit((m) => m.kind !== 'framework' && m.domains.length > 1
+      && paletteOrder(m.domains).join() !== m.domains.join());
+    expect(own, 'no pie in this payload disagrees with the palette order').not.toBe(undefined);
+    const wedges = await markerParts(page, own.id);
+    expect(wedges.domains, `${own.id} domains`).toEqual(own.domains);
+    expect(wedges.shapes.slice(0, own.domains.length).map((s) => s.fill))
+      .toEqual(own.domains.map((d) => SPEC_COLORS[d]));
+    // …and that really is a different pie from the palette-ordered one.
+    expect(wedges.shapes.slice(0, own.domains.length).map((s) => s.fill))
+      .not.toEqual(paletteOrder(own.domains).map((d) => SPEC_COLORS[d]));
   });
 
-  test('§4.2 a seven-domain marker gets seven equal slices, not a cap of five', async ({ page }) => {
-    // The widest split in the corpus. A pie that silently truncated its domain
-    // list would still look plausible, so count the wedges and the turn they
-    // close: seven arcs of 2π/7 come back to the start.
+  test('§4.2 the widest domain split in the corpus gets one slice per domain, not a cap of five', async ({ page }) => {
+    // A pie that silently truncated its domain list would still look
+    // plausible, so count the wedges and the turn they close: n arcs of 2π/n
+    // come back to the start. The fixture is whichever entity carries the most
+    // domains today, since that is the only place a cap would show.
     await openMap(page);
-    const mk = await markerParts(page, 'tecnatom-simulators');
-    expect(mk.domains).toHaveLength(7);
-    expect(mk.shapes.filter((s) => s.tag === 'path')).toHaveLength(7);
-    const slices = mk.shapes.slice(0, 7).map((s) => parseSlice(s.d));
-    // Each slice starts where the previous one ended, and the seventh closes
-    // the circle back onto the first — a truncated domain list would leave a gap.
-    for (let i = 1; i < 7; i++) {
+    const fx = widestSplit((m) => m.kind !== 'framework');
+    const n = fx.domains.length;
+    expect(n, `${fx.id} carries the widest split in the payload`).toBeGreaterThan(5);
+    const mk = await markerParts(page, fx.id);
+    expect(mk.domains).toEqual(fx.domains);
+    expect(mk.shapes.filter((s) => s.tag === 'path')).toHaveLength(n);
+    const slices = mk.shapes.slice(0, n).map((s) => parseSlice(s.d));
+    // Each slice starts where the previous one ended, and the last closes the
+    // circle back onto the first — a truncated domain list would leave a gap.
+    for (let i = 1; i < n; i++) {
       expect(slices[i].lx, `slice ${i} starts where ${i - 1} ended`).toBeCloseTo(slices[i - 1].ex, 1);
       expect(slices[i].ly, `slice ${i} starts where ${i - 1} ended`).toBeCloseTo(slices[i - 1].ey, 1);
     }
-    expect(slices[6].ex).toBeCloseTo(slices[0].lx, 1);
-    expect(slices[6].ey).toBeCloseTo(slices[0].ly, 1);
-    expect(new Set(mk.shapes.slice(0, 7).map((s) => s.fill)).size).toBe(7);
+    expect(slices[n - 1].ex).toBeCloseTo(slices[0].lx, 1);
+    expect(slices[n - 1].ey).toBeCloseTo(slices[0].ly, 1);
+    expect(new Set(mk.shapes.slice(0, n).map((s) => s.fill)).size).toBe(n);
   });
 
   test('§4.2 a multi-domain framework is equal vertical bands under one rounded outline', async ({ page }) => {
     await openMap(page);
-    const mk = await markerParts(page, 'aletheia-framework');
+    // The widest framework split there is: the most bands the payload can ask
+    // for under one outline.
+    const fx = widestSplit((m) => m.kind === 'framework');
+    expect(fx, 'no framework is placed, so no square is drawn').not.toBe(undefined);
+    const mk = await markerParts(page, fx.id);
+    expect(mk.domains, `${fx.id} domains`).toEqual(fx.domains);
     const n = mk.domains.length;
-    expect(n).toBe(4);
+    expect(n, `${fx.id} must be multi-domain to band at all`).toBeGreaterThan(1);
     const r = SPEC_R.framework, w = 2 * r, bw = w / n;
     expect(mk.bodyTag).toBe('g');
     expect(mk.shapes).toHaveLength(n + 1);
@@ -817,19 +1169,21 @@ test.describe('§4.2 markers, and invariant 2', () => {
 
   test('§4.2 a single-domain marker is one solid shape, not a one-slice pie', async ({ page }) => {
     await openMap(page);
-    const project1 = await markerParts(page, 'adra');
-    expect(project1.domains).toEqual(['multi']);
-    expect(project1.bodyTag).toBe('circle');
-    expect(project1.shapes).toHaveLength(1);
-    expect(project1.shapes[0]).toMatchObject({
-      tag: 'circle', r: String(SPEC_R.project), fill: SPEC_COLORS.multi, dash: null,
-    });
-    const team1 = await markerParts(page, 'unikassel');
-    expect(team1.shapes[0]).toMatchObject({ tag: 'circle', r: String(SPEC_R.team), fill: SPEC_COLORS.energy });
-    const commons1 = await markerParts(page, 'ellis-society');
-    expect(commons1.shapes[0]).toMatchObject({
-      tag: 'circle', r: String(SPEC_R.commons), fill: SPEC_COLORS.xai, dash: '3 2.4',
-    });
+    // One fixture per circle layer, each the first single-domain entity its
+    // layer offers, with §4.2's dash column alongside: a plain marker is the
+    // body shape itself, not a group holding a single wedge.
+    const DASH = { project: null, team: null, commons: '3 2.4' };
+    for (const kind of ['project', 'team', 'commons']) {
+      const fx = soleDomain(kind);
+      expect(fx, `no placed ${kind} carries a single domain`).not.toBe(undefined);
+      const mk = await markerParts(page, fx.id);
+      expect(mk.domains, `${fx.id} domains`).toEqual(fx.domains);
+      expect(mk.bodyTag, `${fx.id} is one shape, not a group`).toBe('circle');
+      expect(mk.shapes, fx.id).toHaveLength(1);
+      expect(mk.shapes[0], fx.id).toMatchObject({
+        tag: 'circle', r: String(SPEC_R[kind]), fill: SPEC_COLORS[fx.domains[0]], dash: DASH[kind],
+      });
+    }
   });
 
   test('§4.2 the draw order is team → commons → framework → project', async ({ page }) => {
@@ -855,7 +1209,9 @@ test.describe('§4.2 markers, and invariant 2', () => {
     // snatched mid-transition.
     const opacity = (id) => page.evaluate((wanted) =>
       getComputedStyle(mkEls[wanted].querySelector('.halo')).opacity, id);
-    expect(await opacity('adra')).toBe('0');
+    // Any placed entity will do for the resting state; the payload's first.
+    const resting = PLACED[0].id;
+    expect(await opacity(resting)).toBe('0');
 
     // The hover half, driven by a real pointer. It is a separate mechanism from
     // the focus half — one CSS selector each, in one rule — and with no card
@@ -871,24 +1227,33 @@ test.describe('§4.2 markers, and invariant 2', () => {
     await expect.poll(() => opacity(at.id)).toBe('0');
 
     // …and the focus half, which survives the pointer being elsewhere.
-    await focusEntity(page, 'adra');
-    await expect.poll(() => opacity('adra')).toBe('1');
+    await focusEntity(page, resting);
+    await expect.poll(() => opacity(resting)).toBe('1');
   });
 
   test('§4.2 marker names are truncated at 34 characters, and teams carry none', async ({ page }) => {
-    // 268 team names at marker size would be a second basemap, so teams get no
-    // label element at all — not one that is merely hidden. The 34-character
-    // boundary is exact: 34 renders whole, 35 becomes 32 characters plus an
-    // ellipsis.
+    // A team name on every one of the map's small circles would be a second
+    // basemap, so teams get no label element at all — not one that is merely
+    // hidden. The 34-character boundary is exact: 34 renders whole, 35 becomes
+    // 32 characters plus an ellipsis.
     await openMap(page);
-    expect((await markerParts(page, 'unikassel')).label).toBe(null);
-    expect((await markerParts(page, 'db-netz')).label).toBe(null);
-    const short = MODEL.byId.get('generative-theories');
-    expect(short.d.name).toHaveLength(34);
-    expect((await markerParts(page, 'generative-theories')).label).toBe(short.d.name);
-    const long = MODEL.byId.get('adra');
-    expect(long.d.name.length).toBeGreaterThan(34);
-    const drawn = (await markerParts(page, 'adra')).label;
+    // Every team, not a chosen pair: a label that reappeared on one team only
+    // would otherwise slip through.
+    const labelledTeams = await page.evaluate(() => [...document.querySelectorAll('#g-markers .mk')]
+      .filter((el) => byId[el.dataset.id].kind === 'team' && el.querySelector('text.lbl'))
+      .map((el) => el.dataset.id));
+    expect(labelledTeams, 'teams carry no label element').toEqual([]);
+    expect(PLACED.filter((m) => m.kind === 'team').length, 'and there are teams to carry none')
+      .toBeGreaterThan(0);
+    // The two sides of the boundary, as close to it as the corpus reaches: the
+    // longest name that still fits whole, and the longest name there is.
+    const short = longestName((m) => m.d.name.length <= 34);
+    expect(short, 'no labelled entity has a name of 34 characters or fewer').not.toBe(undefined);
+    expect(short.d.name.length, `${short.id} fits whole`).toBeLessThanOrEqual(34);
+    expect((await markerParts(page, short.id)).label).toBe(short.d.name);
+    const long = longestName();
+    expect(long.d.name.length, `${long.id} must be long enough to truncate`).toBeGreaterThan(34);
+    const drawn = (await markerParts(page, long.id)).label;
     expect(drawn).toBe(long.d.name.slice(0, 32) + '…');
     expect(drawn).toHaveLength(33);
     // No label anywhere exceeds the bound.
@@ -915,8 +1280,12 @@ test.describe('§4.2 markers, and invariant 2', () => {
     }, SPEC_R);
     expect(r).toEqual({ missingStar: [], smallHit: [] });
     // The smallest markers get the largest relative target: a 4.5-unit team
-    // circle is still an 11-unit tap.
-    const team = await markerParts(page, 'unikassel');
+    // circle is still an 11-unit tap. Read off a team taken from the payload
+    // rather than a named one — every team draws the same silhouette, which is
+    // what invariant 2's test above establishes.
+    const anyTeam = PLACED.find((m) => m.kind === 'team');
+    expect(anyTeam, 'no team is placed, so the floor is untested').not.toBe(undefined);
+    const team = await markerParts(page, anyTeam.id);
     expect(Number(team.hit.r)).toBe(11);
     expect(team.hit.fill).toBe('transparent');
   });
@@ -927,8 +1296,9 @@ test.describe('§4.2 markers, and invariant 2', () => {
 test.describe('§3.2 layers', () => {
   test('§3.2 there are exactly four layers, and infrastructure is not one of them', async ({ page }) => {
     // "Infrastructure has no layer of its own, by design." Its entries arrive
-    // as teams: 23 merge into a team already on the map, the other 18 are
-    // rendered as team markers of their own.
+    // as teams: some merge into a team already on the map, the rest are
+    // rendered as team markers of their own. How many fall either way is a
+    // snapshot (§3.2), so the split is computed from the payload below.
     await openMap(page);
     expect(await page.evaluate(() => KINDS)).toEqual(KINDS);
     await expect(page.locator('#layer-rows .layer-row[data-layer]')).toHaveCount(4);
@@ -936,13 +1306,19 @@ test.describe('§3.2 layers', () => {
     expect(kindsSeen).toEqual([...KINDS].sort());
 
     const withInfra = MODEL.all.filter((m) => m.d.infra);
-    expect(withInfra).toHaveLength(41);
     expect(withInfra.every((m) => m.kind === 'team')).toBe(true);
-    expect(withInfra.filter((m) => m.d.type === 'infrastructure')).toHaveLength(18);
-    expect(withInfra.filter((m) => m.d.type !== 'infrastructure')).toHaveLength(23);
-    // …and the page renders all 41 as team markers, none as a fifth shape.
-    const shapes = await page.evaluate((ids) => ids.map((id) => byId[id].kind), withInfra.map((m) => m.id));
-    expect(new Set(shapes)).toEqual(new Set(['team']));
+    const ownPin = withInfra.filter((m) => m.d.type === 'infrastructure');
+    const merged = withInfra.filter((m) => m.d.type !== 'infrastructure');
+    // An exhaustive partition, and both halves occupied — which is the part of
+    // §3.2's "23 … the other 18" that is normative rather than a snapshot.
+    expect(ownPin.length + merged.length).toBe(withInfra.length);
+    expect(ownPin.length, 'infrastructure entries rendered as a team of their own').toBeGreaterThan(0);
+    expect(merged.length, 'infrastructure entries folded into a team already on the map').toBeGreaterThan(0);
+    // …and the page carries exactly those entries, every one of them a team
+    // marker rather than a fifth shape.
+    const pageInfra = await page.evaluate(() =>
+      items.filter((it) => it.d.infra).map((it) => it.id + '|' + it.kind).sort());
+    expect(pageInfra).toEqual(withInfra.map((m) => m.id + '|team').sort());
     expect(await page.evaluate(() => Object.keys(TOTALS).length)).toBe(4);
   });
 
@@ -954,16 +1330,74 @@ test.describe('§3.2 layers', () => {
     });
   });
 
+  test('§17 every layer-keyed table in the page covers exactly KINDS', async ({ page }) => {
+    // §17 calls a new layer "the expensive one" and then hands the next author
+    // the enumeration: "KINDS, TOTALS, MK_R, the draw order, shapeSvg(),
+    // relSections(), the legend, the welcome rows and the generator all
+    // enumerate the four current layers." Of those tables only KINDS and TOTALS
+    // were ever read back from the page. MK_R, KIND_ORDER and drawOrder are
+    // hand-written literals, and each fails silently in its own way: no MK_R
+    // entry draws r="NaN", an invisible marker that still satisfies "one marker
+    // per placed entity"; no KIND_ORDER entry makes the feed's comparator
+    // return NaN and sort unstably; no drawOrder entry gives indexOf -1, which
+    // paints the new layer under everything. The legend and the welcome rows
+    // are already safe because they are KINDS.map(…) — which is exactly the
+    // difference this test is meant to make for the rest.
+    //
+    // The key sets are compared against the page's own KINDS rather than this
+    // file's copy, so the test fires on a real fifth layer instead of only on
+    // the literal at the top of this file going stale.
+    await openMap(page);
+    const got = await page.evaluate(() => ({
+      kinds: [...KINDS],
+      tables: {
+        MK_R: Object.keys(MK_R),
+        KIND_ORDER: Object.keys(KIND_ORDER),
+        drawOrder: [...drawOrder],
+        TOTALS: Object.keys(TOTALS),
+      },
+      radii: KINDS.map((k) => MK_R[k]),
+      ranks: KINDS.map((k) => KIND_ORDER[k]),
+      // §17's header-tile rule: one per layer, addressed by kind rather than by
+      // a hand-written list, so the id has to exist for every kind.
+      tileless: KINDS.filter((k) => !document.getElementById('st-' + k)),
+      // shapeSvg() and the glyph table inside glyphHtml() are layer-keyed too,
+      // and a missing entry there throws rather than degrading.
+      glyphs: KINDS.map((k) => {
+        try { return glyphHtml(k, 16).length; } catch (e) { return 'threw: ' + e.message; }
+      }),
+    }));
+    expect(got.kinds.length, 'the page must declare some layers').toBeGreaterThan(0);
+    for (const [name, keys] of Object.entries(got.tables)) {
+      expect([...keys].sort(), `${name} is keyed by layer, so it must cover every layer and no other`)
+        .toEqual([...got.kinds].sort());
+    }
+    // A permutation, not merely the same set: the draw order is a stacking order.
+    expect(got.tables.drawOrder, 'the draw order lists each layer once').toHaveLength(got.kinds.length);
+    expect(new Set(got.tables.drawOrder).size).toBe(got.kinds.length);
+    // Present is not enough; the values have to be usable.
+    got.radii.forEach((r, i) => expect(r, `MK_R.${got.kinds[i]}`).toBeGreaterThan(0));
+    got.ranks.forEach((n, i) => expect(Number.isFinite(n), `KIND_ORDER.${got.kinds[i]} is ${n}`).toBe(true));
+    got.glyphs.forEach((g, i) => expect(g, `glyphHtml('${got.kinds[i]}')`).toBeGreaterThan(20));
+    expect(got.tileless, 'layers with no st-<kind> header tile').toEqual([]);
+  });
+
   test('§3.2 an infrastructure domain code only ever reaches a marker through an infrastructure entry', async ({ page }) => {
     // §3.1's second load-bearing rule, read off the markers: the compute /
-    // cluster / simulation colours are infrastructure categories. Forty-six
+    // cluster / simulation colours are infrastructure categories. Dozens of
     // entities work on digital twins; not one of them is coloured `simulation`
     // unless it actually runs a facility, which is what would happen if
     // `digital_twins` were mapped to `simulation` again.
     await openMap(page);
     const infraDoms = SPEC_GROUPS.infra;
     const coded = MODEL.all.filter((m) => m.domains.some((d) => infraDoms.includes(d)));
-    expect(coded).toHaveLength(41);
+    // The two sets are one set, in both directions: every entity wearing an
+    // infrastructure colour has an infrastructure entry behind it, and every
+    // infrastructure entry shows up in that colour. Pinning the size of the
+    // set would say less and would not survive a regeneration.
+    expect(coded.map((m) => m.id).sort())
+      .toEqual(MODEL.all.filter((m) => m.d.infra).map((m) => m.id).sort());
+    expect(coded.length, 'the payload must colour something as infrastructure').toBeGreaterThan(0);
     expect(coded.every((m) => m.kind === 'team' && !!m.d.infra)).toBe(true);
     const twins = MODEL.all.filter((m) => (m.d.focus || []).includes('digital_twins'));
     expect(twins.length).toBeGreaterThan(20);
@@ -981,25 +1415,56 @@ test.describe('§3.2 layers', () => {
     // framework glyph is the one place a single-domain rounded square is drawn:
     // every framework in the corpus is multi-domain.
     await openMap(page);
-    const glyphs = await page.evaluate(() => {
-      const out = {};
-      for (const row of document.querySelectorAll('#layer-rows .layer-row[data-layer]')) {
-        const svg = row.querySelector('.glyph svg');
-        const shapes = [...svg.querySelectorAll('circle,rect,path')];
-        const o = shapes[shapes.length - 1];
-        out[row.dataset.layer] = {
-          tags: shapes.map((s) => s.tagName),
-          outline: o.tagName, rx: o.getAttribute('rx'), dash: o.getAttribute('stroke-dasharray'),
-        };
-      }
-      return out;
-    });
+    const rows = await glyphRows(page, '#layer-rows .layer-row[data-layer]');
+    const glyphs = Object.fromEntries(rows.map((r) => [r.key, r]));
+    expect(Object.keys(glyphs).sort()).toEqual([...KINDS].sort());
     expect(glyphs.project.outline).toBe('circle');
     expect(glyphs.project.dash).toBe(null);
     expect(glyphs.project.tags.filter((t) => t === 'path').length).toBe(3);  // shown as a pie
     expect(glyphs.team).toMatchObject({ outline: 'circle', dash: null });
     expect(glyphs.commons).toMatchObject({ outline: 'circle', dash: '3 2.4' });
     expect(glyphs.framework).toMatchObject({ outline: 'rect', rx: '2.5' });
+  });
+
+  test('§3.2 the legend on the map shows the four marker silhouettes, not four circles', async ({ page }) => {
+    // The test above reads the sidebar's layer rows and says "the legend is
+    // only a legend if its glyph is the marker" — but the key a reader actually
+    // has in front of them while looking at the map is the floating legend, and
+    // the suite only ever read its text and measured its box. Pointing
+    // renderLegend()'s glyphHtml(k, 16) at one fixed kind would print four
+    // identical circles in the key and fail nothing: the shape channel becomes
+    // unreadable while every marker on the map is still correct.
+    await openMap(page);
+    await page.click('#legend summary');
+    await expect(page.locator('#legend-rows')).toBeVisible();
+    const legend = await glyphRows(page, '#legend-rows .legend-row');
+    const sidebar = await glyphRows(page, '#layer-rows .layer-row[data-layer]');
+    expect(legend).toHaveLength(KINDS.length);
+    // Both keys are KINDS.map(…), so they come out in the same order with the
+    // same labels; i18n.spec.js owns what those labels say in each language.
+    expect(sidebar.map((r) => r.key)).toEqual(KINDS);
+    expect(legend.map((r) => r.text)).toEqual(sidebar.map((r) => r.text));
+    // The per-kind silhouette, the same table the marker test pins.
+    const want = {
+      project: { outline: 'circle', dash: null, rx: null },
+      team: { outline: 'circle', dash: null, rx: null },
+      commons: { outline: 'circle', dash: '3 2.4', rx: null },
+      framework: { outline: 'rect', rx: '2.5', dash: null },
+    };
+    KINDS.forEach((k, i) => {
+      expect(legend[i], `the ${k} legend row`).toMatchObject(want[k]);
+      // …and the same silhouette the sidebar draws, read through one function.
+      expect([legend[i].outline, legend[i].rx, legend[i].dash, legend[i].sw],
+        `the ${k} legend glyph and the ${k} layer row must draw one shape`)
+        .toEqual([sidebar[i].outline, sidebar[i].rx, sidebar[i].dash, sidebar[i].sw]);
+      expect(legend[i].size, 'the legend draws at 16px, the sidebar at 18').toBe('16');
+    });
+    // Four distinct silhouettes. This is the assertion that four circles fail.
+    const sig = legend.map((r) => JSON.stringify([r.outline, r.rx, r.dash, r.sw]));
+    expect(new Set(sig).size, `the legend draws ${sig.join(' / ')}`).toBe(KINDS.length);
+    // A team's outline is the thin one here too (§4.2's stroke column).
+    expect(Number(legend[KINDS.indexOf('team')].sw))
+      .toBeLessThan(Number(legend[KINDS.indexOf('project')].sw));
   });
 });
 
@@ -1008,8 +1473,14 @@ test.describe('§3.2 layers', () => {
 test.describe('invariant 3: an entity without coordinates', () => {
   test('inv.3 the entities without coordinates are kept, flagged, and given no marker', async ({ page }) => {
     await openMap(page);
-    expect(UNPLACED.length).toBe(11);
+    // How many entities have no coordinates is a snapshot figure (§3.2), so it
+    // is counted from the payload; what is asserted is that the page found the
+    // same ones — identity, not merely a matching total, since a page that
+    // dropped one and invented another would still agree on the count.
+    expect(UNPLACED.length, 'the payload must contain entities with no coordinates').toBeGreaterThan(0);
     expect(await page.evaluate(() => NOGEO)).toBe(UNPLACED.length);
+    expect(await page.evaluate(() => items.filter((it) => !it.geo).map((it) => it.id).sort()))
+      .toEqual(UNPLACED.map((m) => m.id).sort());
     const r = await page.evaluate((ids) => ids.map((id) => ({
       id, present: !!byId[id], geo: byId[id].geo, X: byId[id].X, Y: byId[id].Y,
       marker: !!mkEls[id], anyMarker: !!document.querySelector(`#g-markers .mk[data-id="${id}"]`),
@@ -1106,7 +1577,7 @@ test.describe('§4.3 edges', () => {
     const model = await page.evaluate(() => edges.map((e) => e.a + '>' + e.b));
     expect(model).toEqual(RELATIONS.drawn.map((e) => e.a + '>' + e.b));
     await expect(page.locator('#g-edges path.edge')).toHaveCount(RELATIONS.drawn.length);
-    // Derived from the payload: 299 consortium links from edges.yml plus the
+    // Derived from the payload: the consortium links of edges.yml plus the
     // commons and framework cross-references that resolve.
     expect(RELATIONS.drawn.filter((e) => e.rel === 'consortium')).toHaveLength(RAW.EDGES.length);
     expect(RELATIONS.drawn.length).toBe(RAW.EDGES.length +
@@ -1127,9 +1598,16 @@ test.describe('§4.3 edges', () => {
     expect(r.pairs).toBe(RELATIONS.pairs.size);
     expect(r.edges).toBe(RELATIONS.drawn.length);
     expect(r.bothPlaced, 'every drawn curve joins two placed entities').toBe(true);
-    // Five pairs are related twice — created one way, used the other — so the
-    // curve count runs ahead of the adjacency count rather than behind it.
-    expect(r.edges - r.pairs).toBe(5);
+    // Some pairs are related twice — created one way, used the other — so the
+    // curve count runs ahead of the adjacency count; pairs with an end off the
+    // map are recorded but never drawn, and pull the other way. Both terms come
+    // out of the model, so the gap is exact without a figure being written down.
+    const drawnPairs = new Set(RELATIONS.drawn.map((e) => [e.a, e.b].sort().join('::')));
+    const reciprocal = RELATIONS.drawn.length - drawnPairs.size;
+    const undrawn = RELATIONS.pairs.size - drawnPairs.size;
+    expect(r.edges - r.pairs).toBe(reciprocal - undrawn);
+    expect(reciprocal, 'pairs related in both directions, which is what opens the gap')
+      .toBeGreaterThan(0);
   });
 
   test('§4.3 consortium links are solid, "used by" links are dashed', async ({ page }) => {
@@ -1138,8 +1616,20 @@ test.describe('§4.3 edges', () => {
     const expectDash = RELATIONS.drawn.map((e) => (e.rel === 'usedBy' ? '4 4' : null));
     expect(rows.map((r) => r.dash)).toEqual(expectDash);
     const dashed = expectDash.filter(Boolean).length;
-    expect(dashed).toBe(27);
-    expect(expectDash.length - dashed).toBe(331);
+    // How many of each there are is counted a second time, straight off the
+    // payload's own `usedBy` lists rather than out of the edge list above, so
+    // the two derivations have to agree: a "used by" curve for every placed
+    // asset-and-user pair, and everything else solid.
+    const usedByPairs = [...RAW.COMMONS, ...RAW.FRAMEWORKS]
+      .flatMap((a) => (a.usedBy || []).map((uid) => [a.id, uid]))
+      .filter(([a, b]) => MODEL.byId.has(a) && MODEL.byId.has(b)
+        && MODEL.byId.get(a).placed && MODEL.byId.get(b).placed);
+    expect(dashed).toBe(usedByPairs.length);
+    expect(expectDash.length - dashed).toBe(RELATIONS.drawn.length - usedByPairs.length);
+    // Both kinds of line are actually on the map, or the comparison above is
+    // satisfied by a mesh that is all one thing.
+    expect(dashed, 'dashed "used by" links').toBeGreaterThan(0);
+    expect(expectDash.length - dashed, 'solid links').toBeGreaterThan(0);
   });
 
   test('§4.3 an edge takes its colour from the lead domain of the entity it belongs to', async ({ page }) => {
@@ -1188,8 +1678,8 @@ test.describe('§4.3 edges', () => {
       // long edge is not judged by a rounding error multiplied by its length.
       const along = ((g.cx - mx) * dx + (g.cy - my) * dy) / len;
       expect(Math.abs(along), `edge ${i} offset is perpendicular`).toBeLessThan(0.11);
-      // …and it is exactly as far out as the formula says. The fourteen edges
-      // whose two markers coincide are the exception: with no chord there is no
+      // …and it is exactly as far out as the formula says. The edges whose two
+      // markers coincide are the exception: with no chord there is no
       // perpendicular, and the control point stays on the midpoint.
       const bow = Math.hypot(dx, dy) === 0 ? 0 : off;
       expect(Math.abs(Math.hypot(g.cx - mx, g.cy - my) - bow), `edge ${i} bow`).toBeLessThan(0.11);
@@ -1200,9 +1690,11 @@ test.describe('§4.3 edges', () => {
   });
 
   test('§4.3 reciprocal links bow to opposite sides', async ({ page }) => {
-    // The reason the offset exists. Five pairs are related in both directions
+    // The reason the offset exists. Some pairs are related in both directions
     // (A created it, it is used by A); swapping the ends flips the perpendicular,
     // so the two curves bracket the chord instead of lying on top of each other.
+    // Which pairs those are, and how many of them have a chord to bow across,
+    // comes out of the model below rather than being written down here.
     await openMap(page);
     const rows = await edgeRows(page);
     const byPair = new Map();
@@ -1212,7 +1704,18 @@ test.describe('§4.3 edges', () => {
       byPair.get(k).push(i);
     });
     const twins = [...byPair.values()].filter((v) => v.length === 2);
-    expect(twins).toHaveLength(5);
+    expect(twins.length, 'pairs related in both directions').toBeGreaterThan(0);
+    expect([...byPair.values()].filter((v) => v.length > 2),
+      'a pair related more than twice would need a rule of its own').toEqual([]);
+    // The chord each twin has to bow across, so the two cases below are counted
+    // in advance instead of being accepted in whatever proportion turns up.
+    const chordOf = (i) => {
+      const A = MODEL.byId.get(RELATIONS.drawn[i].a), B = MODEL.byId.get(RELATIONS.drawn[i].b);
+      return Math.hypot(B.X - A.X, B.Y - A.Y);
+    };
+    const wantSeparated = twins.filter(([i]) => chordOf(i) > 1).length;
+    expect(wantSeparated, 'reciprocal pairs with a chord long enough to bow across')
+      .toBeGreaterThan(0);
     let separated = 0, coincident = 0;
     for (const [i, j] of twins) {
       const gi = parseEdge(rows[i].d), gj = parseEdge(rows[j].d);
@@ -1230,7 +1733,7 @@ test.describe('§4.3 edges', () => {
         expect(Math.abs(side(gi) + side(gj)), 'by the same amount').toBeLessThan(0.15);
         separated++;
       } else {
-        // SPEC-DEVIATION (boundary, invisible): two of the five pairs join
+        // SPEC-DEVIATION (boundary, invisible): some of these pairs join
         // entities whose markers coincide — a team and the commons it publishes,
         // alone in their own jitter groups at the same address (§4.2's jitter is
         // per layer group). With a zero-length chord, 0.14 × length is zero,
@@ -1240,8 +1743,8 @@ test.describe('§4.3 edges', () => {
         coincident++;
       }
     }
-    expect(separated).toBe(3);
-    expect(coincident).toBe(2);
+    expect(separated).toBe(wantSeparated);
+    expect(coincident).toBe(twins.length - wantSeparated);
   });
 
   test('§4.3 no edge is drawn until a card is open or the links toggle is on', async ({ page }) => {
@@ -1255,9 +1758,12 @@ test.describe('§4.3 edges', () => {
 
   test('§4.3 opening a card lights exactly that entity\'s edges', async ({ page }) => {
     await openMap(page);
-    const id = 'twineu';
+    // The widest fan in the corpus: the most edges there are to get wrong, and
+    // the most that must stay dark.
+    const { id, n } = fanFixture('widest');
     const mine = new Set(RELATIONS.drawn.map((e, i) => [e, i]).filter(([e]) => e.a === id || e.b === id).map(([, i]) => i));
-    expect(mine.size).toBe(16);
+    expect(mine.size, `${id}'s fan`).toBe(n);
+    expect(RELATIONS.drawn.length - mine.size, 'and edges that must stay dark').toBeGreaterThan(0);
     await focusEntity(page, id);
     const rows = await edgeRows(page);
     const lit = new Set(rows.map((r, i) => (r.on ? i : -1)).filter((i) => i >= 0));
@@ -1273,20 +1779,23 @@ test.describe('§4.3 edges', () => {
     // keeps the focused project on the map, but its partners leave with their
     // layer and the curves go with them.
     await openMap(page);
-    const id = 'twineu';
+    // The fixture has to reach teams *and* something else, or hiding the team
+    // layer would prove nothing; MIXED_FAN is the widest fan in the payload
+    // that does both.
+    expect(MIXED_FAN, 'no fan in this payload reaches a team and a non-team').not.toBe(null);
+    const { id, n } = MIXED_FAN;
     await focusEntity(page, id);
-    expect(await page.evaluate(() => hotEdges.length)).toBe(16);
+    expect(await page.evaluate(() => hotEdges.length)).toBe(n);
     await toggleLayer(page, 'team');
     await settleCounts(page);
     const survives = fanOf(id).filter((e) =>
       MODEL.byId.get(e.a).kind !== 'team' && MODEL.byId.get(e.b).kind !== 'team');
-    // TwinEU reaches both teams and a commons, so the fan is neither wholly out
-    // nor wholly in — which is what makes this a test of `both` rather than of
-    // "a layer toggle hides everything".
+    // The fan is neither wholly out nor wholly in — which is what makes this a
+    // test of `both` rather than of "a layer toggle hides everything".
     expect(survives.length).toBeGreaterThan(0);
-    expect(survives.length).toBeLessThan(16);
+    expect(survives.length).toBeLessThan(n);
     expect(await page.evaluate(() => hotEdges.length)).toBe(survives.length);
-    expect(await page.evaluate(() => state.inFilter.has('twineu') || state.keptOpen > 0)).toBe(true);
+    expect(await page.evaluate((wanted) => state.inFilter.has(wanted) || state.keptOpen > 0, id)).toBe(true);
     const rows = await edgeRows(page);
     expect(rows.filter((r) => r.on)).toHaveLength(survives.length);
   });
@@ -1300,12 +1809,14 @@ test.describe('§4.3 edges', () => {
     expect(new Set(rows.filter((r) => r.on).map((r) => r.op))).toEqual(new Set([0.28]));
     expect(new Set(rows.filter((r) => r.on).map((r) => r.w))).toEqual(new Set([0.8]));
 
-    await focusEntity(page, 'twineu');
+    const { id, n } = fanFixture('widest');
+    await focusEntity(page, id);
     rows = await edgeRows(page);
     const hotIdx = new Set(await page.evaluate(() => hotEdges));
-    expect(hotIdx.size).toBe(16);
+    expect(hotIdx.size, `${id}'s fan`).toBe(n);
     const cold = rows.filter((r, i) => r.on && !hotIdx.has(i));
-    expect(cold.length).toBe(RELATIONS.drawn.length - 16);
+    expect(cold.length).toBe(RELATIONS.drawn.length - n);
+    expect(cold.length, 'there must be a mesh left over to dim').toBeGreaterThan(0);
     expect(new Set(cold.map((r) => r.op)), 'the mesh gets out of the fan\'s way').toEqual(new Set([0.08]));
     expect(Math.min(...rows.filter((r, i) => hotIdx.has(i)).map((r) => r.op)))
       .toBeGreaterThan(0.08);
@@ -1339,20 +1850,18 @@ test.describe('§4.3 edges', () => {
 // ================================================== §4.3 the attenuated fan
 
 test.describe('§4.3 the selection fan', () => {
-  // Four fixtures across the attenuation range, with the neighbour count each
-  // one has in the payload: the spec pins 0.85 "at four neighbours or fewer"
-  // and 0.40 "at sixteen or more", so the boundaries are the interesting part.
-  const FANS = [
-    { id: 'unikassel', n: 1 },
-    { id: 'db-netz', n: 4 },
-    { id: 'tailor', n: 15 },
-    { id: 'twineu', n: 16 },
-    { id: 'ai4realnet', n: 25 },
-  ];
+  // Fixtures across the attenuation range, each one whatever entity sits at
+  // that landmark in today's payload (see FAN_LANDMARKS): the spec pins 0.85
+  // "at four neighbours or fewer" and 0.40 "at sixteen or more", so the
+  // boundaries are the interesting part and are selected for by fan width
+  // rather than named. A landmark this corpus does not reach leaves no test
+  // behind rather than a test of something else.
+  const FANS = ['sole', 'plateauHigh', 'ramp', 'plateauLow', 'widest']
+    .filter((key) => FAN_LANDMARKS[key].at)
+    .map((key) => fanFixture(key));
 
-  for (const { id, n } of FANS) {
-    test(`§4.3 a fan of ${n} is attenuated by its width and by each line's length (${id})`, async ({ page }) => {
-      expect(fanOf(id), `${id} must still have ${n} links`).toHaveLength(n);
+  for (const { id, n, why } of FANS) {
+    test(`§4.3 a fan of ${n} is attenuated by its width and by each line's length (${id}, ${why})`, async ({ page }) => {
       await openMap(page);
       await focusEntity(page, id);
       const rows = await edgeRows(page);
@@ -1382,10 +1891,19 @@ test.describe('§4.3 the selection fan', () => {
 
   test('§4.3 the wider the fan the lighter and thinner each line', async ({ page }) => {
     // The claim as the spec phrases it, across fixtures rather than within one:
-    // 0.85 at four or fewer, 0.40 at sixteen or more, monotone in between.
+    // 0.85 at four or fewer, 0.40 at sixteen or more, monotone in between. The
+    // ladder is the ramp's landmarks from its narrow end up, so it climbs by
+    // construction whatever the payload holds.
     await openMap(page);
+    const seen = new Set();
+    const ladder = ['plateauHigh', 'ramp', 'plateauLow', 'widest']
+      .filter((key) => FAN_LANDMARKS[key].at)
+      .map((key) => fanFixture(key))
+      .filter((f) => !seen.has(f.id) && seen.add(f.id));
+    expect(ladder.length, 'the ramp needs two landmarks before it can be compared')
+      .toBeGreaterThan(1);
     const fans = [];
-    for (const { id, n } of [{ id: 'db-netz', n: 4 }, { id: 'tailor', n: 15 }, { id: 'twineu', n: 16 }, { id: 'ai4realnet', n: 25 }]) {
+    for (const { id, n } of ladder) {
       await focusEntity(page, id);
       const rows = await edgeRows(page);
       const hotIdx = await page.evaluate(() => hotEdges);
@@ -1401,27 +1919,49 @@ test.describe('§4.3 the selection fan', () => {
       expect(Math.max(...bases) - Math.min(...bases), `${id}: one base for the whole fan`).toBeLessThan(0.004);
       fans.push({ id, n, base: bases[0], w: rows[hotIdx[0]].w });
     }
-    expect(fans.map((f) => f.w)).toEqual([1.8, 1.25, 1.2, 1.2]);
-    fans.forEach((f) => expect(f.base, `${f.id} base opacity`).toBeCloseTo(fanBase(f.n).op, 2));
+    // Each fan is drawn at the width and the base opacity §4.3's formula gives
+    // for its own size — the figures, not merely the ordering.
+    fans.forEach((f) => {
+      expect(f.w, `${f.id}'s ${f.n} lines`).toBeCloseTo(fanBase(f.n).w, 5);
+      expect(f.base, `${f.id} base opacity`).toBeCloseTo(fanBase(f.n).op, 2);
+    });
+    // The spec's own two anchors and its two plateaus.
     expect(fanBase(4).op).toBeCloseTo(0.85, 10);
     expect(fanBase(16).op).toBeCloseTo(0.40, 10);
     expect(fanBase(1).op).toBe(fanBase(4).op);       // "four neighbours or fewer"
-    expect(fanBase(25).op).toBe(fanBase(16).op);     // "sixteen or more"
-    expect(fans[0].base).toBeGreaterThan(fans[1].base);
-    expect(fans[1].base).toBeGreaterThan(fans[2].base);
-    expect(fans[3].base).toBeCloseTo(fans[2].base, 2);
-    expect(fans[0].base - fans[3].base).toBeCloseTo(0.45, 2);
+    expect(fanBase(17).op).toBe(fanBase(16).op);     // "sixteen or more"
+    // And across the fixtures, never the wrong way round: a wider fan is
+    // thinner, and lighter wherever the formula itself moves.
+    for (let i = 1; i < fans.length; i++) {
+      const prev = fans[i - 1], cur = fans[i];
+      expect(cur.n, 'the ladder climbs').toBeGreaterThanOrEqual(prev.n);
+      expect(cur.w, `${cur.id} is no thicker than ${prev.id}`).toBeLessThanOrEqual(prev.w);
+      if (fanBase(cur.n).op < fanBase(prev.n).op) {
+        expect(cur.base, `${cur.id} is lighter than ${prev.id}`).toBeLessThan(prev.base);
+      } else {
+        expect(cur.base, `${cur.id} and ${prev.id} sit on one plateau`).toBeCloseTo(prev.base, 2);
+      }
+    }
+    // …and end to end that is the whole range the spec describes, whenever the
+    // corpus reaches both plateaus.
+    const lo = fans[0], hi = fans[fans.length - 1];
+    if (lo.n <= 4 && hi.n >= 16) {
+      expect(lo.base - hi.base, 'the full 0.85 → 0.40 range').toBeCloseTo(0.45, 2);
+    }
   });
 
   test('§4.3 hovering a partner\'s row in the card isolates that one relationship', async ({ page }) => {
     // "One relationship can always be isolated" — and the card is where the
     // names are read, so the row has to do it, not only the marker.
     await openMap(page);
-    const id = 'ai4realnet';
+    // The widest fan there is: the one where isolating a single line matters
+    // most, and where leaving the rest alone would be least visible.
+    const { id, n } = fanFixture('widest');
     await focusEntity(page, id);
     const before = await edgeRows(page);
     const hotIdx = await page.evaluate(() => hotEdges);
-    expect(hotIdx.length).toBe(25);
+    expect(hotIdx.length).toBe(n);
+    expect(n, 'a fan of one has nothing to isolate from').toBeGreaterThan(1);
 
     const host = await cardHost(page);
     const partner = await page.evaluate((sel) => {
@@ -1441,7 +1981,7 @@ test.describe('§4.3 the selection fan', () => {
     for (const i of hotIdx) {
       if (mine.has(i)) {
         expect(after[i].op, `the isolated line ${i}`).toBe(0.95);
-        expect(after[i].w, `the isolated line ${i} thickens`).toBeCloseTo(fanBase(25).w + 0.9, 5);
+        expect(after[i].w, `the isolated line ${i} thickens`).toBeCloseTo(fanBase(n).w + 0.9, 5);
       } else {
         // Both readings are attributes the page wrote with toFixed(3), so the
         // product carries a rounding error of its own; 0.001 is tight enough to
@@ -1467,11 +2007,13 @@ test.describe('§4.3 the selection fan', () => {
     // "peek() drives both the marker halo and the edge emphasis, so hovering
     // anywhere that names an entity does the same thing."
     await openMap(page);
-    const id = 'ai4realnet';
+    const fx = fanFixture('widest');
+    const id = fx.id;
     await focusEntity(page, id);
     const hotIdx = await page.evaluate(() => hotEdges);
     const n = hotIdx.length;
-    expect(n).toBe(25);
+    expect(n, `${id}'s fan`).toBe(fx.n);
+    expect(n, 'a fan of one has nothing to isolate from').toBeGreaterThan(1);
     const before = await edgeRows(page);
     // Markers overlap, so the partner to point at is the first one the pointer
     // can actually reach.
@@ -1676,7 +2218,7 @@ test.describe('§4.4 zoom thresholds', () => {
     const before = await read();
     await page.evaluate(() => setView({ k: view.k * 1.0005, x: view.x, y: view.y }, false));
     const tiny = await read();
-    expect(tiny.marker, 'a 0.05 % change must not re-lay-out 438 markers').toBe(before.marker);
+    expect(tiny.marker, `a 0.05 % change must not re-lay-out ${PLACED.length} markers`).toBe(before.marker);
     expect(tiny.world, 'but the world transform follows immediately').not.toBe(before.world);
     // Just over the threshold: 0.2 % must already re-scale them, or the guard
     // has been loosened into visibly stale markers.
@@ -1733,5 +2275,399 @@ test.describe('§4.4 zoom thresholds', () => {
       return out;
     });
     expect(after).toEqual(before);
+  });
+});
+
+// =========================================== §4.4 the gestures on the stage
+
+// The pointer layer had no test at all: nothing in the suite fired a wheel
+// event, dragged the map, pinched it or double-clicked it. Everything above
+// reaches the view through setView(), fitView() and #z-in / #z-out — and those
+// three all pass the stage centre, which is already stage-relative and already
+// the fixed point of the zoom. So the conversion every pointer handler shares,
+// `clientX - rect.left`, was exercised by nothing, and the width of §5's 312 px
+// sidebar is the size of the error it hides. The same gap hid the pan path, the
+// `moved <= 4` tap guard that keeps a pan from opening a card, the pointercancel
+// wiring, and the two-finger branch.
+test.describe('§4.4 the gestures on the stage', () => {
+  test('§4.4 the wheel zooms in on a scroll up and out on a scroll down', async ({ page }) => {
+    // The tour promises it in so many words: "Scroll to zoom, drag to pan"
+    // (tour.2b). §4.4 tabulates the ladder but names no wheel factor, so the
+    // base below is transcribed from the handler rather than derived; what is
+    // derived, and what a reader would actually notice, is the shape of the
+    // rule — the sign of the exponent, and that equal and opposite scrolls
+    // compose back to where they started.
+    await openMap(page);
+    const at = await pickForGesture(page);
+    await page.mouse.move(at.x, at.y);
+    const start = (await viewOf(page)).k;
+    await page.mouse.wheel(0, -240);
+    await waitForK(page, start);
+    await settleCounts(page);
+    const zoomedIn = (await viewOf(page)).k;
+    expect(zoomedIn, 'scrolling up zooms in').toBeGreaterThan(start);
+    expect(zoomedIn / start).toBeCloseTo(Math.pow(1.0016, 240), 9);
+    await page.mouse.wheel(0, 240);
+    await waitForK(page, zoomedIn);
+    await settleCounts(page);
+    const back = (await viewOf(page)).k;
+    expect(back, 'scrolling down zooms out').toBeLessThan(zoomedIn);
+    expect(back, 'the factor is exponential in the delta, so the two cancel').toBeCloseTo(start, 9);
+  });
+
+  test('§4.4 the wheel zooms about the pointer, not the stage centre', async ({ page }) => {
+    // The claim that nothing else in the page can test: `zoomAt()` wants a
+    // point on the stage and the wheel event carries a point in the viewport,
+    // so the handler subtracts the rectangle's own origin. Its only other
+    // callers hand it `w/2, h/2` out of stageSize(), which is stage-relative
+    // already — drop the conversion and every wheel zoom drifts by the sidebar.
+    await openMap(page);
+    const at = await pickForGesture(page);
+    const box = await mapBox(page);
+    // A real pointer lands on a whole pixel — the browser rounds the coordinate
+    // on its way in — so the cursor goes to the pixel nearest the marker's
+    // centre and the arithmetic below is done on that pixel, not on the
+    // marker's own fractional position.
+    const cursor = { x: Math.round(at.x), y: Math.round(at.y) };
+    const before = await viewOf(page);
+    const was = await centreOf(page, at.id);
+    const px = cursor.x - box.left, py = cursor.y - box.top;
+    // Measured away from the centre on purpose: at the centre an anchor that is
+    // 312 px out and an anchor that is right would barely differ.
+    expect(Math.abs(px - box.w / 2), 'the fixture must be off the stage centre').toBeGreaterThan(60);
+    const [wx, wy] = worldUnder(before, px, py);
+    await page.mouse.move(cursor.x, cursor.y);
+    await page.mouse.wheel(0, -240);
+    await waitForK(page, before.k);
+    await settleCounts(page);
+    const after = await viewOf(page);
+    expect(after.k).toBeGreaterThan(before.k);
+    const [sx, sy] = screenOf(after, wx, wy);
+    expect(sx, 'the point under the cursor is the fixed point of the zoom').toBeCloseTo(px, 3);
+    expect(sy).toBeCloseTo(py, 3);
+    // The reader's own version of the same sentence: the marker they were
+    // pointing at has not slid out from under the pointer. Its centre may drift
+    // by the fraction of a pixel between it and the cursor, never by the 312 px
+    // a missing `- rect.left` would cost.
+    const now = await centreOf(page, at.id);
+    expect(Math.abs(now.x - was.x), `${at.id} must stay under the cursor`).toBeLessThan(1);
+    expect(Math.abs(now.y - was.y)).toBeLessThan(1);
+  });
+
+  test('§4.4 the wheel zoom cancels the scroll it was handed', async ({ page }) => {
+    // The map ships inside an iframe on the site (see playwright.config.js) and
+    // its own document cannot scroll — `body{overflow:hidden}` — so the thing a
+    // missing preventDefault() would move is the host article, which this
+    // harness has no way to put around the page. What it can see is whether the
+    // event was cancelled, which is the same claim one step earlier, and it
+    // catches the other half too: a listener registered without
+    // `{passive:false}` has its preventDefault() ignored, so the event would
+    // come back uncancelled with the call still sitting in the source.
+    await openMap(page);
+    const r = await page.evaluate(() => {
+      const before = view.k;
+      const e = new WheelEvent('wheel', { deltaY: -240, cancelable: true, bubbles: true, clientX: 500, clientY: 300 });
+      const notCancelled = document.getElementById('map').dispatchEvent(e);
+      return { notCancelled, defaultPrevented: e.defaultPrevented, zoomed: view.k !== before };
+    });
+    // `zoomed` keeps it honest: a handler that never ran would also never scroll.
+    expect(r).toEqual({ notCancelled: false, defaultPrevented: true, zoomed: true });
+  });
+
+  test('§4.4 a double-click on empty map zooms 1.7× about the point clicked', async ({ page }) => {
+    await openMap(page);
+    const sea = await pickEmptySea(page);
+    const box = await mapBox(page);
+    const before = await viewOf(page);
+    const px = sea.x - box.left, py = sea.y - box.top;
+    expect(Math.abs(px - box.w / 2), 'the fixture must be off the stage centre').toBeGreaterThan(60);
+    const [wx, wy] = worldUnder(before, px, py);
+    await page.mouse.dblclick(sea.x, sea.y);
+    await waitForK(page, before.k);
+    await settleCounts(page);
+    const after = await viewOf(page);
+    expect(after.k, 'one step of the ladder per double-click').toBeCloseTo(before.k * 1.7, 9);
+    const [sx, sy] = screenOf(after, wx, wy);
+    expect(sx, 'the point clicked is the fixed point').toBeCloseTo(px, 3);
+    expect(sy).toBeCloseTo(py, 3);
+    // Two taps on open water with no card open are two no-ops (§7).
+    expect(after.focus).toBe(null);
+  });
+
+  test('§4.4 a double-click on a marker zooms too: the pointer capture carries the event past the .mk guard', async ({ page }) => {
+    // SPEC-DEVIATION. The dblclick handler opens with `if
+    // (e.target.closest('.mk')) return;` — an exemption so that double-clicking
+    // a marker opens its card without also yanking the view. The guard is
+    // written correctly and can never fire: the pointerdown handler calls
+    // `svg.setPointerCapture(e.pointerId)`, and pointer capture retargets every
+    // later event of that pointer — pointerup, click and dblclick among them —
+    // to the capturing element. By the time the dblclick is dispatched its
+    // target is `#map` itself, never a marker. (The pointerup handler is
+    // written around this: it ignores `e.target` and asks
+    // document.elementFromPoint() instead.)
+    //
+    // What a reader gets today is both: the card opens, and the map zooms 1.7×
+    // about the click as if on open water. From the default fit view the
+    // zoomAt() also cancels the flight still in progress, so the selection
+    // settles near k₀ × 2.074 and never reaches §7's "minimum of k₀ × 3.2" —
+    // and the entity it flew for is left off-centre. The arithmetic below is
+    // pinned on a view where that race cannot decide the answer: the entity is
+    // already open and already parked exactly where flyTo() would leave it, so
+    // the flight the double-click triggers is a no-op and the only thing left
+    // moving is the zoom under test.
+    await openMap(page);
+    const parked = await page.evaluate(() => {
+      const st = document.getElementById('stage').getBoundingClientRect();
+      const [w, h] = stageSize();
+      for (const id in mkEls) {
+        const it = byId[id], k = k0 * 3.2;
+        setView({ k, x: w / 2 - it.X * k, y: h / 2 - it.Y * k }, false);   // flyTo()'s own target
+        openEntity(id, { fly: false });
+        const cx = st.left + w / 2, cy = st.top + h / 2;
+        const hit = document.elementFromPoint(cx, cy);
+        const mk = hit && hit.closest ? hit.closest('.mk') : null;
+        if (mk && mk.dataset.id === id) return { id, cx, cy, x: view.x, y: view.y, k: view.k };
+      }
+      return null;
+    });
+    expect(parked, 'no marker is the topmost thing at the centre of its own flight').not.toBe(null);
+    await settleCounts(page);
+    await page.mouse.dblclick(parked.cx, parked.cy);
+    await waitForK(page, parked.k);
+    await settleCounts(page);
+    const after = await viewOf(page);
+    expect(after.focus, 'the card does open').toBe(parked.id);
+    expect(after.k, 'and the marker is zoomed exactly as open water would be').toBeCloseTo(parked.k * 1.7, 9);
+    expect(after.k / after.k0, '§4.4 has no k₀ × 5.44 rung').toBeCloseTo(3.2 * 1.7, 9);
+    // The clicked point is still the fixed point, so the marker stays centred —
+    // the reader is left looking at the right place at the wrong scale.
+    const centred = await page.evaluate((id) => {
+      const [w, h] = stageSize(); const it = byId[id];
+      return { sx: view.x + it.X * view.k, sy: view.y + it.Y * view.k, cx: w / 2, cy: h / 2 };
+    }, parked.id);
+    expect(centred.sx).toBeCloseTo(centred.cx, 3);
+    expect(centred.sy).toBeCloseTo(centred.cy, 3);
+
+    // The other half of the deviation: the guard itself is sound. Dispatch a
+    // dblclick whose target really is inside the marker — the one thing the
+    // pointer capture prevents a real gesture from producing — and the view is
+    // left alone. So this is a wiring fault, not a missing branch.
+    const guard = await page.evaluate((id) => {
+      const el = mkEls[id], r = el.getBoundingClientRect();
+      const was = { x: view.x, y: view.y, k: view.k };
+      el.querySelector('circle').dispatchEvent(new MouseEvent('dblclick', {
+        bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+      }));
+      return { was, now: { x: view.x, y: view.y, k: view.k } };
+    }, parked.id);
+    expect(guard.now, 'the exemption works when the event target is the marker').toEqual(guard.was);
+  });
+
+  test('§4.4 dragging pans the map by the pointer\'s own delta', async ({ page }) => {
+    // "the counter-scale pass is skipped when k moved less than 0.1 %, which
+    // keeps panning free of layout work" — the test above pins the guard; this
+    // one pins the pan it was written for. Drag is how a reader moves the map:
+    // break it and the map is immovable except through fitView() and the two
+    // zoom buttons. Every panning test in the suite calls setView() directly,
+    // which exercises the consequences of a changed view and never the handler
+    // that produces one.
+    await openMap(page);
+    const at = await pickForGesture(page, { r: 180, t: 140 });
+    const before = await viewOf(page);
+    expect(await page.evaluate(() => document.getElementById('map').classList.contains('dragging'))).toBe(false);
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 60, at.y - 40);
+    const mid = await page.evaluate(() => ({
+      x: view.x, y: view.y, k: view.k,
+      dragging: document.getElementById('map').classList.contains('dragging'),
+    }));
+    await page.mouse.move(at.x + 120, at.y - 80);
+    await page.mouse.up();
+    await settleCounts(page);
+    const after = await page.evaluate(() => ({
+      x: view.x, y: view.y, k: view.k, ptrs: ptrs.size, dragStart,
+      dragging: document.getElementById('map').classList.contains('dragging'),
+      focus: state.focusId,
+    }));
+    expect(mid.dragging, 'the grabbing cursor is on for the whole gesture').toBe(true);
+    // Each move is measured from where the finger went down, not from the last
+    // move: 60 then 120, not 60 then 180.
+    expect(mid.x - before.x).toBeCloseTo(60, 6);
+    expect(mid.y - before.y).toBeCloseTo(-40, 6);
+    expect(after.x - before.x, 'the pan follows the pointer, one canvas unit per pixel').toBeCloseTo(120, 6);
+    expect(after.y - before.y).toBeCloseTo(-80, 6);
+    expect(after.k, 'a drag is not a zoom').toBe(before.k);
+    // And the gesture is put away: a drag that leaves dragStart set keeps
+    // panning on every later move with no button held.
+    expect(after.dragging).toBe(false);
+    expect(after.ptrs).toBe(0);
+    expect(after.dragStart).toBe(null);
+  });
+
+  test('§7 a drag that ends on a marker does not open it, and a 4 px wobble still does', async ({ page }) => {
+    // The subtler half of the pan path. Grabbing a marker drags the map, and
+    // the map carries the marker along, so the marker is still under the
+    // pointer when the drag is released — which is the case `moved <= 4` exists
+    // for. Without it every pan that happens to start on a marker opens that
+    // marker's card and flies the view away, and panning across a cluster
+    // becomes unusable.
+    await openMap(page);
+    const at = await pickForGesture(page, { r: 190, t: 150 });
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 60, at.y - 40);
+    await page.mouse.move(at.x + 120, at.y - 80);
+    const release = { x: at.x + 120, y: at.y - 80 };
+    const under = (x, y) => page.evaluate(([px, py]) => {
+      const hit = document.elementFromPoint(px, py);
+      const mk = hit && hit.closest ? hit.closest('.mk') : null;
+      return mk ? mk.dataset.id : null;
+    }, [x, y]);
+    expect(await under(release.x, release.y),
+      'the marker travelled with the map, so the release really is on it').toBe(at.id);
+    await page.mouse.up();
+    await settleCounts(page);
+    expect((await viewOf(page)).focus, 'a pan is not a selection').toBe(null);
+
+    // The boundary, exactly where the handler puts it: |dx| + |dy| of 6 is a
+    // drag, 4 is a tap. Both end over the marker, for the same reason — and
+    // each is checked before the release, because a tap opens the card and
+    // flies the map, which takes the marker away from the release point.
+    await page.mouse.down();
+    await page.mouse.move(release.x + 3, release.y + 3);
+    expect(await under(release.x + 3, release.y + 3)).toBe(at.id);
+    await page.mouse.up();
+    await settleCounts(page);
+    expect((await viewOf(page)).focus, 'six pixels of travel is still a drag').toBe(null);
+
+    await page.mouse.down();
+    await page.mouse.move(release.x + 5, release.y + 5);
+    expect(await under(release.x + 5, release.y + 5)).toBe(at.id);
+    await page.mouse.up();
+    await settleCounts(page);
+    expect((await viewOf(page)).focus, 'four pixels is a tap, and a tap selects').toBe(at.id);
+  });
+
+  test('§7 a cancelled pointer ends the drag instead of leaving it live', async ({ page }) => {
+    // endPtr() is the only thing that clears dragStart and takes the grabbing
+    // cursor off when the browser revokes a pointer mid-gesture — a touch
+    // interrupted by a system gesture, a context menu, the capture being lost.
+    // If that wiring broke, dragStart would stay set and every later
+    // pointermove would keep panning with nothing held down: the map follows
+    // the cursor for ever, with a grabbing cursor to advertise it. The guard
+    // exists for a state the happy path cannot reach, which is why it has to be
+    // dispatched rather than performed.
+    await openMap(page);
+    const r = await page.evaluate(() => {
+      const svg = document.getElementById('map');
+      const st = svg.getBoundingClientRect();
+      const x0 = st.left + st.width / 2, y0 = st.top + st.height / 2;
+      const ev = (type, cx, cy, buttons) => svg.dispatchEvent(new PointerEvent(type, {
+        pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true,
+        clientX: cx, clientY: cy, button: 0, buttons,
+      }));
+      const before = { x: view.x, y: view.y };
+      ev('pointerdown', x0, y0, 1);
+      const down = {
+        ptrs: ptrs.size, held: !!dragStart,
+        dragging: svg.classList.contains('dragging'),
+      };
+      ev('pointermove', x0 + 50, y0 + 30, 1);
+      const panned = { x: view.x, y: view.y };
+      ev('pointercancel', x0 + 50, y0 + 30, 0);
+      const cancelled = {
+        ptrs: ptrs.size, dragStart, dragging: svg.classList.contains('dragging'),
+        x: view.x, y: view.y,
+      };
+      // The move that a live dragStart would have acted on.
+      ev('pointermove', x0 + 250, y0 + 200, 0);
+      return { before, down, panned, cancelled, ghost: { x: view.x, y: view.y } };
+    });
+    expect(r.down, 'the drag really did start').toEqual({ ptrs: 1, held: true, dragging: true });
+    expect(r.panned.x - r.before.x, 'and really did pan').toBeCloseTo(50, 6);
+    expect(r.panned.y - r.before.y).toBeCloseTo(30, 6);
+    expect(r.cancelled).toMatchObject({ ptrs: 0, dragStart: null, dragging: false });
+    // The cancel itself moves nothing, and the map stops following the pointer.
+    expect(r.cancelled.x).toBeCloseTo(r.panned.x, 6);
+    expect(r.cancelled.y).toBeCloseTo(r.panned.y, 6);
+    expect(r.ghost.x, 'a move after the cancel must not pan').toBeCloseTo(r.panned.x, 6);
+    expect(r.ghost.y).toBeCloseTo(r.panned.y, 6);
+    await settleCounts(page);
+  });
+
+  test('§4.4 a two-finger pinch zooms about the fingers\' midpoint, and is never read as a tap', async ({ page }) => {
+    // §5 makes the phone a documented target, and on a phone pinch is the zoom.
+    // The `.ctl-br` buttons do survive below 840 px, so a broken pinch degrades
+    // rather than dead-ends; `moved = 10` is the part that would bite. It is
+    // the only thing stopping the finger that lifts last from being read as a
+    // tap, and a pinch whose fingers happen to lift near a marker would then
+    // open a card the reader never asked for, mid-zoom.
+    //
+    // Only one finger travels. Each pointermove re-reads the pair's midpoint,
+    // so a gesture where both fingers move has a different anchor at every
+    // step; with one finger still there is exactly one zoomAt(), its factor is
+    // the ratio of the two spans and its anchor is the midpoint at that moment
+    // — all three checkable to the last digit. The still finger is parked at
+    // M + 50 precisely so that doubling about M − 50 brings the marker to it:
+    // the last lift lands on a marker, which is what makes the tap guard the
+    // subject of the test rather than a footnote.
+    //
+    // The third thing on that line, `pinchD || d`, has no test and cannot have
+    // one: pinchD is set whenever ptrs reaches two, and a third finger leaves
+    // ptrs at three so the branch is skipped entirely, so there is no sequence
+    // of events that reaches the division with pinchD still zero. It is a
+    // guard against a state the handlers cannot produce.
+    await openMap(page);
+    const at = await pickForGesture(page, { l: 220, r: 90 });
+    const r = await page.evaluate(([id, mx, my]) => {
+      const svg = document.getElementById('map');
+      const st = svg.getBoundingClientRect();
+      const ev = (type, pointerId, cx, cy, buttons) => svg.dispatchEvent(new PointerEvent(type, {
+        pointerId, pointerType: 'touch', isPrimary: pointerId === 1, bubbles: true, cancelable: true,
+        clientX: cx, clientY: cy, button: 0, buttons,
+      }));
+      const before = { x: view.x, y: view.y, k: view.k };
+      ev('pointerdown', 1, mx - 50, my, 1);
+      ev('pointerdown', 2, mx + 50, my, 1);
+      const down = { ptrs: ptrs.size, pinchD, moved };
+      ev('pointermove', 1, mx - 150, my, 1);
+      const after = { x: view.x, y: view.y, k: view.k, moved, pinchD };
+      ev('pointerup', 1, mx - 150, my, 0);
+      const half = { ptrs: ptrs.size, focus: state.focusId };
+      const hit = document.elementFromPoint(mx + 50, my);
+      const mk = hit && hit.closest ? hit.closest('.mk') : null;
+      ev('pointerup', 2, mx + 50, my, 0);
+      const box = mkEls[id].getBoundingClientRect();
+      return {
+        left: st.left, top: st.top, before, down, after, half,
+        underLift: mk ? mk.dataset.id : null,
+        marker: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+        end: {
+          ptrs: ptrs.size, dragStart, focus: state.focusId,
+          dragging: svg.classList.contains('dragging'),
+        },
+      };
+    }, [at.id, at.x, at.y]);
+    expect(r.down, 'two fingers 100 px apart, and nothing moved yet').toEqual({ ptrs: 2, pinchD: 100, moved: 0 });
+    expect(r.after.pinchD, 'the span is carried forward for the next move').toBe(200);
+    expect(r.after.k / r.before.k, 'a span from 100 px to 200 px is a zoom of two').toBeCloseTo(2, 9);
+    // The anchor is the midpoint of the pair as it stood for that move, in
+    // stage coordinates — the same `- rect.left` the wheel does.
+    const px = at.x - 50 - r.left, py = at.y - r.top;
+    const [wx, wy] = worldUnder(r.before, px, py);
+    const [sx, sy] = screenOf(r.after, wx, wy);
+    expect(sx, 'the midpoint is the fixed point of the pinch').toBeCloseTo(px, 3);
+    expect(sy).toBeCloseTo(py, 3);
+    // Which puts the marker under the finger that never moved.
+    expect(r.marker.x).toBeCloseTo(at.x + 50, 0);
+    expect(r.marker.y).toBeCloseTo(at.y, 0);
+    // And the tap guard: the last lift is on a marker and still opens nothing.
+    expect(r.after.moved, 'a pinch counts as having moved, whatever the fingers did').toBe(10);
+    expect(r.underLift, 'the last finger really does come up on a marker').toBe(at.id);
+    expect(r.half.focus).toBe(null);
+    expect(r.end.focus, 'and lifting on it opens no card').toBe(null);
+    expect(r.end).toMatchObject({ ptrs: 0, dragStart: null, dragging: false });
+    await settleCounts(page);
   });
 });

@@ -19,8 +19,17 @@
 // path under test. Where the reference implementations below restate a rule
 // they restate it from the spec text, over the payload, and independently of
 // `items` / `byId` / `runSearch`.
+//
+// No figure out of the corpus is written out here — not a count, not a name,
+// not a city, not a date. §3.2: "Counts are a snapshot and move with every
+// upstream regeneration; the shape of the table is what is normative, not the
+// figures." A caption, a meta line or a hit count is therefore rebuilt from the
+// payload and then compared as an exact value; the only constants are the
+// rules themselves (§11's eight-per-layer cap, §3.2's four layers) and §12's
+// interface vocabulary.
 import { test, expect } from '@playwright/test';
-import { openMap, snapshot, setLayers, setPeriod, settleCounts, MAP_PATH } from './_map.js';
+import { openMap, snapshot, setLayers, setPeriod, settleCounts, tiles, layerRows,
+  caption, expectCountersReconcile, MAP_PATH } from './_map.js';
 
 // ---------------------------------------------------------------- local rig
 
@@ -96,6 +105,23 @@ const groups = (page) => page.evaluate(() => {
     else if (el.classList.contains('sd-item') && cur) cur.ids.push(el.dataset.open);
   }
   return out;
+});
+
+/** Where the keyboard highlight sits, and where the list is scrolled to. The
+ *  highlight is a class, so `.sd-item.sel` exists whether or not the reader can
+ *  see it; §14's focus ring is only visible if these two agree. */
+const selGeom = (page) => page.evaluate(() => {
+  const st = document.getElementById('search-drop');
+  const items = [...st.querySelectorAll('.sd-item')];
+  const sel = st.querySelector('.sd-item.sel');
+  return {
+    index: items.indexOf(sel),
+    top: sel ? sel.offsetTop : null,
+    height: sel ? sel.offsetHeight : null,
+    scrollTop: st.scrollTop,
+    clientHeight: st.clientHeight,
+    scrollHeight: st.scrollHeight,
+  };
 });
 
 /** A reference implementation of §11's matching rule, written from the spec
@@ -248,22 +274,97 @@ const payloadTotals = (page) => page.evaluate(() => ({
   framework: window.HAI_DATA.FRAMEWORKS.length,
 }));
 
-// Fixtures picked for their shape, not their content:
+/** One entity as the payload spells it. Every expectation below about a name, a
+ *  place, a date or a description is read from here rather than from the page's
+ *  own `byId`, which is built by the code under test. */
+const entity = (page, id) => page.evaluate((x) => {
+  const D = window.HAI_DATA;
+  return [...D.PROJECTS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS].find((d) => d.id === x) || null;
+}, id);
+
+/** Which of §3.2's four arrays the payload files an id under — asked of the
+ *  data, not of `byId[id].kind`. */
+const kindOf = (page, id) => page.evaluate((x) => {
+  const D = window.HAI_DATA;
+  for (const [kind, arr] of [['project', D.PROJECTS], ['team', D.TEAMS],
+    ['commons', D.COMMONS], ['framework', D.FRAMEWORKS]])
+    if (arr.some((d) => d.id === x)) return kind;
+  return null;
+}, id);
+
+/** §11's normalisation, in the test's own words: fold the diacritics, lower
+ *  the case. */
+const fold = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** §11's meta line on a search row, rebuilt from the payload: the place, and —
+ *  for a row matched only through its affiliation — that string after it. */
+const rowMeta = (d, via = null) =>
+  [[d.city, d.country].filter(Boolean).join(', '), via].filter(Boolean).join(' · ');
+
+/** The same line on the print sheet: a dash, the place, then the dates. */
+const printMeta = (d) =>
+  '— ' + [d.city, d.country].filter(Boolean).join(', ') + (d.when ? ' · ' + d.when : '');
+
+/** §11's eight-per-layer ceiling, and §3.2's four layers under the labels §12
+ *  gives them in English. Rules and vocabulary rather than figures: these are
+ *  the only numbers and names in this file that do not move with the data. */
+const CAP = 8;
+const LAYER_ORDER = ['project', 'team', 'commons', 'framework'];
+const LAYER_LABEL = { project: 'Projects & programmes', team: 'Teams', commons: 'Commons', framework: 'Frameworks' };
+
+/** A fixture chosen by its shape: a placed entity with exactly `degree`
+ *  neighbours in the payload's own edge lists, all of them placed too, so the
+ *  marker assertions have markers to look at. §11's "pins and their
+ *  neighbours" is a claim about that shape — naming an id once and trusting it
+ *  to keep its degree is how a regeneration voids such a test quietly. */
+const pinWith = (page, degree) => page.evaluate((want) => {
+  const D = window.HAI_DATA;
+  const all = [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
+  const known = new Map(all.map((d) => [d.id, d]));
+  const nb = new Map(all.map((d) => [d.id, new Set()]));
+  const link = (a, b) => {
+    if (!known.has(a) || !known.has(b)) return;
+    nb.get(a).add(b); nb.get(b).add(a);
+  };
+  D.EDGES.forEach((e) => link(e.project, e.team));
+  [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
+    (a.createdBy || []).forEach((u) => link(u, a.id));
+    (a.usedBy || []).forEach((u) => link(a.id, u));
+  });
+  const placed = (d) => !!d && d.lat != null && d.lon != null;
+  const hit = all.find((d) => placed(d) && nb.get(d.id).size === want
+    && [...nb.get(d.id)].every((id) => placed(known.get(id))));
+  return hit ? { id: hit.id, neighbours: [...nb.get(hit.id)].sort() } : null;
+}, degree);
+
+/** A period strictly inside §10's axis, so `yr=` has something to carry
+ *  wherever a regeneration puts the floor and the ceiling. The axis is an input
+ *  to the control here; what is under test is the fragment the share button
+ *  writes out of it. */
+async function narrowed(page) {
+  const { ymin, ymax } = await page.evaluate(() => ({ ymin: YMIN, ymax: YMAX }));
+  expect(ymax - ymin).toBeGreaterThan(2);     // room for a window inside the axis
+  return { a: ymin + 1, b: ymax - 1 };
+}
+
+// Fixtures. Each id below is named because it is the subject of the tests that
+// use it; the shape a test depends on is re-read from the payload where it
+// matters, so a fixture that has drifted fails loudly instead of quietly
+// voiding its test (§3.2: the figures move with every regeneration).
 //   dlr-gsoc   — own name says only "DLR"; its affiliation is spelled out in
-//                full, which is the case §11 names. No neighbours: n=1 My map.
-//   chalmers-revere — exactly one neighbour, so "pins and their neighbours" has
-//                a two-element expectation that a wrong join would miss.
-//   sae-j3016  — a framework with no coordinates and no city: no marker, and
+//                full, which is the case §11 names.
+//   sae-j3016  — a framework with no coordinates and no place: no marker, and
 //                the empty-place branch of every row renderer.
 //   3ia-cotedazur — an accented name with a `when` range and a URL.
-//   flatland-association — a team whose description exists only as a bare
-//                `desc`, with no `desc_en` key: the fallback branch of the
-//                print sheet's paragraph.
+//   chalmers-revere — an ordinary placed team, for the tests that need some
+//                pin and do not care which. The two that are about "pins and
+//                their neighbours" choose theirs by degree (`pinWith`), and
+//                the one about §12's description fallback chooses the team
+//                that has that shape.
 const DLR = 'dlr-gsoc';
 const REVERE = 'chalmers-revere';
 const SAE = 'sae-j3016';
 const AZUR = '3ia-cotedazur';
-const FLAT = 'flatland-association';
 
 // Three surfaces carry pin order — the sidebar list, the stored array and the
 // `pins=` fragment — and all three read `state.pins` in insertion order. The
@@ -304,11 +405,18 @@ test.describe('§11 search — matching', () => {
 
   test('§11 diacritic-insensitive: an unaccented query reaches an accented name', async ({ page }) => {
     await openMap(page);
-    // "3IA Côte d'Azur" typed as a reader without a French keyboard would.
+    const d = await entity(page, AZUR);
+    // The fixture is the accent itself: folded, the name contains the query;
+    // written, it does not. Typed as a reader without a French keyboard would.
+    expect(fold(d.name)).toContain('cote');
+    expect(d.name.toLowerCase()).not.toContain('cote');
     await type(page, 'cote');
     await dropOpen(page);
-    expect((await rows(page)).map((r) => r.id)).toEqual([AZUR]);
-    expect((await rows(page))[0].name).toContain('Côte');
+    const ref = await reference(page, 'cote');
+    const r = await rows(page);
+    expect(r.map((x) => x.id)).toEqual(ref.flatMap((g) => g.shown.map((h) => h.id)));
+    expect(r.map((x) => x.id)).toContain(AZUR);
+    expect(r.find((x) => x.id === AZUR).name).toBe(d.name);
   });
 
   test('§11 diacritic-insensitive both ways: göteborg and goteborg find one set', async ({ page }) => {
@@ -321,22 +429,33 @@ test.describe('§11 search — matching', () => {
     const accented = (await rows(page)).map((r) => r.id);
     const ref = await reference(page, 'goteborg');
     const expected = ref.flatMap((g) => g.shown.map((h) => h.id));
-    expect(expected.length).toBe(4);            // guards the fixture itself
+    const matched = ref.flatMap((g) => g.own.concat(g.aff));
+    // Guards the fixture: the city is still in the payload, and still written
+    // with the ö. Without that both queries would agree on an empty list.
+    const written = await page.evaluate(() => [...window.HAI_DATA.PROJECTS, ...window.HAI_DATA.TEAMS,
+      ...window.HAI_DATA.COMMONS, ...window.HAI_DATA.FRAMEWORKS]
+      .filter((d) => /göteborg/i.test(d.city || '')).map((d) => d.id));
+    expect(written.length).toBeGreaterThan(0);
     expect(plain).toEqual(expected);
     expect(accented).toEqual(expected);
+    // The claim the fixture's size used to stand in for: every entity that
+    // spells the city with the ö is found by typing it without.
+    for (const id of written) expect(matched).toContain(id);
   });
 
   test('§11 it matches the city, not only the name', async ({ page }) => {
     await openMap(page);
-    await type(page, 'oberpfaffenhofen');
+    const d = await entity(page, DLR);
+    const q = fold(d.city);                   // the fixture's own city, as typed
+    await type(page, q);
     await dropOpen(page);
-    const ref = await reference(page, 'oberpfaffenhofen');
+    const ref = await reference(page, q);
     const expected = ref.flatMap((g) => g.shown.map((h) => h.id));
     expect(expected).toContain(DLR);
     expect((await rows(page)).map((r) => r.id)).toEqual(expected);
     // The name carries no trace of the city, so this row can only be a city hit.
-    const name = (await rows(page)).find((r) => r.id === DLR).name;
-    expect(name.toLowerCase()).not.toContain('oberpfaffenhofen');
+    expect((await rows(page)).find((r) => r.id === DLR).name).toBe(d.name);
+    expect(fold(d.name)).not.toContain(q);
   });
 
   test('§11 it does not reach into descriptions — name, city and affiliation only', async ({ page }) => {
@@ -345,9 +464,18 @@ test.describe('§11 search — matching', () => {
     // so a hit here would mean the match had quietly grown a fourth field — and
     // with it a ranking rule the spec does not define.
     await openMap(page);
-    const inDesc = await page.evaluate(() => window.HAI_DATA.PROJECTS
-      .some((d) => (d.desc_en || d.desc || '').toLowerCase().includes('biology')));
-    expect(inDesc).toBe(true);
+    const probe = await page.evaluate(() => {
+      const D = window.HAI_DATA;
+      const all = [...D.PROJECTS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS];
+      const f = (s) => String(s == null ? '' : s).toLowerCase();
+      return {
+        inDesc: all.filter((d) => f(d.desc_en || d.desc).includes('biology')).map((d) => d.id),
+        inFields: all.filter((d) => [d.name, d.city, (d.affiliation || {}).org,
+          (d.affiliation || {}).parent].some((v) => f(v).includes('biology'))).map((d) => d.id),
+      };
+    });
+    expect(probe.inDesc.length).toBeGreaterThan(0);   // the word is in the corpus…
+    expect(probe.inFields).toEqual([]);               // …and in none of the matched fields
     await type(page, 'biology');
     await dropOpen(page);
     expect(await rows(page)).toEqual([]);
@@ -362,12 +490,22 @@ test.describe('§11 search — matching', () => {
     await expect(page.locator('#search-drop .sd-empty')).toHaveText('No matches');
   });
 
-  test('§11 one result: a single row, no other layer', async ({ page }) => {
+  test('§11 a narrow query: exactly its matches, and no header over an empty layer', async ({ page }) => {
+    // Was pinned to "one row, under Teams"; both of those are figures. What
+    // §11 promises is that the list is the match set and that a layer with no
+    // hits contributes no header, so both now come from the payload's own
+    // match rule.
     await openMap(page);
-    await type(page, 'deutsches zentrum');
+    const d = await entity(page, DLR);
+    const q = d.affiliation.parent;           // the institution's full name
+    await type(page, q);
     await dropOpen(page);
-    expect((await rows(page)).map((r) => r.id)).toEqual([DLR]);
-    expect((await groups(page)).map((g) => g.label)).toEqual(['Teams']);
+    const ref = await reference(page, q);
+    const ids = (await rows(page)).map((r) => r.id);
+    expect(ids).toEqual(ref.flatMap((g) => g.shown.map((h) => h.id)));
+    expect(ids).toContain(DLR);
+    expect((await groups(page)).map((g) => g.label)).toEqual(ref.map((g) => LAYER_LABEL[g.kind]));
+    expect(ref.length).toBeLessThan(LAYER_ORDER.length);   // layers are genuinely missing
   });
 });
 
@@ -379,9 +517,11 @@ test.describe('§11 search — grouping and the eight-per-layer cap', () => {
     await type(page, 'er');                    // hits all four layers
     await dropOpen(page);
     const g = await groups(page);
-    expect(g.map((x) => x.label))
-      .toEqual(['Projects & programmes', 'Teams', 'Commons', 'Frameworks']);
     const ref = await reference(page, 'er');
+    // The fixture must still reach all four of §3.2's layers, or "in layer
+    // order" is a claim about a shorter list than the test means it to be.
+    expect(ref.map((x) => x.kind)).toEqual(LAYER_ORDER);
+    expect(g.map((x) => x.label)).toEqual(ref.map((x) => LAYER_LABEL[x.kind]));
     expect(g.map((x) => x.ids)).toEqual(ref.map((x) => x.shown.map((h) => h.id)));
   });
 
@@ -392,10 +532,11 @@ test.describe('§11 search — grouping and the eight-per-layer cap', () => {
     const ref = await reference(page, 'er');
     // The fixture must actually exercise the cap on every layer, or the test
     // would pass on an implementation with no cap at all.
-    for (const g of ref) expect(g.own.length + g.aff.length).toBeGreaterThan(8);
+    expect(ref.map((x) => x.kind)).toEqual(LAYER_ORDER);
+    for (const g of ref) expect(g.own.length + g.aff.length).toBeGreaterThan(CAP);
     const g = await groups(page);
-    expect(g.map((x) => x.ids.length)).toEqual([8, 8, 8, 8]);
-    expect((await rows(page)).length).toBe(32);
+    expect(g.map((x) => x.ids.length)).toEqual(ref.map(() => CAP));
+    expect((await rows(page)).length).toBe(ref.length * CAP);
   });
 
   test('§11 a layer under the cap shows all of its hits', async ({ page }) => {
@@ -404,18 +545,23 @@ test.describe('§11 search — grouping and the eight-per-layer cap', () => {
     await dropOpen(page);
     const ref = await reference(page, 'ai');
     const commons = ref.find((g) => g.kind === 'commons');
-    expect(commons.own.length + commons.aff.length).toBe(6);   // fewer than eight
-    const shown = (await groups(page)).find((g) => g.label === 'Commons');
+    const hits = commons.own.length + commons.aff.length;
+    // The fixture must stay under the cap, or this is the test above again.
+    expect(hits).toBeGreaterThan(0);
+    expect(hits).toBeLessThan(CAP);
+    const shown = (await groups(page)).find((g) => g.label === LAYER_LABEL.commons);
     expect(shown.ids).toEqual(commons.shown.map((h) => h.id));
-    expect(shown.ids.length).toBe(6);
+    expect(shown.ids.length).toBe(hits);        // every hit of them, none dropped
   });
 
   test('§11 a layer with no hits contributes no header', async ({ page }) => {
     await openMap(page);
     await type(page, 'zentrum');
     await dropOpen(page);
-    expect((await groups(page)).map((g) => g.label)).toEqual(['Teams']);
-    expect(await page.locator('#search-drop .sd-group').count()).toBe(1);
+    const ref = await reference(page, 'zentrum');
+    expect(ref.length).toBeLessThan(LAYER_ORDER.length);   // some layer has no hits
+    expect((await groups(page)).map((g) => g.label)).toEqual(ref.map((g) => LAYER_LABEL[g.kind]));
+    expect(await page.locator('#search-drop .sd-group').count()).toBe(ref.length);
   });
 });
 
@@ -424,12 +570,19 @@ test.describe('§11 search — grouping and the eight-per-layer cap', () => {
 test.describe('§11 search — ranking carries the affiliation widening', () => {
   test('§11 the widening: the institution\'s full name finds the team called only "DLR"', async ({ page }) => {
     await openMap(page);
-    await type(page, 'Deutsches Zentrum für Luft- und Raumfahrt');
+    const d = await entity(page, DLR);
+    const q = d.affiliation.parent;           // spelled out as the payload has it
+    await type(page, q);
     await dropOpen(page);
+    const ref = await reference(page, q);
     const r = await rows(page);
-    expect(r.map((x) => x.id)).toEqual([DLR]);
-    // The point of the widening: nothing in the row's own name matches.
-    expect(r[0].name).toBe('DLR — German Space Operations Center (GSOC)');
+    expect(r.map((x) => x.id)).toEqual(ref.flatMap((g) => g.shown.map((h) => h.id)));
+    expect(r.map((x) => x.id)).toContain(DLR);
+    // The point of the widening: neither the row's own name nor its city
+    // contains the query, so the hit can only have come through the affiliation.
+    expect(r.find((x) => x.id === DLR).name).toBe(d.name);
+    expect(fold(d.name)).not.toContain(fold(q));
+    expect(fold(d.city)).not.toContain(fold(q));
   });
 
   test('§11 "universit" keeps the teams actually called that and evicts none of them for a parent match', async ({ page }) => {
@@ -439,12 +592,14 @@ test.describe('§11 search — ranking carries the affiliation widening', () => 
     const ref = await reference(page, 'universit');
     const teams = ref.find((g) => g.kind === 'team');
     // The bug the spec describes only exists when affiliation matches outnumber
-    // own-name matches and together overflow the eight slots.
-    expect(teams.own.length).toBe(9);
-    expect(teams.aff.length).toBe(24);
+    // own-name matches and the own-name ones already fill the slots. That shape
+    // is what the fixture is for, so it is read off the payload rather than
+    // pinned to the two figures it happened to have on the day.
+    expect(teams.aff.length).toBeGreaterThan(teams.own.length);
+    expect(teams.own.length).toBeGreaterThanOrEqual(CAP);
 
-    const shown = (await groups(page)).find((g) => g.label === 'Teams').ids;
-    expect(shown).toEqual(teams.own.slice(0, 8));          // exact order: stable sort
+    const shown = (await groups(page)).find((g) => g.label === LAYER_LABEL.team).ids;
+    expect(shown).toEqual(teams.own.slice(0, CAP));        // exact order: stable sort
     for (const id of teams.aff) expect(shown).not.toContain(id);
   });
 
@@ -454,42 +609,53 @@ test.describe('§11 search — ranking carries the affiliation widening', () => 
     await dropOpen(page);
     const ref = await reference(page, 'universit');
     const teams = ref.find((g) => g.kind === 'team');
-    const shown = (await groups(page)).find((g) => g.label === 'Teams').ids;
-    // Nine own-name teams compete for eight slots: the ninth loses, and it loses
-    // to another own-name team rather than to an affiliation match.
-    const evicted = teams.own[8];
+    const shown = (await groups(page)).find((g) => g.label === LAYER_LABEL.team).ids;
+    // More own-name teams than there are slots: the ones past the cap lose, and
+    // they lose to another own-name team rather than to an affiliation match.
+    expect(teams.own.length).toBeGreaterThan(CAP);
+    const evicted = teams.own[CAP];
     expect(shown).not.toContain(evicted);
     // `.every()` on an empty array is true, so the length comes first: without
     // it this test passes on an implementation that shows no Teams at all.
-    expect(shown.length).toBe(8);
+    expect(shown.length).toBe(CAP);
     expect(shown.every((id) => teams.own.includes(id))).toBe(true);
   });
 
   test('§11 within one rank the order is the corpus order — the sort is stable', async ({ page }) => {
     await openMap(page);
-    await type(page, 'zentrum');              // three teams, all affiliation-only
+    await type(page, 'zentrum');              // teams, every one affiliation-only
     await dropOpen(page);
     const ref = await reference(page, 'zentrum');
     const teams = ref.find((g) => g.kind === 'team');
     expect(teams.own).toEqual([]);
-    expect(teams.aff.length).toBe(3);
-    expect((await rows(page)).map((r) => r.id)).toEqual(teams.aff);
+    // More than one row, or there is no order to be stable about; no more than
+    // the cap, or the rendered list is a truncation of the corpus order.
+    expect(teams.aff.length).toBeGreaterThan(1);
+    expect(teams.aff.length).toBeLessThanOrEqual(CAP);
+    expect((await groups(page)).find((g) => g.label === LAYER_LABEL.team).ids).toEqual(teams.aff);
   });
 
   test('§11 an affiliation-only row appends the institution after the city', async ({ page }) => {
     await openMap(page);
     await type(page, 'zentrum');
     await dropOpen(page);
+    const d = await entity(page, DLR);
+    const hit = (await reference(page, 'zentrum')).flatMap((g) => g.shown).find((h) => h.id === DLR);
+    expect(hit.via).toBeTruthy();             // it really is an affiliation hit
     const r = (await rows(page)).find((x) => x.id === DLR);
-    expect(r.meta).toBe('Oberpfaffenhofen, DE · Deutsches Zentrum für Luft- und Raumfahrt (DLR)');
+    expect(r.meta).toBe(rowMeta(d, hit.via));
+    expect(r.meta).toContain(' · ');             // something was appended
   });
 
   test('§11 an own-name row shows the city alone, with nothing appended', async ({ page }) => {
     await openMap(page);
     await type(page, 'dlr');                  // now the name itself matches
     await dropOpen(page);
+    const d = await entity(page, DLR);
+    const hit = (await reference(page, 'dlr')).flatMap((g) => g.shown).find((h) => h.id === DLR);
+    expect(hit.via).toBe(null);                // an own-name hit: nothing to append
     const r = (await rows(page)).find((x) => x.id === DLR);
-    expect(r.meta).toBe('Oberpfaffenhofen, DE');
+    expect(r.meta).toBe(rowMeta(d));
     expect(r.meta).not.toContain(' · ');
   });
 });
@@ -502,12 +668,16 @@ test.describe('§11 search — reach', () => {
     await setLayers(page, []);                // every layer off: nothing on the map
     await settleCounts(page);
     expect((await snapshot(page)).matchCount).toBe(0);
-    await type(page, 'deutsches zentrum');
+    const d = await entity(page, DLR);
+    await type(page, d.affiliation.parent);
     await dropOpen(page);
-    expect((await rows(page)).map((r) => r.id)).toEqual([DLR]);
+    const ref = await reference(page, d.affiliation.parent);
+    const ids = (await rows(page)).map((r) => r.id);
+    expect(ids).toEqual(ref.flatMap((g) => g.shown.map((h) => h.id)));
+    expect(ids).toContain(DLR);
     await page.click(`#search-drop [data-open="${DLR}"]`);
     expect((await snapshot(page)).focusId).toBe(DLR);
-    await expect(cardName(page)).toHaveText('DLR — German Space Operations Center (GSOC)');
+    await expect(cardName(page)).toHaveText(d.name);
   });
 
   test('§11 search reaches an entity the period filter excludes', async ({ page }) => {
@@ -519,53 +689,81 @@ test.describe('§11 search — reach', () => {
     expect(inFilter).toBe(false);             // the fixture really is filtered out
     await type(page, 'cote');
     await dropOpen(page);
-    expect((await rows(page)).map((r) => r.id)).toEqual([AZUR]);
+    const ref = await reference(page, 'cote');
+    const ids = (await rows(page)).map((r) => r.id);
+    expect(ids).toEqual(ref.flatMap((g) => g.shown.map((h) => h.id)));
+    expect(ids).toContain(AZUR);
   });
 
   test('§11 search reaches an entity with no coordinates, which has no marker', async ({ page }) => {
     await openMap(page);
+    const d = await entity(page, SAE);
+    // The fixture's shape read from the payload, not from the page's own
+    // `byId[id].geo`: that flag is computed by the code under test.
+    expect([d.lat ?? null, d.lon ?? null]).toEqual([null, null]);
     const hasMarker = await page.evaluate((id) => !!document.querySelector(`.mk[data-id="${id}"]`), SAE);
     expect(hasMarker).toBe(false);
-    const geo = await page.evaluate((id) => byId[id].geo, SAE);
-    expect(geo).toBe(false);
     await type(page, 'j3016');
     await dropOpen(page);
-    expect((await rows(page)).map((r) => r.id)).toEqual([SAE]);
+    const ref = await reference(page, 'j3016');
+    const ids = (await rows(page)).map((r) => r.id);
+    expect(ids).toEqual(ref.flatMap((g) => g.shown.map((h) => h.id)));
+    expect(ids).toContain(SAE);
     await page.click(`#search-drop [data-open="${SAE}"]`);
     expect((await snapshot(page)).focusId).toBe(SAE);
   });
 
   test('§11 an entity with no city renders an empty meta line rather than a stray comma', async ({ page }) => {
     await openMap(page);
+    const d = await entity(page, SAE);
+    expect([d.city ?? null, d.country ?? null]).toEqual([null, null]);   // no place at all
     await type(page, 'j3016');
     await dropOpen(page);
-    expect((await rows(page))[0].meta).toBe('');
+    const r = (await rows(page)).find((x) => x.id === SAE);
+    expect(r.meta).toBe(rowMeta(d));
+    expect(r.meta).toBe('');
   });
 });
 
 // ========================================================= search: keyboard
 
 test.describe('§11 search — keyboard', () => {
+  // These tests walk a short list, so each press can be followed row by row.
+  // How long that list is comes from the payload's own match rule: the
+  // three-element masks the assertions used to carry were really the claim
+  // "zentrum hits exactly three teams", a figure like any other. The guard
+  // keeps the list long enough for a walk, a wrap and the way back to mean
+  // something.
+  const KEY_Q = 'zentrum';
+  const keyRows = async (page) => {
+    const ids = (await reference(page, KEY_Q)).flatMap((g) => g.shown.map((h) => h.id));
+    expect(ids.length).toBeGreaterThan(2);
+    return ids;
+  };
+  /** §11's selection mask: row `i` highlighted, out of `n`, and no other. */
+  const onlyAt = (n, i) => Array.from({ length: n }, (_, k) => k === i);
+  const selection = async (page) => (await rows(page)).map((r) => r.selected);
+
   test('§11 ArrowDown walks the list from the top', async ({ page }) => {
     await openMap(page);
-    await type(page, 'zentrum');
+    await type(page, KEY_Q);
     await dropOpen(page);
+    const n = (await keyRows(page)).length;
     await page.keyboard.press('ArrowDown');
-    expect((await rows(page)).map((r) => r.selected)).toEqual([true, false, false]);
+    expect(await selection(page)).toEqual(onlyAt(n, 0));
     await page.keyboard.press('ArrowDown');
-    expect((await rows(page)).map((r) => r.selected)).toEqual([false, true, false]);
+    expect(await selection(page)).toEqual(onlyAt(n, 1));
   });
 
   test('§11 ArrowDown wraps round past the last row', async ({ page }) => {
     await openMap(page);
-    await type(page, 'zentrum');
+    await type(page, KEY_Q);
     await dropOpen(page);
+    const n = (await keyRows(page)).length;
+    for (let i = 0; i < n; i++) await page.keyboard.press('ArrowDown');
+    expect(await selection(page)).toEqual(onlyAt(n, n - 1));
     await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    expect((await rows(page)).map((r) => r.selected)).toEqual([false, false, true]);
-    await page.keyboard.press('ArrowDown');
-    expect((await rows(page)).map((r) => r.selected)).toEqual([true, false, false]);
+    expect(await selection(page)).toEqual(onlyAt(n, 0));
   });
 
   test('§11 ArrowUp from an unselected list lands on the second-to-last row', async ({ page }) => {
@@ -574,21 +772,77 @@ test.describe('§11 search — keyboard', () => {
     // the last row. §11 asks only that the arrows select; it does not pin the
     // wrap-around, so this asserts what the page does today.
     await openMap(page);
-    await type(page, 'zentrum');
+    await type(page, KEY_Q);
     await dropOpen(page);
+    const n = (await keyRows(page)).length;
     await page.keyboard.press('ArrowUp');
-    expect((await rows(page)).map((r) => r.selected)).toEqual([false, true, false]);
+    expect(await selection(page)).toEqual(onlyAt(n, n - 2));
     await page.keyboard.press('ArrowUp');
-    expect((await rows(page)).map((r) => r.selected)).toEqual([true, false, false]);
+    expect(await selection(page)).toEqual(onlyAt(n, n - 3));
+  });
+
+  test('§11 arrowing past the fold scrolls the selected row into view', async ({ page }) => {
+    // The tests above walk a three-row list, which fits the dropdown's
+    // `max-height:330px` with room to spare. A broad query does not, and then
+    // §14's "visible focus ring on all interactive elements" depends on the list
+    // following the selection: `.sd-item.sel` is only a class, so every
+    // assertion about *which* row is selected still passes while the row itself
+    // sits below the fold — the reader sees no movement and Enter opens
+    // something they never saw.
+    await openMap(page);
+    await type(page, 'er');                   // every layer, capped: a long list
+    await dropOpen(page);
+    const ref = await reference(page, 'er');
+    const n = ref.reduce((a, g) => a + Math.min(CAP, g.own.length + g.aff.length), 0);
+    expect((await rows(page)).length).toBe(n);   // the rendered list is the derived one
+    expect(n).toBeGreaterThan(CAP);             // long enough to overflow the box
+    const box = await selGeom(page);
+    expect(box.scrollHeight).toBeGreaterThan(box.clientHeight);   // it really does scroll
+    expect(box.scrollTop).toBe(0);
+    expect(box.index).toBe(-1);               // nothing selected yet
+
+    const trail = [];
+    for (let i = 0; i < n; i++) {
+      await page.keyboard.press('ArrowDown');
+      trail.push(await selGeom(page));
+    }
+    for (const [i, g] of trail.entries()) {
+      expect(g.index, `ArrowDown ${i + 1} selects row ${i}`).toBe(i);
+      expect(g.top, `row ${i} is not above the fold`).toBeGreaterThanOrEqual(g.scrollTop);
+      expect(g.top + g.height, `row ${i} is not below the fold`)
+        .toBeLessThanOrEqual(g.scrollTop + g.clientHeight);
+    }
+    // The list had to scroll to keep up, rather than the rows happening to fit:
+    // without this the loop above would pass on a list that never moved.
+    expect(trail[n - 1].scrollTop).toBeGreaterThan(0);
+
+    // Wrapping round runs the follow the other way. It aligns the row to the top
+    // of the box rather than to the top of the list, so the group header above it
+    // stays just off screen — the row the reader is on is the one it brings back.
+    await page.keyboard.press('ArrowDown');
+    const first = await selGeom(page);
+    expect(first.index).toBe(0);
+    expect(first.scrollTop).toBe(first.top);
+
+    // ArrowUp from the first row wraps to the last, which means scrolling the
+    // whole list back down to it.
+    await page.keyboard.press('ArrowUp');
+    const last = await selGeom(page);
+    expect(last.index).toBe(n - 1);
+    expect(last.top).toBeGreaterThanOrEqual(last.scrollTop);
+    expect(last.top + last.height).toBeLessThanOrEqual(last.scrollTop + last.clientHeight);
+    expect(last.scrollTop).toBeGreaterThan(first.scrollTop);
   });
 
   test('§11 Enter opens the highlighted row and clears the search', async ({ page }) => {
     await openMap(page);
-    await type(page, 'zentrum');
+    await type(page, KEY_Q);
     await dropOpen(page);
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');   // third row: dlr-gsoc
+    // Arrow down to whichever row the payload's match order gives the fixture,
+    // rather than to the position it happened to hold.
+    const i = (await keyRows(page)).indexOf(DLR);
+    expect(i).toBeGreaterThanOrEqual(0);
+    for (let k = 0; k <= i; k++) await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     expect((await snapshot(page)).focusId).toBe(DLR);
     await dropShut(page);
@@ -597,29 +851,29 @@ test.describe('§11 search — keyboard', () => {
 
   test('§11 Enter with nothing highlighted opens nothing', async ({ page }) => {
     await openMap(page);
-    await type(page, 'zentrum');
+    await type(page, KEY_Q);
     await dropOpen(page);
     await page.keyboard.press('Enter');
     expect((await snapshot(page)).focusId).toBe(null);
     await dropOpen(page);                     // the list is still there to choose from
-    await expect(page.locator('#search')).toHaveValue('zentrum');
+    await expect(page.locator('#search')).toHaveValue(KEY_Q);
   });
 
   test('§11 Escape closes the list without opening anything, and the query survives', async ({ page }) => {
     await openMap(page);
-    await type(page, 'zentrum');
+    await type(page, KEY_Q);
     await dropOpen(page);
     await page.keyboard.press('Escape');
     await dropShut(page);
     expect((await snapshot(page)).focusId).toBe(null);
-    await expect(page.locator('#search')).toHaveValue('zentrum');
+    await expect(page.locator('#search')).toHaveValue(KEY_Q);
     // Refocusing re-runs the search, so an escaped list is one click from back.
     // The field still has focus after Escape, so blur it first — otherwise no
     // focus event fires and the test would be asserting nothing.
     await page.click('#f-layers .sb-h');
     await page.click('#search');
     await dropOpen(page);
-    expect((await rows(page)).length).toBe(3);
+    expect((await rows(page)).length).toBe((await keyRows(page)).length);
   });
 
   test('§11 clicking a row opens the entity, closes the list and empties the field', async ({ page }) => {
@@ -660,7 +914,7 @@ test.describe('§11 pins — My map', () => {
     expect(ui.count).toBe('1');
     expect(ui.emptyShown).toBe(false);
     expect(ui.rows).toEqual([DLR]);
-    expect(ui.names).toEqual(['DLR — German Space Operations Center (GSOC)']);
+    expect(ui.names).toEqual([(await entity(page, DLR)).name]);
     expect(ui.cardBtn).toBe('★ Pinned');       // the card reflects it immediately
     expect((await snapshot(page)).pins).toBe(1);
   });
@@ -686,7 +940,7 @@ test.describe('§11 pins — My map', () => {
     expect((await pinUi(page)).rows).toEqual(PIN_ORDER);
     // Names as well as ids: the row the reader reads has to be the row the
     // order claim is about.
-    expect((await pinUi(page)).names[0]).toBe('SAE J3016 — Levels of Driving Automation');
+    expect((await pinUi(page)).names[0]).toBe((await entity(page, PIN_ORDER[0])).name);
   });
 
   test('§11 the × on a list row unpins that row and leaves the others', async ({ page }) => {
@@ -718,12 +972,17 @@ test.describe('§11 pins — My map', () => {
 
   test('§11 My map shows only the pins and their neighbours', async ({ page }) => {
     await openMap(page);
-    await pinFromCard(page, REVERE);
+    // The pin is chosen for having exactly one neighbour in the payload, so
+    // "one pin, one neighbour" holds by construction: a two-element
+    // expectation a wrong join would miss, whatever the data does next.
+    const fix = await pinWith(page, 1);
+    expect(fix).not.toBe(null);
+    await pinFromCard(page, fix.id);
     await page.evaluate(() => closeDetail());   // no open card to widen the set
     await page.click('#mymap-btn');
     await settleCounts(page);
-    const expected = await myMapExpectation(page, [REVERE]);
-    expect(expected.length).toBe(2);            // the fixture: one pin, one neighbour
+    const expected = await myMapExpectation(page, [fix.id]);
+    expect(expected).toEqual([fix.id, fix.neighbours[0]].sort());
     const got = await page.evaluate(() => [...state.inFilter].sort());
     expect(got).toEqual(expected);
     expect((await snapshot(page)).matchCount).toBe(2);
@@ -735,29 +994,35 @@ test.describe('§11 pins — My map', () => {
     // choice and the context it pulls along. If both rendered the same, the pill
     // would claim a selection the reader never made.
     await openMap(page);
-    await pinFromCard(page, REVERE);
+    // Both ends have to be on the map for there to be two markers to compare,
+    // so the pair is chosen from the payload on exactly that basis.
+    const fix = await pinWith(page, 1);
+    expect(fix).not.toBe(null);
+    await pinFromCard(page, fix.id);
     await page.evaluate(() => closeDetail());
     await page.click('#mymap-btn');
     await settleCounts(page);
-    const neighbour = (await myMapExpectation(page, [REVERE])).find((id) => id !== REVERE);
-    expect(neighbour).toBe('hi-drive');          // guards the fixture
+    const neighbour = (await myMapExpectation(page, [fix.id])).find((id) => id !== fix.id);
+    expect(neighbour).toBe(fix.neighbours[0]);   // the payload's own single edge
     const marks = await page.evaluate(([pin, nb]) => ({
       pinDim: document.querySelector(`.mk[data-id="${pin}"]`).classList.contains('dim'),
       pinned: document.querySelector(`.mk[data-id="${pin}"]`).classList.contains('pinned'),
       nbDim: document.querySelector(`.mk[data-id="${nb}"]`).classList.contains('dim'),
       nbPinned: document.querySelector(`.mk[data-id="${nb}"]`).classList.contains('pinned'),
-    }), [REVERE, neighbour]);
+    }), [fix.id, neighbour]);
     expect(marks).toEqual({ pinDim: false, pinned: true, nbDim: true, nbPinned: false });
   });
 
   test('§11 a pin with no neighbours makes a My map of exactly one', async ({ page }) => {
     await openMap(page);
-    await pinFromCard(page, DLR);
+    const fix = await pinWith(page, 0);         // isolated in the payload's edge lists
+    expect(fix).not.toBe(null);
+    await pinFromCard(page, fix.id);
     await page.evaluate(() => closeDetail());
     await page.click('#mymap-btn');
     await settleCounts(page);
-    expect(await myMapExpectation(page, [DLR])).toEqual([DLR]);
-    expect(await page.evaluate(() => [...state.inFilter])).toEqual([DLR]);
+    expect(await myMapExpectation(page, [fix.id])).toEqual([fix.id]);
+    expect(await page.evaluate(() => [...state.inFilter])).toEqual([fix.id]);
     expect((await snapshot(page)).matchCount).toBe(1);
   });
 
@@ -773,6 +1038,57 @@ test.describe('§11 pins — My map', () => {
     await settleCounts(page);
     expect((await snapshot(page)).myMap).toBe(false);
     expect((await snapshot(page)).matchCount).toBe(before);
+  });
+
+  test('§6 unpinning the last pin leaves My map engaged on an empty map', async ({ page }) => {
+    // SPEC-DEVIATION: §6 makes My map a mode whose whole content is the pins,
+    // and toggleMyMap() refuses to *enter* it with none ('My map needs at least
+    // one pin', above). Emptying it from inside is not guarded: togglePin() calls
+    // renderPins() and refresh() but never re-checks state.myMap, so
+    // visibleSet()'s My map branch yields nothing and the reader is left on the
+    // exact state entering refuses. Pinned as it stands, including the one way
+    // back, so that guarding it later shows up here as a change.
+    await openMap(page);
+    await pinFromCard(page, REVERE);
+    await page.evaluate(() => closeDetail());
+    await page.click('#mymap-btn');
+    await settleCounts(page);
+    expect((await snapshot(page)).myMap).toBe(true);
+
+    await page.click(`#pin-list [data-unpin="${REVERE}"]`);
+    await settleCounts(page);
+
+    const s = await snapshot(page);
+    expect(s.myMap).toBe(true);
+    expect(s.pins).toBe(0);
+    expect(s.matchCount).toBe(0);
+    await expect(page.locator('body')).toHaveClass(/mymap-on/);
+    expect((await tiles(page)).map((x) => x.count)).toEqual([0, 0, 0, 0]);
+    expect((await layerRows(page)).map((r) => r.count)).toEqual([0, 0, 0, 0]);
+    // §9.2's caption still describes the mode rather than the filters it replaced.
+    expect(await caption(page)).toBe('in view · 0 on your map');
+    await expect(page.locator('#fd-count')).toHaveText('0');
+    await expectCountersReconcile(page, 'My map emptied from inside');
+    // Not one marker left on the stage, though the corpus is still loaded.
+    const marks = await page.evaluate(() => {
+      const all = [...document.querySelectorAll('.mk')];
+      return { total: all.length, shown: all.filter((m) => m.style.display !== 'none').length };
+    });
+    expect(marks.total).toBeGreaterThan(0);
+    expect(marks.shown).toBe(0);
+    // The sidebar invites a selection the mode is still claiming to show.
+    expect(await pinUi(page)).toMatchObject({
+      badge: '0', count: '0', emptyShown: true, rows: [], pillPressed: 'true',
+    });
+    await expect(page.locator('#mymap-btn')).toHaveText('Whole map');
+
+    // The button is the only clue left, and it does work.
+    await page.click('#mymap-pill');
+    await settleCounts(page);
+    const totals = await payloadTotals(page);
+    expect((await snapshot(page)).myMap).toBe(false);
+    expect((await snapshot(page)).matchCount)
+      .toBe(totals.project + totals.team + totals.commons + totals.framework);
   });
 
   test('§11 the map-side pill mirrors the pin count and still works with the sidebar collapsed', async ({ page }) => {
@@ -934,16 +1250,18 @@ test.describe('§13 sharing — the URL fragment', () => {
     await openMap(page);
     await stubClipboard(page);
     expect(fragmentOf(await copiedLink(page))).toBe('');   // the full span is the default
-    await setPeriod(page, 2016, 2021);
+    const { a, b } = await narrowed(page);
+    await setPeriod(page, a, b);
     await settleCounts(page);
-    expect(fragmentOf(await copiedLink(page))).toBe('yr=2016,2021');
+    expect(fragmentOf(await copiedLink(page))).toBe(`yr=${a},${b}`);
   });
 
   test('§13 nd=0 travels on its own once the range is back to full', async ({ page }) => {
     await openMap(page);
     // The unknown-start switch only appears once a range is engaged, so narrow
     // the period, untick it, then widen back: nd=0 must outlive yr=.
-    await setPeriod(page, 2016, 2021);
+    const { a, b } = await narrowed(page);
+    await setPeriod(page, a, b);
     await page.uncheck('#tf-undated');
     const { ymin, ymax } = await page.evaluate(() => ({ ymin: YMIN, ymax: YMAX }));
     await setPeriod(page, ymin, ymax);
@@ -962,7 +1280,8 @@ test.describe('§13 sharing — the URL fragment', () => {
     await setLayers(page, ['project', 'team', 'framework']);
     await page.click('#links-row');
     await page.click('#mymap-btn');
-    await setPeriod(page, 2016, 2021);
+    const { a, b } = await narrowed(page);
+    await setPeriod(page, a, b);
     await page.uncheck('#tf-undated');
     await settleCounts(page);
 
@@ -970,7 +1289,7 @@ test.describe('§13 sharing — the URL fragment', () => {
     await stubClipboard(page);
     expect(fragmentOf(await copiedLink(page))).toBe(
       [`pins=${REVERE},${DLR}`, `e=${AZUR}`, `dom=${doms}`, 'lay=project,team,framework',
-        'links=1', 'my=1', 'yr=2016,2021', 'nd=0'].join('&'));
+        'links=1', 'my=1', `yr=${a},${b}`, 'nd=0'].join('&'));
   });
 
   test('§13 a full round trip restores the identical state', async ({ page }) => {
@@ -984,7 +1303,8 @@ test.describe('§13 sharing — the URL fragment', () => {
     await page.uncheck('[data-dom="energy"]');
     await setLayers(page, ['project', 'team', 'framework']);
     await page.click('#links-row');
-    await setPeriod(page, 2016, 2021);
+    const { a, b } = await narrowed(page);
+    await setPeriod(page, a, b);
     await page.uncheck('#tf-undated');
     await settleCounts(page);
     const before = await fullState(page);
@@ -1046,7 +1366,7 @@ test.describe('§13 deep links', () => {
     expect(s.pins).toEqual([REVERE, DLR]);
     expect(s.focusId).toBe(SAE);
     expect(s.domains).toEqual(['energy', 'rail']);
-    await expect(cardName(page)).toHaveText('SAE J3016 — Levels of Driving Automation');
+    await expect(cardName(page)).toHaveText((await entity(page, SAE)).name);
   });
 
   test('§13 unknown pin ids are dropped on read', async ({ page }) => {
@@ -1112,6 +1432,32 @@ test.describe('§13 deep links', () => {
     expect((await fullState(page)).years).toEqual({ a: ymin, b: ymax, undated: true });
   });
 
+  test('§13 a reversed or truncated yr= collapses to one year rather than being ignored', async ({ page }) => {
+    // The fragment is read through setYears(), which clamps b to at least a —
+    // §10's two handles cannot cross — so a range written backwards narrows to a
+    // single year instead of spanning the two. The contrast with '#yr=early,later'
+    // just above is the point: that one never reaches setYears at all and leaves
+    // the full span, so the two malformed shapes take different routes and only
+    // one of them is ignored.
+    await openMap(page, { hash: '#yr=2024,2018' });
+    expect((await fullState(page)).years).toEqual({ a: 2024, b: 2024, undated: true });
+    await expect(page.locator('#tf-range')).toHaveText('2024');
+
+    // SPEC-DEVIATION: §13 says unknown codes are filtered out on read. A
+    // truncated link is not: `Number('')` is 0, which passes the
+    // `Number.isFinite` gate, so the missing half is read as year 0 and clamped
+    // up to the year that survived.
+    await reopen(page, { hash: '#yr=2020,' });
+    expect((await fullState(page)).years).toEqual({ a: 2020, b: 2020, undated: true });
+    await expect(page.locator('#tf-range')).toHaveText('2020');
+
+    // The same route the other way round: an empty first half is year 0, clamped
+    // up to the floor, which happens to leave a usable "everything up to 2020".
+    await reopen(page, { hash: '#yr=,2020' });
+    const { ymin } = await page.evaluate(() => ({ ymin: YMIN }));
+    expect((await fullState(page)).years).toEqual({ a: ymin, b: 2020, undated: true });
+  });
+
   test('§13 the period floor and ceiling round-trip exactly', async ({ page }) => {
     const probe = await openMap(page);
     const { ymin, ymax } = await probe.evaluate(() => ({ ymin: YMIN, ymax: YMAX }));
@@ -1139,6 +1485,32 @@ test.describe('§13 deep links', () => {
   test('§13 a link\'s pins are added to the ones already stored', async ({ page }) => {
     await openMap(page, { hash: `#pins=${DLR}`, storage: { 'hai-map-v2-pins': JSON.stringify([REVERE]) } });
     expect((await fullState(page)).pins).toEqual([REVERE, DLR]);
+  });
+
+  test('§13 a link\'s pins become the reader\'s own — the merge is what the next visit loads', async ({ page }) => {
+    // renderPins() runs during boot (through applyLang) and writes the whole of
+    // state.pins back, so opening a colleague's link does not show their
+    // selection for one visit: it joins the reader's own, permanently. §11 calls
+    // pins "a reader's own selection", and this is the one piece of reader-owned
+    // state on the page — the mode they print and share from.
+    //
+    // The consequence only appears on the *next* visit, which neither openMap nor
+    // reopen() can stage: both seed localStorage in an init script that runs again
+    // on every navigation, so a reload would restore the pre-merge value. A second
+    // page in the same context is the real second visit — same origin, same
+    // storage, no fragment, nothing re-seeded.
+    await openMap(page, { hash: `#pins=${DLR}`, storage: { 'hai-map-v2-pins': JSON.stringify([REVERE]) } });
+    expect(JSON.parse(await ls(page, 'hai-map-v2-pins'))).toEqual([REVERE, DLR]);
+
+    const next = await page.context().newPage();
+    await next.goto(`${MAP_PATH}?lang=en`);
+    await expect(next.locator('#st-note')).not.toBeEmpty();
+    expect(await next.evaluate(() => location.hash)).toBe('');     // no link this time
+    expect((await fullState(next)).pins).toEqual([REVERE, DLR]);
+    const ui = await pinUi(next);
+    expect(ui.rows).toEqual([REVERE, DLR]);
+    expect(ui.badge).toBe('2');
+    expect(ui.count).toBe('2');
   });
 });
 
@@ -1170,8 +1542,13 @@ test.describe('§11 print', () => {
     await pinFromCard(page, DLR);
     await stubPrint(page);
     const sheet = await printSheet(page);
+    // One heading per layer the three pins fall in, in §3.2's layer order, each
+    // counting its own pin. Which layer each fixture belongs to is read off the
+    // payload rather than written out here.
+    const kinds = [await kindOf(page, AZUR), await kindOf(page, SAE), await kindOf(page, DLR)];
+    expect(new Set(kinds).size).toBe(3);        // three layers, one pin each
     expect(sheet.groups.map((g) => g.heading))
-      .toEqual(['Projects & programmes (1)', 'Teams (1)', 'Frameworks (1)']);
+      .toEqual(LAYER_ORDER.filter((k) => kinds.includes(k)).map((k) => `${LAYER_LABEL[k]} (1)`));
     expect(sheet.total).toBe(3);
     expect(sheet.sub.startsWith('My map · ')).toBe(true);
     expect(sheet.title).toBe('Human–AI Collaboration in Europe');
@@ -1182,52 +1559,60 @@ test.describe('§11 print', () => {
     await pinFromCard(page, SAE);
     await stubPrint(page);
     const sheet = await printSheet(page);
-    expect(sheet.groups.map((g) => g.heading)).toEqual(['Frameworks (1)']);
-    expect(sheet.groups[0].items.map((i) => i.name)).toEqual(['SAE J3016 — Levels of Driving Automation']);
+    expect(sheet.groups.map((g) => g.heading))
+      .toEqual([`${LAYER_LABEL[await kindOf(page, SAE)]} (1)`]);
+    expect(sheet.groups[0].items.map((i) => i.name)).toEqual([(await entity(page, SAE)).name]);
   });
 
   test('§11 each entry carries its place, its dates, its description and its link', async ({ page }) => {
     await openMap(page);
+    const d = await entity(page, AZUR);
+    // The fixture must still carry all four, or the test proves only that empty
+    // fields print as nothing.
+    expect(['city', 'country', 'when', 'url', 'desc_en'].filter((k) => d[k]))
+      .toEqual(['city', 'country', 'when', 'url', 'desc_en']);
     await pinFromCard(page, AZUR);
     await stubPrint(page);
     const item = (await printSheet(page)).groups[0].items[0];
-    expect(item.name).toBe("3IA Côte d'Azur");
-    expect(item.meta).toBe('— Sophia Antipolis, FR · 2019–2027');
-    expect(item.link).toBe('https://3ia.univ-cotedazur.eu/');
-    const desc = await page.evaluate((id) =>
-      window.HAI_DATA.PROJECTS.find((d) => d.id === id).desc_en, AZUR);
-    expect(item.desc).toBe(desc);
+    expect(item.name).toBe(d.name);
+    expect(item.meta).toBe(printMeta(d));
+    expect(item.link).toBe(d.url);
+    expect(item.desc).toBe(d.desc_en);
   });
 
   test('§11 an entry whose description has only a bare desc still prints one', async ({ page }) => {
-    // §11 says the sheet carries descriptions; four teams in the payload have a
-    // bare `desc` and no `desc_en` at all (§12's fallback chain). The sheet
-    // renders `desc_<LANG> || desc`, and dropping the second half empties the
-    // paragraph for exactly those four — invisible to every other print test,
-    // because the fixtures they pin all carry a language key.
+    // §11 says the sheet carries descriptions; a few teams in the payload have
+    // a bare `desc` and no language key at all (§12's fallback chain). The
+    // sheet renders `desc_<LANG> || desc`, and dropping the second half empties
+    // the paragraph for exactly those — invisible to every other print test,
+    // because every other fixture carries a language key. The subject here is
+    // that shape, so the team is chosen by it instead of being named.
     await openMap(page);
-    const d = await page.evaluate((id) => {
-      const x = window.HAI_DATA.TEAMS.find((t) => t.id === id);
-      return { desc: x.desc || null, desc_en: x.desc_en ?? null, desc_fr: x.desc_fr ?? null };
-    }, FLAT);
-    expect(d.desc_en).toBe(null);               // the fixture really has no language key
-    expect(d.desc_fr).toBe(null);
-    expect(d.desc.length).toBeGreaterThan(40);
-    await pinFromCard(page, FLAT);
+    const bare = await page.evaluate(() => window.HAI_DATA.TEAMS
+      .filter((t) => t.desc && t.desc_en == null && t.desc_fr == null)
+      .map((t) => ({ id: t.id, name: t.name, desc: t.desc })));
+    expect(bare.length).toBeGreaterThan(0);     // the shape is still in the payload
+    const d = bare[0];
+    expect(d.desc.length).toBeGreaterThan(0);
+    await pinFromCard(page, d.id);
     await stubPrint(page);
     const sheet = await printSheet(page);
-    expect(sheet.groups.map((g) => g.heading)).toEqual(['Teams (1)']);
+    expect(sheet.groups.map((g) => g.heading))
+      .toEqual([`${LAYER_LABEL[await kindOf(page, d.id)]} (1)`]);
     const item = sheet.groups[0].items[0];
-    expect(item.name).toBe('Flatland Association');
+    expect(item.name).toBe(d.name);
     expect(item.desc).toBe(d.desc);
   });
 
   test('§11 an entry with no place prints an empty meta rather than a stray comma', async ({ page }) => {
     await openMap(page);
+    const d = await entity(page, SAE);
+    expect([d.city ?? null, d.country ?? null, d.when ?? null]).toEqual([null, null, null]);
     await pinFromCard(page, SAE);
     await stubPrint(page);
     const item = (await printSheet(page)).groups[0].items[0];
-    expect(item.meta).toBe('— ');
+    expect(item.meta).toBe(printMeta(d));
+    expect(item.meta).toBe('— ');                 // the dash, and nothing after it
   });
 
   test('§11 the pinned sheet ignores the filters — a pin hidden by a filter still prints', async ({ page }) => {
@@ -1239,7 +1624,8 @@ test.describe('§11 print', () => {
     expect(await page.evaluate((id) => state.inFilter.has(id), SAE)).toBe(false);
     await stubPrint(page);
     const sheet = await printSheet(page);
-    expect(sheet.groups.map((g) => g.heading)).toEqual(['Frameworks (1)']);
+    expect(sheet.groups.map((g) => g.heading))
+      .toEqual([`${LAYER_LABEL[await kindOf(page, SAE)]} (1)`]);
     expect(sheet.total).toBe(1);
   });
 
@@ -1286,7 +1672,7 @@ test.describe('§11 print', () => {
     await page.emulateMedia({ media: 'print' });
     await expect(page.locator('#print-sheet')).toBeVisible();
     await expect(page.locator('#app')).toBeHidden();
-    await expect(page.locator('#print-sheet .ps-item b')).toHaveText("3IA Côte d'Azur");
+    await expect(page.locator('#print-sheet .ps-item b')).toHaveText((await entity(page, AZUR)).name);
     await page.emulateMedia({ media: 'screen' });
     await expect(page.locator('#print-sheet')).toBeHidden();
   });
@@ -1324,6 +1710,32 @@ test.describe('§13 localStorage keys and their defaults', () => {
     await expect(page.locator('#welcome')).not.toHaveClass(/open/);
     expect(await ls(page, 'hai-map-v2-seen')).toBe('1');
     expect(await ls(page, 'hai-map-v2-hint-click')).toBe('1');
+  });
+
+  test('§13 the first-marker hint explains itself once, and only once', async ({ page }) => {
+    // The key above is written beside a toast() the suite never reads, so the
+    // hint could be dropped and nothing would notice. It is the page's only
+    // instruction on how to use the map at all, and it is shown exactly once per
+    // reader — so losing it is invisible to everyone who has already dismissed it.
+    await openRaw(page);
+    await expect(page.locator('#welcome')).toHaveClass(/open/);
+    expect(await ls(page, 'hai-map-v2-hint-click')).toBe(null);
+    await page.click('#w-explore');
+    expect(await toastText(page)).toBe('Click a marker to open its card — scroll to zoom.');
+  });
+
+  test('§13 a reader who has seen the first-marker hint is not shown it again', async ({ page }) => {
+    await openRaw(page, { seed: { 'hai-map-v2-hint-click': '1' } });
+    await expect(page.locator('#welcome')).toHaveClass(/open/);   // the welcome still comes
+    await page.click('#w-explore');
+    expect(await toastText(page)).toBe(null);
+  });
+
+  test('§13 the first-marker hint is written in the reader\'s language', async ({ page }) => {
+    await openRaw(page, { lang: 'fr' });
+    await page.click('#w-explore');
+    expect(await toastText(page))
+      .toBe('Cliquez un marqueur pour ouvrir sa fiche — molette pour zoomer.');
   });
 
   test('§13 hai-map-v2-seen: set means straight to the map', async ({ page }) => {

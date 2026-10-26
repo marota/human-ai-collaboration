@@ -15,6 +15,13 @@
 //  * Expected counts are derived from `window.HAI_DATA` — the raw payload — not
 //    from `items`/`state`, so a counter and its label cannot agree by both being
 //    wrong in the same way (rule: derive the expectation independently).
+//
+// No corpus figure is written down anywhere below. §3.2 says it plainly —
+// "Counts are a snapshot and move with every upstream regeneration; the shape
+// of the table is what is normative, not the figures" — so every number an
+// assertion compares against is computed from the payload the page just
+// loaded, and what stays pinned is the shape around it: the four layer names,
+// the sentence the figures are poured into, and the verb each figure takes.
 import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, layerRows, toggleLayer, setLayers,
@@ -60,17 +67,84 @@ async function payloadPeriodMatches(page, a, b, undated = true) {
   }, [a, b, undated]);
 }
 
-/** How many entities of each layer carry `domain`, straight from the payload. */
-async function payloadByDomain(page, domain) {
-  return page.evaluate((d) => {
+/** The corpus as the payload carries it: one count per layer, keyed by the
+ *  page's own KINDS, plus the number of distinct ids across all four. Keying
+ *  off KINDS rather than a literal list of four names means a fifth layer
+ *  makes this throw rather than go quietly uncounted. */
+async function payloadTotals(page) {
+  return page.evaluate(() => {
     const D = window.HAI_DATA;
     const groups = { project: D.PROJECTS, team: D.TEAMS, commons: D.COMMONS, framework: D.FRAMEWORKS };
-    const out = {};
-    for (const [k, arr] of Object.entries(groups))
-      out[k] = arr.filter((e) => ((e.domains && e.domains.length) ? e.domains : [e.domain]).includes(d)).length;
-    return out;
-  }, domain);
+    const byKind = {};
+    for (const k of KINDS) byKind[k] = groups[k].length;
+    const all = KINDS.flatMap((k) => groups[k]);
+    return { byKind, ids: new Set(all.map((e) => e.id)).size };
+  });
 }
+
+/** The entities the map cannot place, derived twice over: once from the absence
+ *  of a usable coordinate pair, once from the `geo:false` flag §3.1.4 says the
+ *  generator must leave on exactly those entities and no others. Two
+ *  derivations rather than a count, because a count is a snapshot and "eleven"
+ *  agrees just as happily with the wrong eleven. */
+async function payloadOffMap(page) {
+  return page.evaluate(() => {
+    const D = window.HAI_DATA;
+    const all = [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
+    return {
+      missingCoords: all.filter((e) => e.lat == null || e.lon == null).map((e) => e.id),
+      flagged: all.filter((e) => e.geo === false).map((e) => e.id),
+    };
+  });
+}
+
+/** Witnesses for the two verb-agreement boundaries of §9.1, chosen out of the
+ *  payload rather than named: a (domain, layer) pair nothing matches, and one
+ *  exactly one entity matches — the latter only in a domain that also has a
+ *  layer with more than one, so a single narrowing exercises the singular and
+ *  the plural branch together. The domain axis is read off the real
+ *  checkboxes, so a witness is always a domain the reader can select; the
+ *  counts come from the payload. Deterministic (first match in checkbox order,
+ *  then KINDS order), and a regeneration moves the witness instead of voiding
+ *  the test. */
+async function agreementWitnesses(page) {
+  return page.evaluate(() => {
+    const D = window.HAI_DATA;
+    const groups = { project: D.PROJECTS, team: D.TEAMS, commons: D.COMMONS, framework: D.FRAMEWORKS };
+    const doms = [...document.querySelectorAll('input[data-dom]')].map((cb) => cb.dataset.dom);
+    const count = (d, k) => groups[k].filter((e) =>
+      ((e.domains && e.domains.length) ? e.domains : [e.domain]).includes(d)).length;
+    let zero = null, single = null;
+    for (const domain of doms) for (const kind of KINDS) {
+      const n = count(domain, kind);
+      if (n === 0 && !zero) zero = { domain, kind };
+      if (n === 1 && !single) {
+        const plural = KINDS.map((k) => ({ kind: k, n: count(domain, k) })).find((c) => c.n > 1);
+        if (plural) single = { domain, kind, plural };
+      }
+    }
+    return { zero, single };
+  });
+}
+
+/** One real entity's id, for the tests that need it *before* the page boots —
+ *  a seeded pin arrives through localStorage. Which entity it is does not
+ *  matter to those tests, so it is taken from the corpus (first by id) rather
+ *  than named, and the throwaway first load is what makes the payload
+ *  readable at all. */
+async function someEntityId(page) {
+  await openMap(page);
+  return page.evaluate(() => {
+    const D = window.HAI_DATA;
+    return [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS].map((e) => e.id).sort()[0];
+  });
+}
+
+/** The four layer names as the English interface writes them. These are
+ *  interface strings rather than data — i18n.spec.js owns their translation —
+ *  so they stay pinned, which is what lets a tile's accessible name be checked
+ *  as one whole string instead of a tail-anchored fragment. */
+const LAYER_LABEL = { project: 'Projects', team: 'Teams', commons: 'Commons', framework: 'Frameworks' };
 
 /** Narrow the domain axis to exactly one domain, through the real controls:
  *  every group's "None", then the one checkbox. */
@@ -261,7 +335,12 @@ test.describe('§14 aria-pressed on every toggle', () => {
   });
 
   test('§14 My map with one pin reports pressed on both of its controls', async ({ page }) => {
-    await openMap(page, { storage: { 'hai-map-v2-pins': JSON.stringify(['iec-61508']) } });
+    // What the pill reports is "there is at least one pin", so the pinned
+    // entity's identity is immaterial and comes from the payload rather than
+    // being named — a regeneration that retires whichever entity we would have
+    // written down cannot leave this test pinning an id the corpus has lost.
+    const id = await someEntityId(page);
+    await openMap(page, { storage: { 'hai-map-v2-pins': JSON.stringify([id]) } });
     await page.click('#mymap-pill');
     await settleCounts(page);
     await expect(page.locator('#mymap-pill')).toHaveAttribute('aria-pressed', 'true');
@@ -466,7 +545,13 @@ test.describe('§14 the period handles are sliders', () => {
     // without running refresh() would announce a map nobody is looking at. The
     // expected count comes from the payload by §10's rule, not from the page.
     const expected = await payloadPeriodMatches(page, min, max - 30);
-    expect(expected).toBe(89);
+    // The figure itself is a snapshot (§3.2), so what is checked in its place
+    // is that this window is a real narrowing: it leaves something out, and it
+    // does not leave everything out. Without that, `matchCount === expected`
+    // would hold just as well for a period filter that had stopped filtering.
+    const { ids } = await payloadTotals(page);
+    expect({ everything: expected === ids, nothing: expected === 0 })
+      .toEqual({ everything: false, nothing: false });
     await nudgePeriod(page, 'b', 'PageDown', 6);          // b = max - 30
     await settleCounts(page);
     const s = await snapshot(page);
@@ -551,11 +636,15 @@ test.describe('§14 the stats block is a live region', () => {
     // The tiles live in the live region, so the label has to carry the layer:
     // a bare "24 in view · 25 match the filters" announces a number without
     // saying what it counts (§9.1).
-    const totals = await page.evaluate(() => {
-      const D = window.HAI_DATA;
-      return { project: D.PROJECTS.length, team: D.TEAMS.length, commons: D.COMMONS.length, framework: D.FRAMEWORKS.length };
-    });
-    expect(totals).toEqual({ project: 115, team: 274, commons: 26, framework: 45 });
+    // §3.2: the figures are a snapshot, the shape of the table is not. What is
+    // pinned is that shape — the four layers the interface counts — while every
+    // figure is derived. The partition check is what keeps the derivation
+    // honest: the four layers between them hold each entity exactly once, so a
+    // tile's match half cannot come out right against a corpus the payload
+    // never had (an entity counted in two layers, say).
+    const { byKind: totals, ids } = await payloadTotals(page);
+    expect(Object.keys(totals)).toEqual(['project', 'team', 'commons', 'framework']);
+    expect(Object.values(totals).reduce((a, n) => a + n, 0)).toBe(ids);
     const t = await tiles(page);
     for (const tile of t) {
       const host = page.locator(`#st-${tile.kind}`).locator('..');
@@ -572,33 +661,46 @@ test.describe('§14 the stats block is a live region', () => {
 
   test('§14 a tile with nothing matching says "0 match", a tile with one says "1 matches"', async ({ page }) => {
     await openMap(page);
-    // Two boundaries in one scenario, both taken from the payload: no project
-    // carries the nuclear domain, and exactly one commons does human factors.
-    const nuclear = await payloadByDomain(page, 'nuclear');
-    expect(nuclear.project).toBe(0);
-    await onlyDomain(page, 'nuclear');
-    await expect(page.locator('#st-project').locator('..'))
-      .toHaveAccessibleName(`Projects — 0 in view · 0 match the filters`);
-    await expect(page.locator('#st-team').locator('..'))
-      .toHaveAccessibleName(new RegExp(`· ${nuclear.team} match the filters$`));
+    // The two boundaries of §9.1's agreement rule, with the witnesses taken
+    // from the payload instead of named: whichever (domain, layer) pair no
+    // entity matches, and whichever exactly one entity matches. Which pair
+    // that is moves with every regeneration; that "0" takes the plural verb
+    // and "1" the singular one does not.
+    const { zero, single } = await agreementWitnesses(page);
+    // Stated rather than left to a TypeError two lines down: if a regeneration
+    // ever leaves no (domain, layer) pair empty, or none with exactly one, the
+    // boundaries have moved and this test needs a new witness — which is worth
+    // saying in those words.
+    expect({ empty: !!zero, singleton: !!single },
+      'the payload no longer offers a witness for one of the agreement boundaries')
+      .toEqual({ empty: true, singleton: true });
+    await onlyDomain(page, zero.domain);
+    // Checked as one whole string: nothing is in view either, since a layer
+    // with no match has no marker to show.
+    await expect(page.locator(`#st-${zero.kind}`).locator('..'))
+      .toHaveAccessibleName(`${LAYER_LABEL[zero.kind]} — 0 in view · 0 match the filters`);
 
-    const hf = await payloadByDomain(page, 'hf');
-    expect(hf.commons).toBe(1);
-    await onlyDomain(page, 'hf');
-    await expect(page.locator('#st-commons').locator('..'))
+    await onlyDomain(page, single.domain);
+    await expect(page.locator(`#st-${single.kind}`).locator('..'))
       .toHaveAccessibleName(new RegExp(`· 1 matches the filters$`));
+    // The same narrowing carries a layer with more than one, so the plural
+    // branch is measured against the singular one rather than on its own.
+    await expect(page.locator(`#st-${single.plural.kind}`).locator('..'))
+      .toHaveAccessibleName(new RegExp(`· ${single.plural.n} match the filters$`));
   });
 
   test('§14 the French labels agree with their own number', async ({ page }) => {
     await openMap(page, { lang: 'fr' });
-    const hf = await payloadByDomain(page, 'hf');
-    await onlyDomain(page, 'hf');
-    // "1 correspond" / "21 correspondent" — the verb is part of the announced
-    // name, so it has to be right in both languages.
-    await expect(page.locator('#st-commons').locator('..'))
+    const { single } = await agreementWitnesses(page);
+    expect(!!single, 'no (domain, layer) pair matches exactly one entity any more').toBe(true);
+    await onlyDomain(page, single.domain);
+    // « 1 correspond » / « 14 correspondent » — the verb is part of the
+    // announced name, so it has to be right in both languages. The numbers are
+    // derived; the agreement each number triggers is what is pinned.
+    await expect(page.locator(`#st-${single.kind}`).locator('..'))
       .toHaveAccessibleName(new RegExp(`· 1 correspond aux filtres$`));
-    await expect(page.locator('#st-team').locator('..'))
-      .toHaveAccessibleName(new RegExp(`· ${hf.team} correspondent aux filtres$`));
+    await expect(page.locator(`#st-${single.plural.kind}`).locator('..'))
+      .toHaveAccessibleName(new RegExp(`· ${single.plural.n} correspondent aux filtres$`));
   });
 
   test('§14 the announced names are recomputed when the view moves, not only when filters do', async ({ page }) => {
@@ -696,6 +798,46 @@ test.describe('§14 accessible names on icon-only controls', () => {
     await expect(page.locator('#toast')).toHaveText(asOf);
   });
 
+  // §10 asks for the sentence to also arrive as a toast, and §14 makes #toast a
+  // live region — neither is worth much if the message never leaves. #toast is
+  // `position:fixed; bottom:26px; z-index:120`, across the middle of the stage,
+  // so a lost timer parks it over the map for the rest of the session. The
+  // 4 200 ms is the page's own figure (the spec asks only for a transient
+  // message); what this test defends is the two structural properties around
+  // it: the timer fires, and a second message starts a fresh one instead of
+  // inheriting what is left of the first.
+  test('§10/§14 a toast clears itself, and a second one gets its own full life', async ({ page }) => {
+    await page.clock.install();
+    await openMap(page, { lang: 'en' });
+    // install() leaves the fake clock ticking with real time, so on a loaded
+    // worker the 4 200 ms timer can expire in the wall-clock gap between the
+    // click and the runFor that is supposed to be measuring it. Pausing it
+    // makes every advance below exactly the one the test asks for — and only
+    // that: the two properties under test are still the timer firing and the
+    // second message starting a fresh one.
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 50));
+    const toast = page.locator('#toast');
+    const asOf = await page.evaluate(() => t('asOf')(fmtAsOf()));
+
+    await page.click('#tf-asof');
+    await expect(toast).toHaveClass(/show/);
+    await page.clock.runFor(4100);
+    await expect(toast).toHaveClass(/show/);
+    await page.clock.runFor(200);
+    await expect(toast).not.toHaveClass(/show/);
+
+    // Two messages in a row, the second arriving 4 000 ms into the first one's
+    // life: without the clearTimeout it would inherit the 200 ms the first had
+    // left and the explanation would flash past.
+    await page.click('#mymap-pill');                   // "no pins yet" (§11)
+    await expect(toast).toHaveClass(/show/);
+    await page.clock.runFor(4000);
+    await page.click('#tf-asof');
+    await page.clock.runFor(1000);
+    await expect(toast).toHaveClass(/show/);
+    await expect(toast).toHaveText(asOf);
+  });
+
   test('§14 #tf-reset is named by what it does, in both languages', async ({ page }) => {
     await openMap(page, { lang: 'en' });
     await nudgePeriod(page, 'a', 'PageUp', 1);
@@ -709,13 +851,20 @@ test.describe('§14 accessible names on icon-only controls', () => {
   test('§14 #fd-offmap names the gap it stands for, with the same count it shows', async ({ page }) => {
     await openMap(page);
     const s = await snapshot(page);
-    // Eleven standards and one commons have no coordinates: the hint is the
-    // only place the reader learns the tiles are not the whole answer.
-    expect(s.offMapMatch).toBe(11);
-    const sentence = '11 more match the filters but have no coordinates, so no marker'
+    // Standards and one benchmark have no coordinates: the hint is the only
+    // place the reader learns the tiles are not the whole answer. Nothing is
+    // filtered out at boot, so every entity the payload cannot place is an
+    // off-map match — and that population is derived rather than counted off,
+    // then cross-checked against the `geo:false` flag of §3.1.4, so the figure
+    // in the sentence cannot be right about the wrong set of entities.
+    const { missingCoords, flagged } = await payloadOffMap(page);
+    expect(missingCoords).toEqual(flagged);
+    const n = missingCoords.length;
+    expect(s.offMapMatch).toBe(n);
+    const sentence = `${n} more match the filters but have no coordinates, so no marker`
       + ' — see “Off the map” in the left panel.';
     await expect(page.locator('#fd-offmap')).toBeVisible();
-    await expect(page.locator('#fd-offmap')).toHaveText('+ 11 off the map');
+    await expect(page.locator('#fd-offmap')).toHaveText(`+ ${n} off the map`);
     expect(await attrs(page, '#fd-offmap', ['title', 'aria-label']))
       .toEqual({ title: sentence, 'aria-label': sentence });
   });
@@ -790,7 +939,10 @@ test.describe('§14 accessible names on icon-only controls', () => {
   // card — so a keyboard reader can open a pinned entity but can never remove
   // it from My map.
   test('§14 SPEC-DEVIATION the unpin control is a role=button no keyboard can reach', async ({ page }) => {
-    await openMap(page, { storage: { 'hai-map-v2-pins': JSON.stringify(['iec-61508']) } });
+    // Any pinned entity renders the same ×, so the pin is taken from the
+    // payload rather than named (see the My map test above for why).
+    const id = await someEntityId(page);
+    await openMap(page, { storage: { 'hai-map-v2-pins': JSON.stringify([id]) } });
     await expect(page.locator('.pin-x')).toHaveCount(1);
     expect(await attrs(page, '.pin-x', ['role', 'aria-label', 'tabindex']))
       .toEqual({ role: 'button', 'aria-label': 'Retirer', tabindex: null });
@@ -1080,6 +1232,257 @@ test.describe('§14 Escape priority: tour > welcome > detail > drawer', () => {
 });
 
 // ---------------------------------------------------------------------------
+// The tour is the one overlay that can trap a reader: #tour-spot paints
+// `box-shadow: 0 0 0 9999px var(--scrim)` over the whole window, nothing under
+// it takes a click, and the documented ways out are the last step's own button
+// and the Escape branch above. §12 owns the strings and covers the first two
+// steps; what is asserted here is the part a reader can get stuck in — that
+// stepping forward reaches an end that says so, and that the card holding the
+// only live controls is on screen at every step and at both widths.
+test.describe('§7/§12 the guided tour, from the first step to the way out', () => {
+  // #tour-spot carries `transition:all .3s` and the buttons `transition:all
+  // .12s`, so for a third of a second after each step the rect and the computed
+  // visibility are both mid-flight. Everything below measures the resting state,
+  // which is the one a reader sees.
+  const settleTour = (page) => page.evaluate(() => new Promise((done) => {
+    const el = document.getElementById('tour-spot');
+    let last = null, still = 0, frames = 0;
+    const tick = () => {
+      const b = el.getBoundingClientRect();
+      const key = [b.x, b.y, b.width, b.height].join();
+      still = key === last ? still + 1 : 0;
+      last = key;
+      if (still >= 3 || ++frames > 90) return done(true);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }));
+
+  /** The two parts of the tour, the stage they are measured against, and the
+   *  window they have to fit inside. */
+  const tourBoxes = (page) => page.evaluate(() => {
+    const r = (id) => {
+      const b = document.getElementById(id).getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height, right: b.right, bottom: b.bottom };
+    };
+    return { card: r('tour-card'), spot: r('tour-spot'), stage: r('stage'), vw: window.innerWidth, vh: window.innerHeight };
+  });
+
+  const box = (page, id) => page.evaluate((i) => {
+    const b = document.getElementById(i).getBoundingClientRect();
+    return { x: b.x, y: b.y, w: b.width, h: b.height, right: b.right, bottom: b.bottom };
+  }, id);
+
+  /** Does the spotlight cover its target completely? That is the whole job of
+   *  the box arithmetic: a highlight that misses what it points at is worse
+   *  than none, because the scrim hides everything else. */
+  const encloses = (spot, target) => spot.x <= target.x && spot.y <= target.y
+    && spot.right >= target.right && spot.bottom >= target.bottom;
+
+  test('§7/§12 the tour walks all four steps and the fourth one finishes it', async ({ page }) => {
+    await openMap(page, { lang: 'en' });
+    await page.click('#tour-btn');
+    // The titles in order, not only the step numbers: a step that pointed at
+    // the wrong target would still count 1…4 correctly.
+    const titles = ['Filters & layers', 'The map', 'Hop by hop', 'Your cartography'];
+    for (let n = 1; n <= 4; n++) {
+      await settleTour(page);
+      await expect(page.locator('#tour-n')).toHaveText(`Step ${n} / 4`);
+      await expect(page.locator('#tour-title')).toHaveText(titles[n - 1]);
+      await expect(page.locator('#tour-body')).not.toBeEmpty();
+      await expect(page.locator('#tour-next')).toHaveText(n === 4 ? 'Done' : 'Next');
+      if (n < 4) await page.click('#tour-next');
+    }
+    // Back, then forward again: both labels follow the step rather than latch.
+    await page.click('#tour-prev');
+    await expect(page.locator('#tour-n')).toHaveText('Step 3 / 4');
+    await expect(page.locator('#tour-next')).toHaveText('Next');
+    await page.click('#tour-next');
+    await expect(page.locator('#tour-n')).toHaveText('Step 4 / 4');
+    await expect(page.locator('#tour-next')).toHaveText('Done');
+    // Stepping off the end is what ends it: there is no fifth step, and the
+    // scrim has to leave with the card.
+    await page.click('#tour-next');
+    expect(await page.evaluate(() => tourStep)).toBe(-1);
+    await expect(page.locator('#tour-card')).toBeHidden();
+    await expect(page.locator('#tour-spot')).toBeHidden();
+  });
+
+  test('§7/§14 on the first step there is nothing to go back to, and the row says so without moving', async ({ page }) => {
+    await openMap(page, { lang: 'en' });
+    await page.click('#tour-btn');
+    await settleTour(page);
+    const first = await page.evaluate(() => ({
+      visibility: getComputedStyle(document.getElementById('tour-prev')).visibility,
+      width: document.getElementById('tour-prev').offsetWidth,
+      nextAt: document.getElementById('tour-next').offsetLeft,
+    }));
+    // visibility, not display: the button keeps its space, so the one button a
+    // reader can press does not jump sideways between step 1 and step 2 — and a
+    // hidden button is out of the tab order, so Tab cannot reach the control
+    // that would take the tour to step zero and silently end it.
+    expect(first.visibility).toBe('hidden');
+    expect(first.width).toBeGreaterThan(0);
+    expect(await canFocus(page, '#tour-prev')).toBe(false);
+
+    await page.click('#tour-next');
+    await settleTour(page);
+    const second = await page.evaluate(() => ({
+      visibility: getComputedStyle(document.getElementById('tour-prev')).visibility,
+      nextAt: document.getElementById('tour-next').offsetLeft,
+    }));
+    expect(second.visibility).toBe('visible');
+    expect(second.nextAt).toBe(first.nextAt);
+    expect(await canFocus(page, '#tour-prev')).toBe(true);
+  });
+
+  // Step 1 spotlights the filters. Below 840px the panel is off-canvas
+  // (`transform:translateX(-105%)`), so its own rect is behind the left edge of
+  // the window and a spotlight measured from it would highlight nothing while
+  // the scrim covered the map. tourTargets() has a branch for exactly that.
+  test('§7/§12 at phone width step one spotlights the opener, not the off-canvas panel', async ({ page }) => {
+    await page.setViewportSize({ width: 420, height: 820 });
+    await openMap(page, { lang: 'en' });
+    // dispatchEvent, not click: at this width #ctl-cluster is edge-to-edge and
+    // covers the Filters pill at (14,14), which is layout.spec.js's own
+    // deviation to report. What this test needs is the drawer open.
+    await page.locator('#sb-open').dispatchEvent('click');
+    await page.click('#tour-btn');                // which closes it again, then starts the tour
+    await settleTour(page);
+    const { spot, vw } = await tourBoxes(page);
+    const fab = await box(page, 'sb-open');
+    // The drawer takes .25s to slide back out of the window; what matters is
+    // where it ends up, which is where its own rect is useless to the tour.
+    await expect.poll(async () => (await box(page, 'sidebar')).right).toBeLessThanOrEqual(0);
+    expect({ onScreen: spot.x >= 0 && spot.right <= vw, onTheOpener: encloses(spot, fab) })
+      .toEqual({ onScreen: true, onTheOpener: true });
+  });
+
+  test('§7/§12 the collapsed panel hands step one to the opener too', async ({ page }) => {
+    await openMap(page, { lang: 'en' });
+    await page.click('#fd-close');                // the feed covers the collapse button (§5)
+    await page.click('#sb-hide');
+    // body.sb-hidden: #sidebar is display:none, so its rect is all zeros and the
+    // spotlight would be the 12px square the padding alone makes of it.
+    expect((await box(page, 'sidebar')).w).toBe(0);
+    // With the panel gone, the help overlay is the only remaining way in.
+    await page.click('#help-btn');
+    await page.click('#w-tour');
+    await settleTour(page);
+    const { spot } = await tourBoxes(page);
+    const fab = await box(page, 'sb-open');
+    expect({ drawn: spot.w > 20 && spot.h > 20, onTheOpener: encloses(spot, fab) })
+      .toEqual({ drawn: true, onTheOpener: true });
+  });
+
+  // The four clamps that place #tour-card are plain arithmetic over the
+  // spotlight box, and the failure they guard against is the worst one on the
+  // page: the card leaves the window, the scrim stays, and the reader is behind
+  // a modal whose controls they cannot see — Escape, which no label mentions,
+  // being the only exit left. The narrow stage is where the `inset:60` on the
+  // two map steps has the least room to work with.
+  for (const [where, size] of [
+    ['a desktop stage', { width: 1280, height: 800 }],
+    ['a phone', { width: 420, height: 820 }],
+  ]) {
+    test(`§7/§12 on ${where} every step keeps its card inside the window and its spotlight drawn`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openMap(page, { lang: 'en' });
+      if (size.width <= 840) await page.locator('#sb-open').dispatchEvent('click');
+      await page.click('#tour-btn');
+      for (let n = 1; n <= 4; n++) {
+        await settleTour(page);
+        await expect(page.locator('#tour-n')).toHaveText(`Step ${n} / 4`);
+        const { card, spot, vw, vh } = await tourBoxes(page);
+        expect({
+          step: n,
+          cardDrawn: card.w > 0 && card.h > 0,
+          cardLeft: card.x >= 0,
+          cardTop: card.y >= 0,
+          cardRight: card.right <= vw,
+          cardBottom: card.bottom <= vh,
+          spotDrawn: spot.w > 0 && spot.h > 0,
+        }).toEqual({
+          step: n, cardDrawn: true, cardLeft: true, cardTop: true,
+          cardRight: true, cardBottom: true, spotDrawn: true,
+        });
+        if (n < 4) await page.click('#tour-next');
+      }
+    });
+  }
+
+  test('§7/§12 a resize re-measures the open step instead of leaving the scrim where it was', async ({ page }) => {
+    await openMap(page, { lang: 'en' });
+    await page.click('#tour-btn');
+    await page.click('#tour-next');               // step 2 frames the stage, which a resize moves
+    await settleTour(page);
+    const before = await tourBoxes(page);
+    // The spotlight insets the stage by the same amount on all four sides, so
+    // the two boxes share a centre, and whatever the stage's width does the
+    // spotlight's width has to do as well. Both hold only if the step was
+    // measured against the layout that is on screen now.
+    const centreGap = (b) => ({
+      x: Math.round((b.spot.x + b.spot.w / 2) - (b.stage.x + b.stage.w / 2)),
+      y: Math.round((b.spot.y + b.spot.h / 2) - (b.stage.y + b.stage.h / 2)),
+    });
+    expect(centreGap(before)).toEqual({ x: 0, y: 0 });
+
+    await page.setViewportSize({ width: 900, height: 700 });
+    await settleTour(page);
+    const after = await tourBoxes(page);
+    expect(centreGap(after)).toEqual({ x: 0, y: 0 });
+    expect(Math.round(after.spot.w - before.spot.w)).toBe(Math.round(after.stage.w - before.stage.w));
+    expect(Math.round(after.spot.h - before.spot.h)).toBe(Math.round(after.stage.h - before.stage.h));
+    // Re-measured, not advanced and not restarted.
+    expect(await page.evaluate(() => tourStep)).toBe(1);
+    await expect(page.locator('#tour-n')).toHaveText('Step 2 / 4');
+    expect({ left: after.card.x >= 0, top: after.card.y >= 0, right: after.card.right <= after.vw, bottom: after.card.bottom <= after.vh })
+      .toEqual({ left: true, top: true, right: true, bottom: true });
+
+    // And a resize after the tour is over must not bring the scrim back: the
+    // handler is guarded on tourStep, which is the only thing endTour() leaves
+    // behind.
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1100, height: 760 });
+    await expect(page.locator('#tour-card')).toBeHidden();
+    await expect(page.locator('#tour-spot')).toBeHidden();
+    expect(await page.evaluate(() => tourStep)).toBe(-1);
+  });
+
+  test('§7/§12 a tour opened on a desktop follows the reader down to a phone', async ({ page }) => {
+    await openMap(page, { lang: 'en' });
+    await page.click('#tour-btn');
+    await settleTour(page);
+    expect(encloses(await box(page, 'tour-spot'), await box(page, 'sidebar'))).toBe(true);
+    // Same step, same tour — but the thing step 1 points at has just left the
+    // window, so the re-measure has to pick the other target, not re-draw the
+    // old box.
+    await page.setViewportSize({ width: 420, height: 820 });
+    await settleTour(page);
+    await expect(page.locator('#tour-n')).toHaveText('Step 1 / 4');
+    const spot = await box(page, 'tour-spot');
+    expect((await box(page, 'sidebar')).right).toBeLessThanOrEqual(0);
+    expect({ onTheOpener: encloses(spot, await box(page, 'sb-open')), onScreen: spot.x >= 0 && spot.right <= 420 })
+      .toEqual({ onTheOpener: true, onScreen: true });
+  });
+
+  test('§7/§12 the welcome overlay hands the reader to the same tour, with the overlay gone', async ({ page }) => {
+    // #w-tour is the entry point a first-time reader meets, and it has to close
+    // the welcome dialog as well as start the tour: two scrims would stack, and
+    // Escape — the tour's own exit — would uncover a dialog rather than the map.
+    await openMap(page);
+    await page.evaluate(() => openWelcome());
+    await page.click('#w-tour');
+    await expect(page.locator('#welcome')).toBeHidden();
+    await expect(page.locator('#tour-card')).toBeVisible();
+    await expect(page.locator('#tour-n')).toHaveText('Step 1 / 4');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#tour-card')).toBeHidden();
+    await expect(page.locator('#welcome')).toBeHidden();
+  });
+});
+
+// ---------------------------------------------------------------------------
 test.describe('§14 prefers-reduced-motion', () => {
   test('§14 reduced motion applies a view change immediately instead of tweening', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1231,12 +1634,13 @@ test.describe('§14 keyboard reach without the map', () => {
 
   test('§14 the entities with no marker are all reachable as buttons', async ({ page }) => {
     await openMap(page);
-    const nogeo = await page.evaluate(() => {
-      const D = window.HAI_DATA;
-      return [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS]
-        .filter((e) => e.lat == null || e.lon == null).map((e) => e.id);
-    });
-    expect(nogeo.length).toBe(11);
+    const { missingCoords: nogeo, flagged } = await payloadOffMap(page);
+    // §3.1.4: the generator keeps the coordinate-less entities and flags them
+    // `geo:false` rather than dropping them, so the two derivations have to
+    // name the same entities in the same order. That agreement is what the old
+    // pinned count was standing in for, and it is the stronger claim: a count
+    // is satisfied just as well by the wrong set of the right size.
+    expect(nogeo).toEqual(flagged);
     // Invariant 3: no marker, but a card, a search result and a feed row. The
     // "Off the map" list is the one that does not need the map at all.
     expect(await page.evaluate(() =>
@@ -1257,21 +1661,30 @@ test.describe('§14 keyboard reach without the map', () => {
 
   test('§14 Enter on an off-map row opens its card and the feed shows it expanded', async ({ page }) => {
     await openMap(page);
-    const row = page.locator('#nogeo-list [data-open="iso-9241-210"]');
+    // Any entity the map cannot place will do, so the subject is picked out of
+    // the payload (first off-map id alphabetically) instead of named: a
+    // regeneration that retires it moves the test onto the next one rather
+    // than leaving a selector that silently matches nothing.
+    const id = (await payloadOffMap(page)).missingCoords.slice().sort()[0];
+    const row = page.locator(`#nogeo-list [data-open="${id}"]`);
     await row.focus();
     await page.keyboard.press('Enter');
-    expect((await snapshot(page)).focusId).toBe('iso-9241-210');
+    expect((await snapshot(page)).focusId).toBe(id);
     // It has no marker, so renderFeed puts it at the head of the list rather
     // than leaving the reader with a card they cannot see the context of.
     await expect(page.locator('.fd-row[aria-expanded="true"]')).toHaveCount(1);
     expect(await page.evaluate(() =>
-      document.querySelector('.fd-row[aria-expanded="true"]').dataset.open)).toBe('iso-9241-210');
-    expect(await page.evaluate(() => state.inView.has('iso-9241-210'))).toBe(false);
+      document.querySelector('.fd-row[aria-expanded="true"]').dataset.open)).toBe(id);
+    expect(await page.evaluate((x) => state.inView.has(x), id)).toBe(false);
   });
 
   test('§14 search is fully operable from the keyboard: type, arrow, Enter', async ({ page }) => {
     await openMap(page);
     await page.locator('#search').focus();
+    // Named rather than derived, and deliberately: the claim is that *this*
+    // query reaches *that* entity, so the pair is the subject of the test and
+    // not an incidental fixture. A regeneration that retired it would fail
+    // here loudly — no hit, no card — rather than quietly passing.
     await page.keyboard.type('IEC 61508');
     await expect(page.locator('.sd-item').first()).toBeVisible();
     await page.keyboard.press('ArrowDown');

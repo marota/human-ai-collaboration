@@ -32,6 +32,10 @@ import {
 } from './_map.js';
 
 const KINDS = ['project', 'team', 'commons', 'framework'];
+// The English tile labels (§9.1's "One tile per layer"). Part of the shape of
+// the panel rather than of the corpus, so these stay written down: a test that
+// read them off the page could not notice them being swapped.
+const LABELS = { project: 'Projects', team: 'Teams', commons: 'Commons', framework: 'Frameworks' };
 
 /** Open the map with animation switched off, and wait out the debounced
  *  recount that boot's `fitView()` → `applyView()` always schedules. */
@@ -40,6 +44,16 @@ async function open(page, opts = {}) {
   await openMap(page, opts);
   await settleCounts(page);
   return page;
+}
+
+/** Open the map a second time, at a hash derived from the payload the first
+ *  visit carried. A `goto()` to a URL that differs from the current one only in
+ *  its fragment does not reload the document, and boot parses the hash once —
+ *  so a test that has to read the payload before it can know which filter state
+ *  it wants has to leave the page in between. */
+async function reopen(page, opts) {
+  await page.goto('about:blank');
+  return open(page, opts);
 }
 
 /** The corpus, read off the generated payload rather than off the page's own
@@ -71,6 +85,87 @@ function corpus(page) {
       undatedByKind: vague.reduce((a, [k]) => (a[k] = (a[k] || 0) + 1, a), {}),
     };
   });
+}
+
+/** One record per payload entity — id, layer, whether it carries coordinates,
+ *  its country and its domains. A test that needs a particular entity picks it
+ *  out of here by the property that makes it the right subject ("an entity with
+ *  no coordinates", "a layer and a domain that select exactly one entity")
+ *  rather than by naming an id, and a test that needs a figure counts it here
+ *  rather than quoting one: §3.2 is explicit that the counts are "a snapshot
+ *  and move with every upstream regeneration; the shape of the table is what is
+ *  normative, not the figures". */
+function roster(page) {
+  return page.evaluate(() => {
+    const D = window.HAI_DATA;
+    const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
+    return [
+      ...D.PROJECTS.map((d) => ['project', d]), ...D.COMMONS.map((d) => ['commons', d]),
+      ...D.TEAMS.map((d) => ['team', d]), ...D.FRAMEWORKS.map((d) => ['framework', d]),
+    ].map(([kind, d]) => {
+      const tl = d.timeline || {};
+      return {
+        id: d.id, kind, geo: d.lat != null && d.lon != null, country: d.country || null,
+        domains: (d.domains && d.domains.length) ? d.domains : [d.domain],
+        vague: !(yr(tl.start) != null || yr(tl.end) != null) || !!d.dateHost,
+      };
+    });
+  });
+}
+
+/** The payload's own relation graph: the project↔team edges, plus the
+ *  created-by / used-by lists of commons and frameworks. §6.1's My map scope is
+ *  the pins plus one step through this graph, so a test can size a pinned
+ *  neighbourhood off the data instead of quoting the three neighbours SBB
+ *  happened to have on the day the test was written — the edge list is exactly
+ *  what an upstream addition moves. */
+function relations(page) {
+  return page.evaluate(() => {
+    const D = window.HAI_DATA;
+    const known = new Set();
+    [D.PROJECTS, D.COMMONS, D.TEAMS, D.FRAMEWORKS].forEach((a) => a.forEach((d) => known.add(d.id)));
+    const nb = new Map();
+    const link = (a, b) => {
+      if (!known.has(a) || !known.has(b)) return;
+      if (!nb.has(a)) nb.set(a, new Set());
+      if (!nb.has(b)) nb.set(b, new Set());
+      nb.get(a).add(b); nb.get(b).add(a);
+    };
+    D.EDGES.forEach((e) => { if (known.has(e.project)) link(e.project, e.team); });
+    [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
+      (a.createdBy || []).forEach((u) => link(u, a.id));
+      (a.usedBy || []).forEach((u) => link(a.id, u));
+    });
+    return Object.fromEntries([...nb].map(([id, set]) => [id, [...set].sort()]));
+  });
+}
+
+/** §6.1's My map scope for a set of pins, off the payload: the pins themselves
+ *  plus everything one relation away. */
+function myMapScope(nb, pins) {
+  return [...new Set(pins.flatMap((id) => [id, ...(nb[id] || [])]))].sort();
+}
+
+/** A layer and a domain that between them select exactly one entity, and that
+ *  entity — the n=1 state §9.1's singular grammar is about. Restricted to a
+ *  placed entity with a country, so the single match is also the single thing in
+ *  view and the caption carries "1 country ·" with no off-map term. Derived
+ *  rather than written down, because the pair this file used to name (Commons ×
+ *  maritime) selects two entities since the last upstream addition — the test
+ *  it anchored was about the singular verb, not about that pair. */
+function singletonAxes(rec) {
+  const doms = [...new Set(rec.flatMap((r) => r.domains))].sort();
+  const pairs = [];
+  for (const kind of KINDS) {
+    for (const dom of doms) {
+      const sel = rec.filter((r) => r.kind === kind && r.domains.includes(dom));
+      if (sel.length === 1 && sel[0].geo && sel[0].country) pairs.push({ kind, dom, only: sel[0] });
+    }
+  }
+  pairs.sort((a, b) => (`${a.kind}/${a.dom}` < `${b.kind}/${b.dom}` ? -1 : 1));
+  expect(pairs.length,
+    'the payload has a layer and a domain that select exactly one placed entity').toBeGreaterThan(0);
+  return pairs[0];
 }
 
 /** Recompute every figure the counters claim, from the raw item records and the
@@ -203,6 +298,45 @@ function panelCounts(page) {
     bars: document.querySelectorAll('#tf-hist rect').length,
     lit: document.querySelectorAll('#tf-hist rect.on').length,
   }));
+}
+
+/** Every number the sidebar and the period pill put in front of a reader,
+ *  keyed by a stable selector. Read off the DOM rather than from a list of ids,
+ *  because a hand-written list is exactly what §17's last paragraph is about: a
+ *  counter nobody remembered to wire to `refresh()` has no entry in
+ *  `panelCounts()` either, and is therefore invisible to every other test in
+ *  this file. `named` is the subset invariant 13 enumerates, collected through
+ *  the same walk so the closed-list test below cannot pass vacuously. */
+function liveNumbers(page) {
+  return page.evaluate(() => {
+    const INV13 = '#st-project,#st-team,#st-commons,#st-framework,'
+      + '.layer-row[data-layer] .cnt,#tf-undated-n,#nogeo-count';
+    // Indexed against the whole document rather than against this walk, so a
+    // key means the same element whichever numbers happen to be on screen.
+    const keyOf = (el) => {
+      if (el.id) return '#' + el.id;
+      const sel = el.tagName.toLowerCase() + [...el.classList].map((c) => '.' + c).join('');
+      const all = [...document.querySelectorAll(sel)];
+      return all.length > 1 ? `${sel}[${all.indexOf(el)}]` : sel;
+    };
+    const nums = {}, named = [];
+    [document.getElementById('sidebar'), document.querySelector('.ctl-tr')].forEach((host) => {
+      host.querySelectorAll('*').forEach((el) => {
+        // A layer row whose layer holds placeless entities splits its figure
+        // into "23+7" and so is no longer a leaf. It is still one count, so it
+        // is read whole rather than skipped — otherwise invariant 13's closed
+        // list quietly loses the two rows that carry a split.
+        const split = el.matches('.layer-row[data-layer] .cnt');
+        if (el.children.length && !split) return;    // only the leaf holding the figure
+        const txt = el.textContent.trim();
+        if (!/^\d+(\+\d+)?$/.test(txt)) return;
+        const k = keyOf(el);
+        nums[k] = txt;
+        if (el.matches(INV13)) named.push(k);
+      });
+    });
+    return { nums, named };
+  });
 }
 
 /** The period histogram's drawn curve: every rendered bar, with the year it
@@ -350,10 +484,13 @@ test.describe('§9.1 two readings', () => {
     expect(await caption(page)).toBe(captionFor(d));
   });
 
-  test('§9.1 the layer rows report the match count, so "Commons 25" sits above a tile reading 24', async ({ page }) => {
-    // The exact pairing the spec calls out. The gap is not a mistake — one
-    // commons has no coordinates — but it only reads as a gap because the row
-    // and the tile now report two labelled readings of the same filter state.
+  test('§9.1 the layer rows report the match count, so the Commons row sits above a tile one lower', async ({ page }) => {
+    // The exact pairing the spec calls out — "Commons 25" two centimetres above
+    // a tile reading 24. The gap is not a mistake (a commons with no
+    // coordinates has no marker to be in view) but it only reads as a gap
+    // because the row and the tile now report two labelled readings of the same
+    // filter state. Both figures come off the payload: §3.2's snapshot has
+    // already moved past the 25 and the 24 the spec quotes.
     await open(page);
     await fitAll(page);
     const c = await corpus(page);
@@ -387,13 +524,88 @@ test.describe('§9.1 two readings', () => {
     // figure to show and the title stays empty rather than restating them.
     for (const r of await layerRows(page)) {
       expect(r.count).toBe(c.totals[r.kind]);
-      expect(r.title).toBe('');
+      // A layer holding placeless entities carries the split in its title at every
+      // filter state, because that figure is about the data and not about
+      // narrowing. Only the layers whose matches all have markers have nothing
+      // to say here.
+      if (r.offMap) expect(r.title).toBe(
+        `${r.placed} on the map · ${r.offMap} with no coordinates · ${r.count} match the filters`);
+      else expect(r.title).toBe('');
     }
     await setPeriod(page, 2010, 2012);
     await settleCounts(page);
     for (const r of await layerRows(page)) {
-      if (r.count === c.totals[r.kind]) expect(r.title).toBe('');
+      // Same three cases, now that the period has narrowed: a split layer still
+      // names its placeless half, a narrowed layer names the corpus it came
+      // from, and a layer sitting at its total has nothing to add.
+      if (r.offMap) expect(r.title).toBe(
+        `${r.placed} on the map · ${r.offMap} with no coordinates · ${r.count} ${r.count === 1 ? 'matches' : 'match'} the filters`);
+      else if (r.count === c.totals[r.kind]) expect(r.title).toBe('');
       else expect(r.title).toBe(`${r.count} of ${c.totals[r.kind]} under the current filters`);
+    }
+  });
+
+  test('§9.1 a layer row splits its figure where the map cannot follow it', async ({ page }) => {
+    // The reported bug, twice over: "Frameworks 30" in the layer rows sat above
+    // a tile reading 23, and the caption's single "(7 off the map)" never said
+    // which layer owned the seven. The row now splits at that seam — 23 you can
+    // see, +7 you cannot — so the two numbers reconcile where they are read.
+    await open(page);
+    await setPeriod(page, await page.evaluate(() => YMIN), 2011);
+    await settleCounts(page);
+    // Derived from the payload: of the entities matching this period, how many
+    // of each layer can never carry a marker.
+    const want = await page.evaluate(() => {
+      const n = { project: 0, team: 0, commons: 0, framework: 0 };
+      const all = { project: 0, team: 0, commons: 0, framework: 0 };
+      items.forEach((it) => {
+        if (periodState(it) === 'out') return;
+        all[it.kind]++;
+        if (!it.geo) n[it.kind]++;
+      });
+      return { placeless: n, matching: all };
+    });
+    expect(want.placeless.framework, 'the period that reproduced the report').toBeGreaterThan(0);
+
+    for (const r of await layerRows(page)) {
+      expect(r.count, `${r.kind} row counts what matches`).toBe(want.matching[r.kind]);
+      expect(r.offMap, `${r.kind} row names its placeless half`).toBe(want.placeless[r.kind]);
+      expect(r.placed).toBe(want.matching[r.kind] - want.placeless[r.kind]);
+    }
+    // And the half the reader can see is the number the tile reports, which is
+    // the comparison that read as a contradiction before.
+    const seen = await page.evaluate(() => state.offScreen);
+    expect(seen, 'nothing off screen at the default fit').toBe(0);
+    const t = await tiles(page);
+    for (const r of await layerRows(page)) {
+      expect(t.find((x) => x.kind === r.kind).count,
+        `the ${r.kind} tile agrees with the visible half of its row`).toBe(r.placed);
+    }
+  });
+
+  test('§9.1 a layer with every match on the map shows no split at all', async ({ page }) => {
+    // The suffix is not decoration: it appears only where there is something to
+    // explain, or it becomes noise on every row.
+    await open(page);
+    const rows = await layerRows(page);
+    const placeless = await page.evaluate(() => {
+      const n = { project: 0, team: 0, commons: 0, framework: 0 };
+      items.forEach((it) => { if (!it.geo) n[it.kind]++; });
+      return n;
+    });
+    expect(placeless.project, 'every project is placed').toBe(0);
+    expect(placeless.team, 'every team is placed').toBe(0);
+    for (const r of rows) {
+      if (placeless[r.kind]) expect(r.offMap).toBe(placeless[r.kind]);
+      else expect(r.offMap, `${r.kind} has nothing to split`).toBe(0);
+    }
+    // Rendered, not merely parsed: a row with nothing to split is a bare number.
+    const markup = await page.evaluate(() =>
+      [...document.querySelectorAll('.layer-row[data-layer]')]
+        .map((b) => [b.dataset.layer, b.querySelector('.cnt').innerHTML]));
+    for (const [kind, html] of markup) {
+      if (placeless[kind]) expect(html).toMatch(/^\d+<span class="off">\+\d+<\/span>$/);
+      else expect(html).toMatch(/^\d+$/);
     }
   });
 
@@ -424,7 +636,7 @@ test.describe('inv 14 one tile per layer', () => {
     await open(page);
     const t = await tiles(page);
     expect(t.map((x) => x.kind)).toEqual(KINDS);
-    expect(t.map((x) => x.label)).toEqual(['Projects', 'Teams', 'Commons', 'Frameworks']);
+    expect(t.map((x) => x.label)).toEqual(KINDS.map((k) => LABELS[k]));
     // No aggregate tile: the "Resources" figure that merged commons and
     // frameworks had no row a reader could check it against.
     expect((await caption(page)) + t.map((x) => x.label).join(' ')).not.toMatch(/Resources/);
@@ -474,18 +686,25 @@ test.describe('inv 14 one tile per layer', () => {
   });
 
   test('inv 14 / §9.1 n=1 verb agreement in a tile title and in the caption', async ({ page }) => {
-    // One commons carries the human-factors domain, so this pair of axes selects
-    // exactly one entity — the singular branch of both grammars at once.
-    await open(page, { hash: '#lay=commons&dom=hf' });
+    // One layer plus one domain, chosen off the payload for selecting exactly
+    // one placed entity — the singular branch of both grammars at once. The
+    // pair used to be written in by hand (Commons × maritime, one entity at the
+    // time) and §3.2's snapshot moved out from under it; what the test is about
+    // is the verb, so the axes are now derived and the strings stay exact.
+    await open(page);
+    const axes = singletonAxes(await roster(page));
+    await reopen(page, { hash: `#lay=${axes.kind}&dom=${axes.dom}` });
     const d = await derive(page);
-    expect(d.match).toBe(1);
+    expect(d.match, `${axes.kind} × ${axes.dom} selects only ${axes.only.id}`).toBe(1);
     expect(d.inView).toBe(1);
-    const tile = (await tileA11y(page)).find((t) => t.kind === 'commons');
+    const tile = (await tileA11y(page)).find((t) => t.kind === axes.kind);
     expect(tile.title).toBe('1 in view · 1 matches the filters');
-    expect(tile.aria).toBe('Commons — 1 in view · 1 matches the filters');
+    expect(tile.aria).toBe(`${LABELS[axes.kind]} — 1 in view · 1 matches the filters`);
     expect(await caption(page)).toBe('1 country · in view · 1 matches the filters');
-    // Zero is the other side of the same branch, on a layer with no entities.
-    const empty = (await tileA11y(page)).find((t) => t.kind === 'framework');
+    // Zero is the other side of the same branch, on a layer that is switched
+    // off and so holds nothing whatever the corpus looks like.
+    const off = KINDS.find((k) => k !== axes.kind);
+    const empty = (await tileA11y(page)).find((t) => t.kind === off);
     expect(empty.title).toBe('0 in view · 0 match the filters');
   });
 });
@@ -620,11 +839,20 @@ test.describe('inv 12 reconciliation', () => {
     await zoomBy(page, 3);
     await expectCountersReconcile(page, 'My map, zoomed in');
 
-    await open(page, { storage: { 'hai-map-v2-pins': JSON.stringify(['iso-9241-210']) } });
+    // An entity with no coordinates and nothing one relation away: its whole My
+    // map scope is itself, so the three figures below follow from §6.1's rule
+    // rather than from a count an upstream edge could move. Picked by those two
+    // properties — the standards layer is full of candidates — rather than by
+    // naming one of them, which is the part a regeneration can quietly change.
+    const nb = await relations(page);
+    const alone = (await roster(page)).find((r) => !r.geo && !(nb[r.id] || []).length);
+    expect(alone, 'the payload keeps an off-map entity with no relations (§3.1 point 4)').toBeTruthy();
+    expect(myMapScope(nb, [alone.id])).toEqual([alone.id]);
+    await open(page, { storage: { 'hai-map-v2-pins': JSON.stringify([alone.id]) } });
     await page.evaluate(() => toggleMyMap());
     await settleCounts(page);
     const s = await snapshot(page);
-    expect(s.inView).toBe(0);           // a standard with no coordinates has no marker
+    expect(s.inView).toBe(0);           // no coordinates, so no marker to be on screen
     expect(s.offMapMatch).toBe(1);
     expect(s.matchCount).toBe(1);
     await expectCountersReconcile(page, 'My map on an off-map pin');
@@ -737,21 +965,53 @@ test.describe('§9.2 unmeasured stage', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('inv 13 no frozen counts', () => {
-  test('inv 13 the numbers the spec names as the frozen ones are still the corpus numbers', async ({ page }) => {
-    // 115 / 274 / 26 / 45, 39 and 11 are the figures §9.1 quotes as the ones
-    // that used to sit there whatever the reader did. Pinning them here means
-    // the regression tests below keep describing the bug they were written for.
+  test('inv 13 the figures the tests below call "the corpus" are the page\'s own corpus constants', async ({ page }) => {
+    // §9.1 quotes 111 / 268 / 25 / 45, 37 and 11 as the figures that used to sit
+    // in the panel whatever the reader did, and every regression test below
+    // works by showing a count moving off one of them. What the tests may not
+    // do is quote them: §3.2 says the counts are "a snapshot and move with
+    // every upstream regeneration; the shape of the table is what is normative,
+    // not the figures" — and they have moved since.
+    //
+    // So what is pinned here is the shape. `corpus()` recomputes the totals, the
+    // unknown-start population and the off-map population from the payload; the
+    // page derives TOTALS / UNDATED / NOGEO from the same records on its own
+    // side; they have to agree entity for entity, and the two structural claims
+    // §9.1 and §3.1 make about those populations have to still hold. That is
+    // what makes "moved off the corpus figure" mean something in the tests that
+    // follow, whatever this month's figures are.
     await open(page);
     const c = await corpus(page);
-    expect(c.totals).toEqual({ project: 115, team: 274, commons: 26, framework: 45 });
-    expect(c.all).toBe(460);
-    expect(c.undated).toBe(39);
-    expect(c.nogeo).toBe(11);
-    expect(c.undatedByKind).toEqual({ team: 39 });   // "all of them teams"
-    expect(await page.evaluate(() => ({ ...TOTALS }))).toEqual(c.totals);
+    const own = await page.evaluate(() => ({
+      totals: { ...TOTALS }, undated: UNDATED, nogeo: NOGEO, registered: items.length,
+    }));
+    expect(own.totals).toEqual(c.totals);
+    expect(own.undated).toBe(c.undated);
+    expect(own.nogeo).toBe(c.nogeo);
+    // Nothing is dropped on the way from the payload into `items`, which every
+    // other count in this file is taken over (§3.1 point 4 — the entities with
+    // no coordinates are kept, flagged, not dropped).
+    expect(own.registered).toBe(c.all);
+    // §9.1's "all of them teams": the unknown-start population is one layer's,
+    // which is why switching to Commons has to show 0 rather than the corpus
+    // figure, and why the period's own switch may leave it alone.
+    expect(Object.keys(c.undatedByKind)).toEqual(['team']);
+    expect(c.undatedByKind.team).toBe(c.undated);
+    // §3's off-map note: the international standards, plus the commons outside
+    // Europe. No project and no team sits off the map, which is what lets the
+    // caption tests isolate the "off screen" term on those two layers.
+    expect(Object.keys(c.nogeoByKind).sort()).toEqual(['commons', 'framework']);
+    expect(c.nogeoByKind.commons + c.nogeoByKind.framework).toBe(c.nogeo);
+    // And all three populations are non-empty, or every "this figure moved off
+    // the corpus figure" assertion below could be satisfied by a payload in
+    // which nothing was there to move.
+    expect(c.all).toBeGreaterThan(0);
+    expect(c.undated).toBeGreaterThan(0);
+    expect(c.nogeo).toBeGreaterThan(0);
+    for (const k of KINDS) expect(c.totals[k], `the ${k} layer is populated`).toBeGreaterThan(0);
   });
 
-  test('inv 13 narrowing the period moves the layer rows off 111 / 268 / 25 / 45', async ({ page }) => {
+  test('inv 13 narrowing the period moves the layer rows off the corpus totals', async ({ page }) => {
     await open(page);
     const c = await corpus(page);
     const before = await layerRows(page);
@@ -770,7 +1030,7 @@ test.describe('inv 13 no frozen counts', () => {
     expect((await layerRows(page)).map((r) => r.count)).toEqual(after.map((r) => r.count));
   });
 
-  test('inv 13 narrowing the period moves the Off-the-map badge off 11', async ({ page }) => {
+  test('inv 13 narrowing the period moves the Off-the-map badge off the corpus figure', async ({ page }) => {
     await open(page);
     const c = await corpus(page);
     let pc = await panelCounts(page);
@@ -817,7 +1077,11 @@ test.describe('inv 13 no frozen counts', () => {
     const d = await derive(page);
     pc = await panelCounts(page);
     expect(pc.lit).toBe(d.lit);
-    expect(pc.lit).toBe(3);                         // 2010, 2011, 2012 all have bars
+    // Three years selected and every one of them populated, so three bars are
+    // lit: the width of the window this test chose, not a figure off the corpus.
+    expect(d.bins.slice(2010 - d.ymin, 2013 - d.ymin).every((n) => n > 0),
+      'each of 2010, 2011 and 2012 holds at least one dated entity').toBe(true);
+    expect(pc.lit).toBe(2012 - 2010 + 1);
     expect(pc.lit).toBeLessThan(all);
     // Bar *presence* is all this can see — a long-lived team keeps every year
     // populated — so it only shows the curve was not narrowed away entirely.
@@ -861,17 +1125,22 @@ test.describe('inv 13 no frozen counts', () => {
     expectCurveRanks(commons, await derive(page), 'commons only, period still narrowed');
   });
 
-  test('inv 13 narrowing the layer axis moves the unknown-start count off 39 — to 0 on Commons', async ({ page }) => {
-    // The spec's example, exactly: every one of the 39 is a team, so a reader
-    // filtered to Commons was shown 39 for a set the switch cannot touch.
+  test('inv 13 narrowing the layer axis moves the unknown-start count off the corpus figure — to 0 on Commons', async ({ page }) => {
+    // The spec's example, exactly: every unknown start on this map is a team's,
+    // so a reader filtered to Commons was shown the whole corpus figure for a
+    // set the switch cannot touch. The 0 is derived, not assumed — it is the
+    // number of commons with an unknown start, which §9.1's "all of them teams"
+    // makes zero and the frozen-constants test above checks is still zero.
     await open(page);
     const c = await corpus(page);
+    const onCommons = c.undatedByKind.commons || 0;
+    expect(onCommons, '§9.1: every entity with an unknown start is a team').toBe(0);
     expect((await panelCounts(page)).undated).toBe(c.undated);
     await setLayers(page, ['commons']);
     await settleCounts(page);
     const pc = await panelCounts(page);
-    expect(pc.undated).toBe(0);
-    expect(pc.undatedTitle).toBe(`0 of ${c.undated} under the current filters`);
+    expect(pc.undated).toBe(onCommons);
+    expect(pc.undatedTitle).toBe(`${onCommons} of ${c.undated} under the current filters`);
     await setLayers(page, ['team']);
     await settleCounts(page);
     expect((await panelCounts(page)).undated).toBe(c.undatedByKind.team);
@@ -902,7 +1171,7 @@ test.describe('inv 13 no frozen counts', () => {
     const pc = await panelCounts(page);
     expect(pc.undated).toBe(d.undated);
     // The bar *set* need not shrink — one long-lived team covers every year —
-    // but the figure the switch governs must no longer be the corpus 39.
+    // but the figure the switch governs must no longer be the corpus one.
     expect(pc.undated).toBeLessThan(c.undated);
   });
 
@@ -941,7 +1210,10 @@ test.describe('inv 13 no frozen counts', () => {
     await settleCounts(page);
     const d = await derive(page);
     const pc = await panelCounts(page);
-    expect(pc.undated).toBe(0);                     // all 39 are teams, and teams are off
+    // Every unknown start is a team's and the team layer is off, so the only
+    // layer left standing contributes none of them.
+    expect(pc.undated).toBe(c.undatedByKind.commons || 0);
+    expect(pc.undated).toBe(d.undated);
     expect(pc.undated).not.toBe(c.undated);
     expect(pc.nogeo).toBe(d.offMap);
     expect(pc.bars).toBe(d.bars);
@@ -949,6 +1221,52 @@ test.describe('inv 13 no frozen counts', () => {
     for (const r of await layerRows(page)) expect(r.count).toBe(d.scopeKind[r.kind]);
     for (const t of await tiles(page)) expect(t.count).toBe(d.inViewKind[t.kind]);
     expect(await caption(page)).toBe(captionFor(d));
+  });
+
+  test('inv 13 / §17 the numbers that survive a hard narrowing are a closed list', async ({ page }) => {
+    // The canary for §17's last paragraph, in the shape i18n.spec.js uses for
+    // invariant 8: take every number the panel shows, narrow all three axes to
+    // a near-empty state, and keep the ones that did not move. The test above
+    // checks the five figures invariant 13 names, one by one, through a list
+    // written by hand — so a sixth counter wired to `renderTime()` or
+    // `renderNoGeo()` (which run on language and preset changes, not when the
+    // filters move) or computed from `items` / `TOTALS` is defended by nothing
+    // until a reader narrows an axis and reads a corpus figure. Here it lands
+    // in `unchanged` under its own selector instead.
+    await open(page);
+    const before = await liveNumbers(page);
+    // One year before any of this field existed, one layer, one domain: nothing
+    // left under these filters can still be what the corpus figures describe.
+    // The order matters. The period goes first and the domain last, because
+    // `setYears()` calls `renderTime()` while a layer switch and a domain
+    // checkbox call `refresh()` and nothing else — so a figure wired to its own
+    // render function is last computed while the other two axes are still wide,
+    // which for the unknown-start count is the corpus figure it started on.
+    await setPeriod(page, 1960, 1960);
+    await setLayers(page, ['commons']);
+    for (const none of await page.locator('#domain-groups [data-ga="none"]').all()) await none.click();
+    await page.locator('#domain-groups input[data-dom="maritime"]').check();
+    await settleCounts(page);
+    const after = await liveNumbers(page);
+    const unchanged = Object.keys(before.nums)
+      .filter((k) => after.nums[k] === before.nums[k]).sort();
+    // The reader's own pin tally, twice over: it counts the pins, so a
+    // narrowing is precisely what must not move it. Nothing else may sit here.
+    expect(unchanged).toEqual(['#mymap-badge', '#pin-count']);
+    // The other half of the assertion, without which this would pass just as
+    // well against a page where nothing moved at all: every figure invariant 13
+    // names has to be on the other side of the split, and still be a number.
+    // One tile and one row per layer (§9.1's "one tile per layer"), plus the
+    // unknown-start count and the Off-the-map badge: the shape of the list
+    // invariant 13 enumerates, so it is counted off KINDS rather than written
+    // as a 10 that a fifth layer would quietly invalidate.
+    expect(before.named.length,
+      'a tile and a row per layer, the unknown-start count, the Off-the-map badge')
+      .toBe(KINDS.length * 2 + 2);
+    for (const k of before.named) {
+      expect(unchanged, `${k} is a live count and must have followed the filters`).not.toContain(k);
+      expect(after.nums[k], `${k} is still a figure after the narrowing`).toMatch(/^\d+(\+\d+)?$/);
+    }
   });
 
   test('inv 13 switching language does not restore the corpus totals into the layer rows', async ({ page }) => {
@@ -1014,7 +1332,10 @@ test.describe('inv 13 no frozen counts', () => {
     await setPeriod(page, bounds.ymin - 500, bounds.ymax + 500);
     await settleCounts(page);
     expect((await layerRows(page)).map((r) => r.count)).toEqual(KINDS.map((k) => c.totals[k]));
-    for (const r of await layerRows(page)) expect(r.title).toBe('');
+    for (const r of await layerRows(page)) {
+      if (r.offMap) expect(r.title).toContain('with no coordinates');
+      else expect(r.title).toBe('');
+    }
     expect((await snapshot(page)).matchCount).toBe(c.all);
   });
 
@@ -1037,10 +1358,17 @@ test.describe('inv 13 no frozen counts', () => {
 
 test.describe('§9.2 the caption names the gap', () => {
   test('§9.2 "off screen" alone: zoomed in on layers that are all placed', async ({ page }) => {
-    // Projects and teams all carry coordinates, so this isolates the pan/zoom
-    // term from the off-map one.
+    // Switch on only the layers whose entities all carry coordinates — projects
+    // and teams, as the payload stands — so the off-map term is structurally
+    // absent and this isolates the pan/zoom one. Derived from the payload: a
+    // layer that gained a single entity without coordinates would otherwise
+    // leave the caption with two terms and this test asserting a string it was
+    // never written to describe.
     await open(page);
-    await setLayers(page, ['project', 'team']);
+    const c = await corpus(page);
+    const placed = KINDS.filter((k) => !c.nogeoByKind[k]);
+    expect(placed.length, 'some layer has every one of its entities placed').toBeGreaterThan(0);
+    await setLayers(page, placed);
     await zoomCentre(page, 2.2);
     const d = await derive(page);
     expect(d.offMap).toBe(0);
@@ -1127,7 +1455,12 @@ test.describe('§9.2 the caption names the gap', () => {
     await page.evaluate(() => toggleMyMap());
     await settleCounts(page);
     const d = await derive(page);
-    expect(d.match).toBe(4);                        // sbb plus its three neighbours
+    // The pin plus everything one relation away (§6.1), counted off the
+    // payload's edge lists: SBB had three neighbours when this was written and
+    // the upstream edge list is precisely what the next regeneration moves.
+    const scope = myMapScope(await relations(page), ['sbb']);
+    expect(d.match).toBe(scope.length);
+    expect(scope.length, 'the pinned entity has neighbours to bring in').toBeGreaterThan(1);
     const note = await caption(page);
     expect(note).toBe(`${d.countries} countries · in view · ${d.match} on your map`);
     expect(note).not.toContain('match the filters');
@@ -1216,10 +1549,15 @@ test.describe('counter boundaries', () => {
   });
 
   test('§9.2 one result: the singular caption, one tile at 1, the rest at 0', async ({ page }) => {
-    await open(page, { hash: '#lay=commons&dom=hf' });
+    // Same derived pair of axes as the verb-agreement test: whichever layer and
+    // domain select exactly one placed entity in the payload the page loaded.
+    await open(page);
+    const axes = singletonAxes(await roster(page));
+    await reopen(page, { hash: `#lay=${axes.kind}&dom=${axes.dom}` });
     const d = await derive(page);
-    expect(d.match).toBe(1);
-    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 1, 0]);
+    expect(d.match, `${axes.kind} × ${axes.dom} selects only ${axes.only.id}`).toBe(1);
+    expect((await tiles(page)).map((t) => t.count))
+      .toEqual(KINDS.map((k) => (k === axes.kind ? 1 : 0)));
     expect(await feedHeader(page)).toEqual({ count: 1, offScreen: null, offMap: null });
     expect(await caption(page)).toBe('1 country · in view · 1 matches the filters');
     // Zoom past it and the one result becomes the one off-screen entity.
@@ -1253,15 +1591,25 @@ test.describe('counter boundaries', () => {
     // the open card". Invariant 12's arithmetic still holds, so this is a
     // wording/labelling deviation rather than a broken sum. Asserted as it
     // currently behaves.
-    await open(page, { hash: '#e=iso-9241-210&lay=project' });
+    //
+    // The two choices are properties rather than names: a card with no
+    // coordinates, held open while the only layer on is one whose entities are
+    // all placed. That is what makes the 1s below the rule — one open card, one
+    // off-map entity in `vis` — instead of a count off this month's roster.
+    await open(page);
     const c = await corpus(page);
+    const layer = KINDS.find((k) => !c.nogeoByKind[k]);
+    const card = (await roster(page)).find((r) => !r.geo && r.kind !== layer);
+    expect(layer, 'some layer has every one of its entities placed').toBeTruthy();
+    expect(card, 'the payload keeps an entity with no coordinates (§3.1 point 4)').toBeTruthy();
+    await reopen(page, { hash: `#e=${card.id}&lay=${layer}` });
     const s = await snapshot(page);
-    expect(s.matchCount).toBe(c.totals.project);
+    expect(s.matchCount).toBe(c.totals[layer]);
     expect(s.keptOpen).toBe(1);
     expect(s.offMapMatch).toBe(1);
     expect(s.inView + s.offScreen + s.offMapMatch).toBe(s.matchCount + s.keptOpen);
     expect(await caption(page)).toBe(
-      `${(await derive(page)).countries} countries · in view · ${c.totals.project} match the filters (1 off the map, plus the open card)`);
+      `${(await derive(page)).countries} countries · in view · ${c.totals[layer]} match the filters (1 off the map, plus the open card)`);
     const pc = await panelCounts(page);
     expect(pc.nogeo).toBe(1);
     expect(pc.nogeoTitle).toBe(`1 of ${c.nogeo} matches the current filters`);

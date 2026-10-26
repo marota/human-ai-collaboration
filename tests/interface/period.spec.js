@@ -9,6 +9,14 @@
 // table, transcribed below. Reading an expectation back out of periodState()
 // would make every one of these tests agree with whatever the implementation
 // happened to do next.
+//
+// No figure from the corpus is written out as a literal here. §3.2: "Counts are
+// a snapshot and move with every upstream regeneration; the shape of the table
+// is what is normative, not the figures." The payload the page actually loaded
+// — hai-data.js and whatever hai-data-additions.js merged into it — is the one
+// source for how many of anything there are, so a regeneration moves these
+// tests' expectations with the data instead of failing them. Years that the
+// spec itself fixes (1945, 2020) stay literal, because those are rules.
 import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, setLayers, setPeriod, nudgePeriod,
@@ -188,6 +196,28 @@ async function drawnYears(page) {
   };
 }
 
+/** Every element that states one of `needles` on a surface a reader can see:
+ *  its *own* text nodes, its `title`, or its `aria-label`. Elements are walked
+ *  one at a time and descendants' text is deliberately not inherited — a
+ *  subtree search would report <html> and <body> as matches and tell us
+ *  nothing. Returns a sorted, deduplicated list of ids (or tag.class, for the
+ *  unnamed element a regression would most likely add), so a failure names the
+ *  offending surface. */
+function statedOn(page, needles) {
+  return page.evaluate((ns) => {
+    const hits = (s) => !!s && ns.some((n) => s.includes(n));
+    const found = new Set();
+    for (const el of document.querySelectorAll('*')) {
+      const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.nodeValue).join('');
+      if (!(hits(own) || hits(el.getAttribute('title')) || hits(el.getAttribute('aria-label')))) continue;
+      const cls = typeof el.className === 'string' ? el.className.trim() : '';
+      found.add(el.id ? '#' + el.id
+        : el.tagName.toLowerCase() + (cls ? '.' + cls.split(/\s+/).join('.') : ''));
+    }
+    return [...found].sort();
+  }, needles);
+}
+
 // ---------------------------------------------------------------------------
 // §10 — the axis
 // ---------------------------------------------------------------------------
@@ -211,7 +241,12 @@ test.describe('§10 the axis', () => {
     await openMap(page);
     const { rows } = await payload(page);
     const old = rows.filter((r) => r.y0 != null && r.y0 < FLOOR);
-    expect(old.length).toBe(8);                            // Philips 1914, ASEA/Siemens 1916…
+    // The set is not pinned by size — §3.2 — but §10.3 names four of its members
+    // outright, and the floor rule is only load-bearing because the corpus really
+    // does reach back behind it. Those four, with their years, are the claim.
+    const named = { 'philips-research': 1914, 'abb-cr': 1916, 'siemens-ct': 1916, radboud: 1923 };
+    expect(Object.fromEntries(old.filter((r) => r.id in named).map((r) => [r.id, r.y0])))
+      .toEqual(named);
     await setPeriod(page, FLOOR, FLOOR);
     const states = await statesFromPage(page);
     // "those entities stay included in any range that reaches the floor" — the
@@ -262,7 +297,15 @@ test.describe('§10 the axis', () => {
     const pl = await payload(page);
     const ax = axis(pl);
     const future = pl.rows.filter((r) => r.y1 != null && r.y1 > ax.ymax);
-    expect(future.length).toBe(26);                         // 2027–2032 grants
+    // Not a count: the set is pinned by agreeing with the page's own parse of
+    // the same entities, and by containing the furthest end-date in the corpus
+    // — which is what makes the "empty decade" §10 describes real rather than
+    // hypothetical. (If the grants ever all expire the walk below goes vacuous,
+    // and the corpusMax assertion is what fails first.)
+    const pageSide = await page.evaluate(() =>
+      items.filter((it) => it.y1 != null && it.y1 > YMAX).map((it) => it.id).sort());
+    expect(pageSide).toEqual(future.map((r) => r.id).sort());
+    expect(future.map((r) => r.y1)).toContain(ax.corpusMax);
     // Every range the slider can express, from its own start onwards, keeps it:
     // the end-date it loses off the top of the axis was never what excluded it.
     for (const [a, b] of [[ax.ymin, ax.ymax], [ax.ymax, ax.ymax], [PRESENT, ax.ymax]]) {
@@ -290,12 +333,15 @@ test.describe('§10 the axis', () => {
 
   test('§10 the default range is the whole axis, so the period axis is off', async ({ page }) => {
     await openMap(page);
-    const ax = axis(await payload(page));
+    const pl = await payload(page);
+    const ax = axis(pl);
     const s = await snapshot(page);
     expect(s.years).toEqual({ a: ax.ymin, b: ax.ymax, undated: true });
     expect(await page.evaluate(() => timeOn())).toBe(false);
     expect(await periodLabel(page)).toBe(`${ax.ymin} – ${ax.ymax}`);
-    expect(s.matchCount).toBe(460);
+    // The axis being off means every entity in the payload matches, whatever
+    // the corpus happens to hold on the day (§3.2).
+    expect(s.matchCount).toBe(pl.rows.length);
     // Nothing is dimmed by the period when no period is picked.
     expect(await page.evaluate(() => visibleSet().dimmed.size)).toBe(0);
     expect((await undatedControl(page)).rowHidden).toBe(true);
@@ -352,19 +398,26 @@ test.describe('§10 overlap semantics', () => {
     expect((await statesFromPage(page))[fitts.id]).toBe('out');
   });
 
-  test('§10 three entities have ended, so a present-day range drops exactly those three', async ({ page }) => {
+  test('§10 a present-day range drops exactly the entities that have ended', async ({ page }) => {
     await openMap(page);
     const pl = await payload(page);
     const ax = axis(pl);
-    // Worth pinning: what a 2020-onwards range excludes is a property of the
-    // data, not of the filter. This test used to read "nothing in the corpus
-    // has ended" and said so if a closed entity were ever added — the 2026-10
-    // data added three, so the exclusion is now named rather than assumed.
+    // This test used to read "nothing in the corpus has ended, so a present-day
+    // range keeps all 449", and said in a comment that if a closed project were
+    // ever added, this is the test that would say so. A regeneration later,
+    // there are some — concluded FP4/FP6-era projects and a research institute
+    // that was wound up — so the claim is stated as the rule it always was:
+    // what a 2020-onwards range drops is exactly the entities whose recorded
+    // end is in the past, by the overlap test and nothing else.
     const ended = pl.rows.filter((r) => r.y1 != null && r.y1 < PRESENT);
-    expect(ended.map((r) => r.id).sort()).toEqual(['diva', 'eurisco', 'pausa']);
     await setPeriod(page, PRESENT, ax.ymax);
+    const states = await statesFromPage(page);
+    for (const r of ended) expect(states[r.id], `${r.id} ended ${r.y1}`).toBe('out');
     const s = await snapshot(page);
-    expect(s.matchCount).toBe(457);                     // 460 less the three that have ended
+    expect(s.matchCount).toBe(pl.rows.length - ended.length);
+    expect(await page.evaluate(() => [...visibleSet().matched].sort()))
+      .toEqual(keptBySpec(pl.rows, ax, { a: PRESENT, b: ax.ymax }).sort());
+    // Dated either way, so nothing is merely possible in this range.
     expect(await page.evaluate(() => visibleSet().dimmed.size)).toBe(0);
     await expectCountersReconcile(page, '2020 to now');
   });
@@ -408,7 +461,7 @@ test.describe('§10 overlap semantics', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('§10.1 unknown start', () => {
-  test('§10.1 PRESENT_FROM is 2020 and the vague set is 39 teams', async ({ page }) => {
+  test('§10.1 PRESENT_FROM is 2020 and the vague set is exactly the undated teams', async ({ page }) => {
     await openMap(page);
     const { rows } = await payload(page);
     const vague = rows.filter(isVague);
@@ -417,11 +470,14 @@ test.describe('§10.1 unknown start', () => {
       vagueIds: items.filter((it) => it.vague).map((it) => it.id).sort(),
     }));
     expect(got.present).toBe(PRESENT);
-    expect(got.undated).toBe(39);                       // §10.1, "All 39"
+    // UNDATED is the figure §10.1 calls "All 37"; the number moves with the
+    // corpus, so what is pinned is that it counts the set this file's own rule
+    // picks out of the payload, entity for entity and not merely in total.
     expect(got.undated).toBe(vague.length);
     expect(got.vagueIds).toEqual(vague.map((r) => r.id).sort());
-    // "All 39 undated entities are teams" — the claim the 0-under-Commons
-    // count rests on.
+    // "All 37 undated entities are teams" — the claim the 0-under-Commons
+    // count rests on. An empty vague set would fail this line rather than
+    // slip through it.
     expect([...new Set(vague.map((r) => r.kind))]).toEqual(['team']);
   });
 
@@ -429,17 +485,20 @@ test.describe('§10.1 unknown start', () => {
     await openMap(page);
     const { rows } = await payload(page);
     const vague = rows.filter(isVague);
+    // The lower bound outranks the table's first row, and the data now makes
+    // that visible: a department whose host was founded *after* 2020 cannot be
+    // present in a range ending at 2020, so it is hidden rather than solid.
+    // §10.1's "Reaching 2020 or later → solid" is written for host years that
+    // precede 2020; the split is by that rule, not by the id that happens to
+    // sit on the far side of it today.
+    const present = vague.filter((r) => r.y0 == null || r.y0 <= PRESENT);
+    const tooLate = vague.filter((r) => r.y0 != null && r.y0 > PRESENT);
     await setPeriod(page, FLOOR, PRESENT);              // a real range, ending exactly at 2020
     expect(await page.evaluate(() => timeOn())).toBe(true);
     const states = await statesFromPage(page);
-    // "Solid once the range reaches 2020" still sits under the host-founding
-    // floor of §10.1: cando-image's host year is 2024, so at a range ending in
-    // 2020 it cannot exist yet and stays out rather than going solid. It is the
-    // first vague entity whose host postdates PRESENT_FROM, so the rule is
-    // named here instead of holding vacuously.
-    const late = vague.filter((r) => r.y0 != null && r.y0 > PRESENT);
-    expect(late.map((r) => r.id)).toEqual(['cando-image']);
-    for (const r of vague) expect(states[r.id], r.id).toBe(late.includes(r) ? 'out' : 'in');
+    for (const r of present) expect(states[r.id], r.id).toBe('in');
+    for (const r of tooLate) expect(states[r.id], `${r.id}, host ${r.y0}`).toBe('out');
+    // Solid, not possible: a range reaching 2020 dims nothing at all.
     expect(await page.evaluate(() => visibleSet().dimmed.size)).toBe(0);
   });
 
@@ -473,28 +532,37 @@ test.describe('§10.1 unknown start', () => {
     }
   });
 
-  test('§10.1 two hosts founded at or after 2020 are out at 2019 — which is why the soft set is 37, not 39', async ({ page }) => {
+  test('§10.1 a host founded in 2020 or later is out at 2019 — which is why the soft set is short of the vague set', async ({ page }) => {
     await openMap(page);
     const { rows } = await payload(page);
-    // Maynooth's AISG has a host year of exactly PRESENT_FROM, so the lower
-    // bound bites one year before the "certainly present" rule would rescue it;
-    // cando-image's host year is 2024, so it is out at 2019 for the same reason.
-    const may = rows.find((r) => r.id === 'maynooth-ais');
-    expect([may.y0, may.host]).toEqual([2020, true]);
+    // Picked by the property that matters rather than by id: an entity whose
+    // host year is exactly PRESENT_FROM sits one year above the band, so the
+    // lower bound bites a year before the "certainly present" rule would
+    // rescue it. (Maynooth's AISG is that entity today.)
+    const atPresent = rows.find((r) => isVague(r) && r.y0 === PRESENT);
+    expect([atPresent.host, atPresent.y0]).toEqual([true, PRESENT]);
     await setPeriod(page, FLOOR, 2019);
     const states = await statesFromPage(page);
-    expect(states['maynooth-ais']).toBe('out');
-    expect(states['cando-image']).toBe('out');
+    expect(states[atPresent.id], atPresent.id).toBe('out');
+    // Every vague entity the bound bars is out, and the soft set is the rest of
+    // the vague set exactly — no third outcome, and no arithmetic pinned to a
+    // snapshot of the corpus.
+    const barred = rows.filter((r) => isVague(r) && r.y0 != null && r.y0 > 2019);
+    expect(barred.map((r) => r.id)).toContain(atPresent.id);
+    for (const r of barred) expect(states[r.id], `${r.id}, host ${r.y0}`).toBe('out');
     const soft = Object.values(states).filter((s) => s === 'soft').length;
-    expect(soft).toBe(37);
-    expect(soft).toBe(rows.filter(isVague).length - 2);
+    expect(soft).toBe(rows.filter(isVague).length - barred.length);
   });
 
   test('§10.1 an entity with no year at all stays possible however far back the range goes', async ({ page }) => {
     await openMap(page);
     const { rows } = await payload(page);
     const noYear = rows.filter((r) => !r.dated);
-    expect(noYear.length).toBe(14);
+    // §10.2's table lists "No timeline.start at all" as a case the generator
+    // emits, and this test is the only one that walks it: if it ever empties,
+    // the loops below would pass by saying nothing, so the set is required to
+    // exist before it is described.
+    expect(noYear.length > 0, 'the no-year case §10.2 names must exist in the payload').toBe(true);
     // Not `r.y0 == null && r.y1 == null`, which is how `dated` was computed in
     // the payload helper two steps earlier and so could never fail. The claim
     // worth making is that the *page's* own parse found no year either, and
@@ -559,7 +627,12 @@ test.describe('§10.1 unknown start', () => {
     const ax = axis(pl);
     await setPeriod(page, FLOOR, 2019);
     const kept = keptBySpec(pl.rows, ax, { a: FLOOR, b: 2019 });
-    expect(kept.length).toBe(291);                       // 254 dated + 37 possible
+    // The old "246 dated + 36 possible" comment, asserted instead of stated —
+    // what matches is the established dates plus the possible set, and nothing
+    // else is in there twice or missing.
+    const dated = pl.rows.filter((r) => !isVague(r) && specState(r, FLOOR, 2019, true, ax) === 'in');
+    const possible = pl.rows.filter((r) => specState(r, FLOOR, 2019, true, ax) === 'soft');
+    expect(kept.length).toBe(dated.length + possible.length);
     const s = await snapshot(page);
     expect(s.matchCount).toBe(kept.length);
     expect(await page.evaluate(() => [...visibleSet().matched].sort())).toEqual(kept.sort());
@@ -584,7 +657,9 @@ test.describe('§10.1 the unknown-start checkbox', () => {
     const soft = pl.rows.filter((r) => specState(r, FLOOR, 2019, true, ax) === 'soft')
       .map((r) => r.id).sort();
     expect(removed).toEqual(soft);
-    expect(after.length).toBe(254);                      // the established dates alone
+    // What is left is the established dates — asserted as the set itself, which
+    // says more than the count it replaces.
+    expect(after).toEqual(keptBySpec(pl.rows, ax, { a: FLOOR, b: 2019, undated: false }).sort());
     expect((await snapshot(page)).years.undated).toBe(false);
     expect(await page.evaluate(() => visibleSet().dimmed.size)).toBe(0);
     await expectCountersReconcile(page, 'established dates only');
@@ -592,45 +667,69 @@ test.describe('§10.1 the unknown-start checkbox', () => {
 
   test('§10.1 unchecking leaves an impossible entity impossible, not merely undimmed', async ({ page }) => {
     await openMap(page);
+    const pl = await payload(page);
+    const ax = axis(pl);
     await setPeriod(page, FLOOR, 1948);
-    const kept = await page.evaluate(() => visibleSet().matched.size);
-    expect(kept).toBe(25);                               // 8 dated + 17 possible
+    const kept = await page.evaluate(() => [...visibleSet().matched].sort());
+    expect(kept).toEqual(keptBySpec(pl.rows, ax, { a: FLOOR, b: 1948 }).sort());
     await page.locator('#tf-undated').uncheck();
-    expect(await page.evaluate(() => visibleSet().matched.size)).toBe(8);
+    const strict = await page.evaluate(() => [...visibleSet().matched].sort());
+    expect(strict).toEqual(keptBySpec(pl.rows, ax, { a: FLOOR, b: 1948, undated: false }).sort());
+    // The switch takes away the possible ones; what it must not do is give back
+    // an entity the host bound already ruled out. Those stay gone either way.
+    const impossible = pl.rows.filter((r) => isVague(r) && r.y0 != null && r.y0 > 1948);
+    expect(impossible.map((r) => r.id)).not.toEqual([]);
+    for (const r of impossible) {
+      expect(kept, `${r.id}, host ${r.y0}, switch on`).not.toContain(r.id);
+      expect(strict, `${r.id}, host ${r.y0}, switch off`).not.toContain(r.id);
+    }
   });
 
-  test('§10.1 the count is the set it governs — 0 under Commons, not 39', async ({ page }) => {
+  test('§10.1 the count is the set it governs — 0 under Commons, not the whole set', async ({ page }) => {
     await openMap(page);
-    expect(await undatedControl(page)).toMatchObject({ n: 39, title: '', checked: true });
+    const { rows } = await payload(page);
+    const all = rows.filter(isVague).length;
+    const under = (kind) => rows.filter((r) => isVague(r) && r.kind === kind).length;
+    expect(await undatedControl(page)).toMatchObject({ n: all, title: '', checked: true });
     await setLayers(page, ['commons']);
     // The figure a reader filtered to Commons must see: the switch beside it
-    // cannot change a single entity here.
-    expect(await undatedControl(page)).toMatchObject({ n: 0, title: '0 of 39 under the current filters' });
+    // cannot change a single entity here. The 0 is derived — it is what the
+    // payload says about Commons, not a transcribed figure — and the caption
+    // still has to spell out the set it is 0 of.
+    expect(under('commons')).toBe(0);
+    expect(await undatedControl(page))
+      .toMatchObject({ n: 0, title: `0 of ${all} under the current filters` });
     await setLayers(page, ['team']);
-    expect(await undatedControl(page)).toMatchObject({ n: 39, title: '' });
+    expect(under('team')).toBe(all);                    // §10.1, "All 37 … are teams"
+    expect(await undatedControl(page)).toMatchObject({ n: all, title: '' });
   });
 
   test('§10.1 the count skips the period axis it controls', async ({ page }) => {
     await openMap(page);
+    const { rows } = await payload(page);
+    const all = rows.filter(isVague).length;
     // A range that hides most of the vague set must not shrink the number
     // beside the switch: it would then describe a set the switch cannot change.
     await setPeriod(page, FLOOR, 1948);
-    expect((await undatedControl(page)).n).toBe(39);
+    expect((await undatedControl(page)).n).toBe(all);
     await setPeriod(page, FLOOR, 1945);
-    expect((await undatedControl(page)).n).toBe(39);
+    expect((await undatedControl(page)).n).toBe(all);
     await page.locator('#tf-undated').uncheck();
-    expect((await undatedControl(page)).n).toBe(39);
+    expect((await undatedControl(page)).n).toBe(all);
   });
 
   test('§10.1 the count follows the domain axis', async ({ page }) => {
     await openMap(page);
     const { rows } = await payload(page);
+    const all = rows.filter(isVague).length;
     await applyPreset(page, 'energy');
     const expected = rows.filter((r) => isVague(r) && r.domains.includes('energy')).length;
-    expect(expected).toBeGreaterThan(0);
-    expect(expected).toBeLessThan(39);
+    // A domain that holds some but not all of the vague set is what makes this
+    // test bite: both ends would be indistinguishable from the count ignoring
+    // the domain axis altogether.
+    expect(expected > 0 && expected < all, `energy holds ${expected} of ${all}`).toBe(true);
     expect(await undatedControl(page)).toMatchObject({
-      n: expected, title: `${expected} of 39 under the current filters`,
+      n: expected, title: `${expected} of ${all} under the current filters`,
     });
   });
 
@@ -649,29 +748,36 @@ test.describe('§10.1 the unknown-start checkbox', () => {
   });
 
   // SPEC-DEVIATION: §10.1 says the switch "removes the whole set for a reader
-  // who wants only established dates", but with the full range selected the 39
-  // come back whatever the checkbox says. A reader can reach this state through
-  // the UI: narrow the range (which reveals the switch), uncheck it, then widen
-  // back to the ends. A strict reading of the prose would keep 421 here.
+  // who wants only established dates", but with the full range selected the
+  // vague set comes back whatever the checkbox says. A reader can reach this
+  // state through the UI: narrow the range (which reveals the switch), uncheck
+  // it, then widen back to the ends. A strict reading of the prose would keep
+  // the corpus minus the vague set here.
   //
   // The cause is the §10.1 table itself, not the `if (!timeOn()) return 'in'`
   // short-circuit this comment used to blame: deleting that line leaves every
-  // test in this file green, because a full range reaches 2026, and the table's
-  // first row makes an unknown start "solid — certainly present" from 2020
-  // onwards regardless of the switch. Repairing the short-circuit would
+  // test in this file green, because a full range reaches AS_OF's year, and the
+  // table's first row makes an unknown start "solid — certainly present" from
+  // 2020 onwards regardless of the switch. Repairing the short-circuit would
   // therefore change nothing; the row is what would have to give.
   test('§10.1 at the full range the switch has no effect (current behaviour)', async ({ page }) => {
     await openMap(page);
-    const ax = axis(await payload(page));
+    const pl = await payload(page);
+    const ax = axis(pl);
     await setPeriod(page, 1990, 2010);
     await page.locator('#tf-undated').uncheck();
     await setPeriod(page, ax.ymin, ax.ymax);
     expect((await snapshot(page)).years).toEqual({ a: ax.ymin, b: ax.ymax, undated: false });
     expect(await page.evaluate(() => timeOn())).toBe(false);
-    expect((await snapshot(page)).matchCount).toBe(460);   // not 460 - 39
+    // The whole corpus, not the corpus minus the vague set — which is the
+    // deviation, stated as the arithmetic a strict reading would have expected.
+    const vague = pl.rows.filter(isVague).length;
+    expect((await snapshot(page)).matchCount).toBe(pl.rows.length);
+    expect((await snapshot(page)).matchCount).not.toBe(pl.rows.length - vague);
     // One year in from the ceiling, the axis is live again and it does bite.
     await setPeriod(page, ax.ymin, 2019);
-    expect((await snapshot(page)).matchCount).toBe(254);
+    expect((await snapshot(page)).matchCount)
+      .toBe(keptBySpec(pl.rows, ax, { a: ax.ymin, b: 2019, undated: false }).length);
   });
 });
 
@@ -685,8 +791,18 @@ test.describe('§10.2 what counts as an unknown start', () => {
     const { rows } = await payload(page);
     const noStart = rows.filter((r) => !r.dated).map((r) => r.id);
     const hosted = rows.filter((r) => r.host).map((r) => r.id);
-    expect(noStart.length).toBe(14);
-    expect(hosted.length).toBe(25);
+    // §10.2's table has a row for each case, so both must be populated for the
+    // union below to mean anything — but how many are in each is a snapshot
+    // (§3.2). What is pinned instead is that the page's own parse agrees, id by
+    // id, on which entity falls in which row of that table.
+    expect([noStart.length > 0, hosted.length > 0],
+      'both §10.2 cases must exist in the payload').toEqual([true, true]);
+    const pageSide = await page.evaluate(() => ({
+      noStart: items.filter((it) => !it.dated).map((it) => it.id).sort(),
+      hosted: items.filter((it) => !!it.d.dateHost).map((it) => it.id).sort(),
+    }));
+    expect(pageSide.noStart).toEqual([...noStart].sort());
+    expect(pageSide.hosted).toEqual([...hosted].sort());
     expect(noStart.filter((id) => hosted.includes(id))).toEqual([]);   // disjoint cases
     const got = await page.evaluate(() => items.filter((it) => it.vague).map((it) => it.id).sort());
     expect(got).toEqual([...noStart, ...hosted].sort());
@@ -785,7 +901,9 @@ test.describe('§10 the histogram', () => {
     const want = expectedBars(histCounts(pl.rows, ax), ax);
     const { rects } = await bars(page);
     expect(rects.map(({ y, h }) => ({ y, h }))).toEqual(want);
-    expect(rects.length).toBe(82);                       // 1945…2026, every year populated
+    // Across the whole corpus every year on the axis has something running, so
+    // there is a bar per year — one claim rather than a transcribed 82.
+    expect(rects.length).toBe(ax.ymax - ax.ymin + 1);
     expect(rects[0].y).toBe(ax.ymin);
   });
 
@@ -822,10 +940,15 @@ test.describe('§10 the histogram', () => {
     const want = expectedBars(histCounts(pl.rows, ax, { layers: ['commons'] }), ax);
     const { rects } = await bars(page);
     expect(rects.map(({ y, h }) => ({ y, h }))).toEqual(want);
-    // Commons begins in 2001, so two thirds of the axis is empty — the reader
-    // sizes the handles against the population actually on the map.
-    expect(rects.length).toBe(26);
-    expect(rects[0].y).toBe(2001);
+    // Commons begins two thirds of the way along the axis, so the early decades
+    // are empty — the reader sizes the handles against the population actually
+    // on the map. Both figures come from the payload: the first Commons year,
+    // and the run of years from there to the ceiling.
+    const first = Math.min(...pl.rows.filter((r) => r.kind === 'commons' && r.dated)
+      .map((r) => r.y0 ?? ax.ymin));
+    expect(rects[0].y).toBe(first);
+    expect(rects.length).toBe(ax.ymax - first + 1);
+    expect(first).toBeGreaterThan(ax.ymin);              // or there is nothing to notice
   });
 
   test('§10 bars are normalised to the filtered peak, not a fixed corpus peak', async ({ page }) => {
@@ -838,11 +961,13 @@ test.describe('§10 the histogram', () => {
     await setLayers(page, ['commons']);
     const small = await bars(page);
     const smallPeak = Math.max(...histCounts(pl.rows, ax, { layers: ['commons'] }).values());
-    // The two peaks are an order of magnitude apart in entities…
-    expect(fullPeak).toBe(417);
-    expect(smallPeak).toBe(26);
-    // …and exactly the same height on screen, which is the point: a 26-entity
-    // layer would otherwise draw a flat line one pixel high.
+    // The two peaks are an order of magnitude apart in entities — which is the
+    // premise of the test, not a figure from the corpus: §10 justifies the
+    // per-filter normalisation by exactly this gap, so it is asserted as the
+    // ratio the prose claims rather than as the day's two counts.
+    expect(fullPeak).toBeGreaterThan(smallPeak * 10);
+    // …and exactly the same height on screen, which is the point: a layer of a
+    // couple of dozen entities would otherwise draw a flat line one pixel high.
     const tallest = (b) => Math.max(...b.rects.map((r) => Number(r.h)));
     expect(tallest(full)).toBe(19);
     expect(tallest(small)).toBe(19);
@@ -864,12 +989,16 @@ test.describe('§10 the histogram', () => {
     const changed = after.filter((r) => !before.some((b) => b.y === r.y && b.h === r.h));
     const wantChanged = wantAfter.filter((r) => !before.some((b) => b.y === r.y && b.h === r.h));
     expect(changed).toEqual(wantChanged);
-    // The 14 that hold still are the sparse early years, both readings already
-    // pinned to the 1.1 minimum height that keeps a single entity visible.
-    expect(changed.length).toBe(68);
+    // The bars that hold still are the sparse early years, both readings
+    // already pinned to the 1.1 minimum height that keeps a single entity
+    // visible — and nothing else holds still, which is the claim worth making:
+    // a bar standing still for any other reason means a height that did not
+    // follow the layer. (The old "13" said less, and moved with the corpus.)
     const held = after.filter((r) => before.some((b) => b.y === r.y && b.h === r.h));
-    expect(held.length).toBe(14);
+    expect(held).toEqual(wantAfter.filter((r) => r.h === '1.10'
+      && before.some((b) => b.y === r.y && b.h === '1.10')));
     expect(held.every((r) => r.h === '1.10')).toBe(true);
+    expect(held.length).toBe(after.length - changed.length);
   });
 
   test('§10 the histogram skips the period axis it is the control for', async ({ page }) => {
@@ -911,7 +1040,13 @@ test.describe('§10 the histogram', () => {
       && Math.min(ax.ymax, r.y1 ?? ax.ymax) >= year).length;
     const withVague = at(1949, pl.rows);
     const withoutVague = at(1949, pl.rows.filter((r) => !isVague(r)));
-    expect([withVague, withoutVague]).toEqual([12, 8]);
+    // The difference between the two readings is exactly the vague entities
+    // running in 1949 — TNO's HMT department, whose 1949 is its institute's,
+    // among them. That decomposition is the behaviour being pinned; the two
+    // totals themselves are a snapshot (§3.2).
+    const vagueAt = pl.rows.filter((r) => isVague(r) && at(1949, [r]) === 1);
+    expect(vagueAt.map((r) => r.id)).toContain('tno-hmt');
+    expect(withVague).toBe(withoutVague + vagueAt.length);
     const counts = histCounts(pl.rows, ax);
     expect(counts.get(1949)).toBe(withVague);
     const bar = (await bars(page)).rects.find((r) => r.y === 1949);
@@ -1068,8 +1203,9 @@ test.describe('§10.3 interaction', () => {
     await openMap(page);
     const ax = axis(await payload(page));
     const span = ax.ymax - ax.ymin;
-    // 81 years over a 172 px track: a pixel is a fifth of a year, so half a
-    // year is about as tight as a measured box can honestly be read.
+    // Eight decades over a track a couple of hundred pixels wide: a pixel is a
+    // fraction of a year, so half a year is about as tight as a measured box
+    // can honestly be read.
     const near = (frac, year, what) => {
       // A band collapsed to zero width has no box at all, which is a failure
       // of its own wherever a real span is selected.
@@ -1092,8 +1228,8 @@ test.describe('§10.3 interaction', () => {
     near(g.selL, 1990, 'band start');
     near(g.selR, 2001, 'band end');
     expect(await periodLabel(page)).toBe('1990 – 2001');   // what it says it shows
-    // Two handles, two places: eleven of eighty-one years is an eighth of the
-    // track, so they cannot both be sitting on the same pixel.
+    // Two handles, two places: eleven years is better than a tenth of the axis,
+    // so they cannot both be sitting on the same pixel.
     expect(g.b - g.a).toBeGreaterThan(0.1);
 
     // A range collapsed to one year puts them on top of each other, which is
@@ -1111,16 +1247,17 @@ test.describe('§10.3 interaction', () => {
     const ax = axis(pl);
     await setPeriod(page, 1990, 2001);
     expect((await snapshot(page)).matchCount)
-      .toBe(keptBySpec(pl.rows, ax, { a: 1990, b: 2001 }).length);       // 136
+      .toBe(keptBySpec(pl.rows, ax, { a: 1990, b: 2001 }).length);
     await page.locator('#tf-undated').uncheck();
     expect((await snapshot(page)).matchCount)
-      .toBe(keptBySpec(pl.rows, ax, { a: 1990, b: 2001, undated: false }).length);   // 108
+      .toBe(keptBySpec(pl.rows, ax, { a: 1990, b: 2001, undated: false }).length);
     await page.click('#tf-reset');
     const s = await snapshot(page);
     expect(s.years).toEqual({ a: ax.ymin, b: ax.ymax, undated: true });
-    expect(s.matchCount).toBe(460);
+    expect(s.matchCount).toBe(pl.rows.length);
     expect(await periodLabel(page)).toBe(`${ax.ymin} – ${ax.ymax}`);
-    expect(await undatedControl(page)).toMatchObject({ rowHidden: true, checked: true, n: 39 });
+    expect(await undatedControl(page))
+      .toMatchObject({ rowHidden: true, checked: true, n: pl.rows.filter(isVague).length });
     expect(await page.getAttribute('#tf-reset', 'title')).toBe('All years');
     expect(await page.getAttribute('#tf-reset', 'aria-label')).toBe('All years');
     await expectCountersReconcile(page, 'after reset');
@@ -1154,4 +1291,43 @@ test.describe('§10.3 interaction', () => {
     expect(await page.textContent('#toast'))
       .toBe(`Données à jour au ${spelled} — le curseur de période s’arrête à cette année.`);
   });
+
+  // §10's closing sentence has a negative half, and it is the half a
+  // well-meaning addition breaks: the ⓘ is the map's *only* freshness
+  // indicator. A second "data as of…" line — in the footer, on the welcome
+  // screen — would almost certainly be built from something other than AS_OF
+  // (a build date, a git timestamp), and the page would then carry two
+  // freshness claims in two corners, drifting apart: the §9.1 failure mode one
+  // section earlier, and the end of AS_OF as the page's single data-derived
+  // notion of "now" — the reasoning that justifies YMAX. So this asserts the
+  // absence, in both languages, and in the states where such a line would
+  // plausibly live, with the toast up so its legitimate copy of the sentence
+  // is accounted for rather than silently excluded from the walk.
+  for (const [lang, locale] of [['en', 'en-GB'], ['fr', 'fr-FR']]) {
+    test(`§10 the ⓘ is the only place the page states its freshness (${lang})`, async ({ page }) => {
+      await openMap(page, { lang });
+      const { asOf } = await payload(page);
+      // Both spellings a freshness line could plausibly take: the raw ISO date
+      // sitting in the payload, and the long form the ⓘ itself spells out.
+      const spelled = await page.evaluate(([d, loc]) => new Intl.DateTimeFormat(loc,
+        { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(d + 'T00:00:00')), [asOf, locale]);
+      const needles = [asOf, spelled];
+      expect(spelled).not.toBe(asOf);
+
+      // Opening state: the ⓘ's own title and aria-label, and nowhere else.
+      expect(await statedOn(page, needles)).toEqual(['#tf-asof']);
+
+      // Clicking it adds exactly one surface — the toast §10 asks it to raise.
+      await page.click('#tf-asof');
+      await expect(page.locator('#toast')).toHaveClass(/show/);
+      expect(await statedOn(page, needles)).toEqual(['#tf-asof', '#toast']);
+
+      // The welcome screen is the other place a "data as of…" line would go,
+      // and renderWelcome() writes its rows only once it has been opened, so
+      // the walk above cannot see them. Open it and walk again.
+      await page.click('#help-btn');
+      await expect(page.locator('#welcome')).toHaveClass(/open/);
+      expect(await statedOn(page, needles)).toEqual(['#tf-asof', '#toast']);
+    });
+  }
 });
