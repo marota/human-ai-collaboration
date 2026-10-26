@@ -259,6 +259,19 @@ const focus = (page, id) => page.evaluate((x) => openEntity(x, { fly: false }), 
 // property, and every figure about it below is derived from the payload.
 const SBB = 'sbb';
 
+// Entities of each layer that carry the given domain and have no coordinates —
+// read straight out of the payload, so the expected split is derived from the
+// data rather than from the tally the page just computed.
+const placelessByDomain = (page, dom) => page.evaluate((d) => {
+  const n = { project: 0, team: 0, commons: 0, framework: 0 };
+  const LAYER = { PROJECTS: 'project', TEAMS: 'team', COMMONS: 'commons', FRAMEWORKS: 'framework' };
+  Object.entries(LAYER).forEach(([key, kind]) => window.HAI_DATA[key].forEach((e) => {
+    const doms = (e.domains && e.domains.length) ? e.domains : [e.domain];
+    if (doms.includes(d) && (e.lat == null || e.lon == null)) n[kind]++;
+  }));
+  return n;
+}, dom);
+
 test.describe('§6 the predicate', () => {
   test('§6 with every control at its default every entity passes — no domain code is unreachable', async ({ page }) => {
     // If an entity carried only a domain that has no checkbox, it could never be shown
@@ -543,15 +556,24 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
 
   test('§6.1 / inv13 a narrowed layer figure keeps the corpus total one hover away', async ({ page }) => {
     await open(page);
-    // At the corpus there is nothing to reconcile, so no tooltip at all.
-    expect(await layerTitles(page)).toEqual({ project: '', team: '', commons: '', framework: '' });
+    // At the corpus there is nothing to reconcile, so no tooltip at all —
+    // except on the layers that hold placeless entities, whose title carries the
+    // split at every filter state because it describes the data, not a narrowing.
+    const bare = await layerRows(page);
+    for (const r of bare) {
+      if (r.offMap) expect(r.title).toContain('with no coordinates');
+      else expect(r.title).toBe('');
+    }
     await setDomains(page, ['energy']);
     // Rebuilt from the derived narrowed and corpus figures, and still compared as the exact
     // string a reader hovers: "N of TOTAL under the current filters", one row at a time.
     const corpus = await corpusTotals(page);
     const want = await page.evaluate(() => window.__oracle.counts({ domains: ['energy'], skip: 'layer' }));
-    expect(await layerTitles(page)).toEqual(Object.fromEntries(Object.keys(corpus)
-      .map((k) => [k, `${want[k]} of ${corpus[k]} under the current filters`])));
+    const gone = await placelessByDomain(page, 'energy');
+    expect(await layerTitles(page)).toEqual(Object.fromEntries(Object.keys(corpus).map((k) => [k,
+      gone[k]
+        ? `${want[k] - gone[k]} on the map · ${gone[k]} with no coordinates · ${want[k]} ${want[k] === 1 ? 'matches' : 'match'} the filters`
+        : `${want[k]} of ${corpus[k]} under the current filters`])));
     // and all four rows genuinely have something to reconcile, or the strings are noise
     for (const k of Object.keys(corpus)) expect(want[k], k).toBeLessThan(corpus[k]);
   });

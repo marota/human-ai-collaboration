@@ -221,6 +221,19 @@ const singleMatchPair = (page) => page.evaluate(() => {
 
 // ------------------------------------------------- invariant 8: key parity
 
+// Entities of each layer that carry the given domain and have no coordinates —
+// read straight out of the payload, so the expected split is derived from the
+// data rather than from the tally the page just computed.
+const placelessByDomain = (page, dom) => page.evaluate((d) => {
+  const n = { project: 0, team: 0, commons: 0, framework: 0 };
+  const LAYER = { PROJECTS: 'project', TEAMS: 'team', COMMONS: 'commons', FRAMEWORKS: 'framework' };
+  Object.entries(LAYER).forEach(([key, kind]) => window.HAI_DATA[key].forEach((e) => {
+    const doms = (e.domains && e.domains.length) ? e.domains : [e.domain];
+    if (doms.includes(d) && (e.lat == null || e.lon == null)) n[kind]++;
+  }));
+  return n;
+}, dom);
+
 test.describe('§16 invariant 8 — both languages, every key', () => {
   test('§16.8 I18N.fr and I18N.en declare exactly the same keys', async ({ page }) => {
     await openMap(page);
@@ -490,11 +503,21 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // The sentence only exists while it has narrowed, hence the guard.
     expect(av.byLayer.filter((n, i) => n > 0 && n < f.layerTotals[i])).toHaveLength(f.layerTotals.length);
     const titles = async () => (await layerRows(page)).map((r) => r.title);
-    expect(await titles())
-      .toEqual(av.byLayer.map((n, i) => `${n} of ${f.layerTotals[i]} under the current filters`));
+    // A layer holding placeless entities says so instead, in both languages —
+    // the split is the sentence that has to be translated there.
+    const gone = await placelessByDomain(page, 'aviation');
+    const want = (lang) => av.byLayer.map((n, i) => {
+      const off = gone[f.kinds[i]];
+      if (!off) return lang === 'en'
+        ? `${n} of ${f.layerTotals[i]} under the current filters`
+        : `${n} sur ${f.layerTotals[i]} avec les filtres actuels`;
+      return lang === 'en'
+        ? `${n - off} on the map · ${off} with no coordinates · ${n} ${n === 1 ? 'matches' : 'match'} the filters`
+        : `${n - off} sur la carte · ${off} sans coordonnées · ${n} ${n > 1 ? 'correspondent' : 'correspond'} aux filtres`;
+    });
+    expect(await titles()).toEqual(want('en'));
     await switchLang(page, 'fr');
-    expect(await titles())
-      .toEqual(av.byLayer.map((n, i) => `${n} sur ${f.layerTotals[i]} avec les filtres actuels`));
+    expect(await titles()).toEqual(want('fr'));
     // §14: the same string reaches a screen reader as the accessible name, so
     // it has to be translated there too and not only in the tooltip.
     const team = f.kinds.indexOf('team');

@@ -1164,7 +1164,7 @@ test.describe('invariant 9 — every string interpolated into HTML goes through 
     // card builder, or that single constant.
     const html = pageSource(testInfo);
     const raw = [...html.matchAll(/\.innerHTML\s*=\s*([^;\n]+)/g)].map((m) => m[1].trim());
-    expect(raw.length).toBe(20);
+    expect(raw.length).toBe(21);
     const plain = raw.filter((r) => !r.startsWith('`') && !r.includes('.map('));
     expect(plain).toEqual(['cardHtml(it)', "t('footer')"]);
   });
