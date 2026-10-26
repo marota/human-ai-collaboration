@@ -168,7 +168,10 @@ TAXO = {
     "jurisdiction": {
         "EU": ("European Union", "Union européenne"),
         "international": ("International", "International"),
-        "global": ("Global", "Mondial"),
+        # No "global": it was never in the vocabulary the framework schema
+        # documents (a country code, EU, or international), and the data
+        # repository now enforces that from its controlled vocabulary, so no
+        # entity can carry it. A label here would be unreachable.
     },
     "confidence": {
         "high": ("high", "élevée"),

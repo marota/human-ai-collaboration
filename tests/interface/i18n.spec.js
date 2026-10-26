@@ -1012,9 +1012,12 @@ test.describe('§12 the content switches too', () => {
     // from the payload, but the subject *is* the payload's own label table:
     // counting it a second way would only restate it, and without a floor the
     // `missing` assertion below would pass vacuously on an empty table. So the
-    // census stays a snapshot, and a regeneration that grows the vocabulary is
-    // expected to come past this line.
-    expect(audit.entries).toBe(67);
+    // census stays a snapshot, and a regeneration that grows *or shrinks* the
+    // vocabulary is expected to come past this line. It shrank by one here:
+    // `jurisdiction.global` was never in the vocabulary the framework schema
+    // documents, the data repository now rejects it, and the generator's label
+    // for it went with the eight entities that used to carry it.
+    expect(audit.entries).toBe(66);
     expect(audit.missing).toEqual([]);
   });
 
