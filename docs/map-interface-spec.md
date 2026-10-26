@@ -103,7 +103,7 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
-Counts are a snapshot (23 October 2026) and move with every upstream
+Counts are a snapshot (26 October 2026) and move with every upstream
 regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
