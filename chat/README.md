@@ -138,6 +138,28 @@ curl -s -o /dev/null -w '%{http_code}\n' https://mac.tail9919aa.ts.net:8443/asse
 To stop publishing: `tailscale funnel --https=8443 off`. The published map then
 says the chat is unavailable, and keeps working.
 
+### Keeping it running
+
+```bash
+chat/service.sh install     # start it at login, and again whenever it stops
+chat/service.sh update      # after a merge: move it to the latest main, restart
+chat/service.sh status      # what runs, from which commit, whether it answers
+chat/service.sh uninstall
+```
+
+`install` registers a launchd agent (`com.marota.hai-chat`) that runs the
+server from a worktree of its own, `~/Dev/human-ai-collaboration-live`,
+detached at `origin/main` — never from the checkout you work in. The published
+map draws main's `hai-data.js`, and the chat must answer from that same file,
+not from whatever branch or half-regenerated payload the working checkout holds.
+So a merge reaches the published chat when `update` runs, and not before.
+
+launchd restarts the server within seconds if it stops, and starts it at login;
+with macOS automatic login on, a reboot brings the published chat back
+unattended. The other two pieces come back on their own: Ollama.app opens at
+login, and Funnel's configuration persists in `tailscaled`. The log is
+`~/Library/Logs/hai-chat.log`.
+
 **What a visitor can and cannot do** is §18.6 of the spec, and
 `tests/chat/test_public.py` holds it: no file from the repository, ceilings per
 address and per day, a cap on concurrent generations, references fetched only
