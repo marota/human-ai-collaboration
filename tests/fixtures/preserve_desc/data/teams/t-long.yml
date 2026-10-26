@@ -1,0 +1,15 @@
+id: t-long
+name: Nordic Control Room Lab
+location: {city: Oslo, country: 'NO', lat: 59.91, lon: 10.75}
+description: |
+  The control room is run as a joint human-machine system: the optimiser
+  proposes a redispatch, the operator accepts, amends or rejects it, and
+  the reason for every override is logged for the next training round.
+
+  The team's own framing is that a recommendation nobody can refuse is not
+  a recommendation but an instruction, so every screen carries an explicit
+  disagree path and the disagreements are studied rather than suppressed.
+
+
+  Funded jointly by two national programmes; the 2026 phase adds two more
+  control rooms and a shared benchmark of operator trust calibration.

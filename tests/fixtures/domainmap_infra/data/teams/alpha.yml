@@ -1,0 +1,21 @@
+id: alpha
+name: Alpha Grid Lab
+type: research_lab
+homepage: https://example.org/alpha
+location:
+  city: Paris
+  country: FR
+  lat: 48.8566
+  lon: 2.3522
+# power_grid collapses onto the same sector code as energy: the pair proves the
+# de-duplication, not two separate slices.
+domains:
+  - energy
+  - power_grid
+# digital_twins must contribute nothing. human_factors must contribute hf.
+focus_areas:
+  - digital_twins
+  - human_factors
+status: active
+tier: core
+description: A lab working on operator decision support for the transmission grid.

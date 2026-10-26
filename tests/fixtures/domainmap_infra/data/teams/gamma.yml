@@ -1,0 +1,15 @@
+id: gamma
+name: Gamma Clinical AI Unit
+type: research_lab
+location:
+  city: Lyon
+  country: FR
+  lat: 45.7640
+  lon: 4.8357
+# healthcare (a domain) and healthcare_ops (a focus area) both map to `health`.
+# The entry must end up with one health slice, not two.
+domains:
+  - healthcare
+focus_areas:
+  - healthcare_ops
+# Deliberately undescribed: the merged infrastructure entry supplies the text.

@@ -1,0 +1,4 @@
+id: delta
+name: Delta Lab
+framework_ids: [f-shared]
+commons_ids: [c-shared]

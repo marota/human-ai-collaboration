@@ -1,0 +1,7 @@
+t-long: |
+  Le centre de conduite est exploité comme un système humain–machine
+  conjoint : l'optimiseur propose un redispatch, l'opérateur l'accepte,
+  l'amende ou le refuse, et chaque refus est journalisé avec sa raison.
+
+  Deuxième paragraphe, avec accents et tirets cadratins — de quoi vérifier
+  que rien n'est échappé ni tronqué à la sortie.

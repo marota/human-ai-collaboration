@@ -1,0 +1,18 @@
+id: beta
+name: Beta Tower Simulator
+kind: testbed
+operator:
+  org: Beta Operations BV
+  url: https://example.org/beta-ops
+access_model: gated
+capacity_indicator: 3 tower positions, 12 pseudo-pilots
+related_initiative_ids:
+  - delta
+# A different city and different coordinates from the team of the same id: the
+# team's own geometry must win, because there is only ever one pin.
+location:
+  city: Schiphol
+  country: NL
+  lat: 52.3105
+  lon: 4.7683
+description: A full-scope tower simulator used for controller-in-the-loop trials.

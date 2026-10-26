@@ -1,0 +1,3 @@
+id: t-zero
+name: Null Island Lab
+location: {city: Nowhere, country: XX, lat: 0, lon: 0}

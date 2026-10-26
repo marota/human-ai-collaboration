@@ -1,0 +1,16 @@
+id: delta
+name: Delta Nuclear Operations
+type: industrial_rd
+location:
+  city: Lille
+  country: FR
+  lat: 50.6292
+  lon: 3.0573
+# critical_infrastructure maps to the catch-all `multi`, which comes first in
+# the pie, yet the marker/edge colour must pick the specific sector instead.
+domains:
+  - critical_infrastructure
+  - nuclear
+focus_areas:
+  - oversight
+description: Control-room decision support for a nuclear fleet.

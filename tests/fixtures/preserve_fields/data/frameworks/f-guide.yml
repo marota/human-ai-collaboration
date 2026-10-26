@@ -1,0 +1,9 @@
+id: f-guide
+name: Teaming Guideline
+jurisdiction: EU
+issuing_body: {org: CEN, url: https://cen.example}
+legal_status: in_force
+adoption_date: 2023-11-02
+applies_to: [aviation, rail]
+references: ['ISO 9241-210']
+provenance: {last_updated: 2026-02-02}

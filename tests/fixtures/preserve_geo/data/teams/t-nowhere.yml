@@ -1,0 +1,5 @@
+id: t-nowhere
+name: International Standards Body
+type: network
+location: {city: Geneva, country: CH}
+description: No coordinates on record.

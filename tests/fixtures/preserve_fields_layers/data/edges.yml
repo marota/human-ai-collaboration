@@ -1,0 +1,4 @@
+- {project: p-full, team: a-lab}
+- {project: p-full, team: ghost}
+- {project: ghost, team: a-lab}
+- not-a-mapping

@@ -1,0 +1,9 @@
+id: b-lab
+name: B Lab
+type: industrial_rd
+location: {city: Berlin, country: DE, lat: 52.52, lon: 13.4}
+framework_ids: [f-guide]
+commons_ids: [c-bench]
+dateConf: authored-by-hand
+dateHost: true
+provenance: {added_by: curator, last_updated: 2026-02-01}

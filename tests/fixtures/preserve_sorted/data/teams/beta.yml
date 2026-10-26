@@ -1,0 +1,4 @@
+id: beta
+name: Beta Lab
+framework_ids: [f-shared]
+commons_ids: [c-shared]

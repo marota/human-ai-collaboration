@@ -1,0 +1,20 @@
+id: zeta
+name: Zeta AI Factory
+kind: compute_cluster
+operator:
+  org: Zeta Supercomputing Centre
+  url: https://example.org/zeta
+access_model: gated
+capacity_indicator: 400 PFLOP/s
+related_initiative_ids:
+  - delta
+location:
+  city: Espoo
+  country: FI
+  lat: 60.2055
+  lon: 24.6559
+# No team carries this id, so the entry becomes a team-layer marker of its own.
+# Its digital_twins focus area must still contribute no domain code.
+focus_areas:
+  - digital_twins
+description: A national accelerator cluster reserved for public-interest AI work.

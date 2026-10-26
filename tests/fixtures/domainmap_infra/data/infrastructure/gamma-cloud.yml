@@ -1,0 +1,7 @@
+id: gamma
+name: Gamma Clinical Compute Platform
+kind: cloud_platform
+operator:
+  org: Gamma Hospital Trust
+access_model: open
+description: A federated platform hosting de-identified clinical imaging cohorts.

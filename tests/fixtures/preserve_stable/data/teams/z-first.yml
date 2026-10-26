@@ -1,0 +1,7 @@
+id: a-one
+name: Alpha Lab
+type: research_lab
+location: {city: Turku, country: FI, lat: 60.45, lon: 22.27}
+domains: [energy]
+framework_ids: [f-shared]
+provenance: {added_on: 2026-01-10, last_updated: 2026-02-10}

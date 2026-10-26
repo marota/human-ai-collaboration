@@ -1,0 +1,6 @@
+id: p-future
+name: Long Grant
+kind: horizon_europe
+location: {city: Madrid, country: ES, lat: 40.42, lon: -3.7}
+timeline: {start: 2024, end: 2032}
+provenance: {added_on: 2026-01-03}

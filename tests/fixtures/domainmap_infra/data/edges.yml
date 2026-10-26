@@ -1,0 +1,4 @@
+# No project/team links: this fixture exists to exercise the domain tables and
+# the infrastructure merge, not the edge layer. The file must exist because the
+# generator reads it unconditionally.
+[]

@@ -1,0 +1,11 @@
+id: c-bench
+name: Grid Benchmark
+kind: benchmark
+location: {city: Paris, country: FR, lat: 48.86, lon: 2.34}
+license: CC-BY-4.0
+maintainer: {org: Grid Op, url: https://gridop.example}
+repository_url: https://github.example/bench
+size_indicator: 2 GB
+related_initiative_ids: [a-lab, f-guide, ghost]
+related_project_ids: [p-full]
+provenance: {added_on: 2026-03-03, last_updated: 2026-03-04}

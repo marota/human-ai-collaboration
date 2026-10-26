@@ -1,0 +1,6 @@
+id: z-two
+name: Zeta Lab
+type: industrial_rd
+location: {city: Porto, country: PT, lat: 41.15, lon: -8.61}
+framework_ids: [f-shared]
+provenance: {added_on: 2026-01-11}
