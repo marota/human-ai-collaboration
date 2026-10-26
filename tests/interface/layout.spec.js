@@ -321,7 +321,8 @@ test.describe('§5 the grid', () => {
     // width bound, and this is where a reader of the invariant would look.
     expect(shape.clusters).toEqual(['ctl ctl-tr', 'ctl ctl-br', 'ctl ctl-bl']);
     expect(shape.tr).toEqual(['ctl-time', 'ctl-group']);
-    expect(shape.group).toEqual(['links-pill', 'mymap-pill', 'feed-pill', 'lang-switch', 'help-btn']);
+    expect(shape.group).toEqual(['links-pill', 'mymap-pill', 'feed-pill', 'chat-pill', 'lang-switch',
+      'help-btn']);
     // The slider is in the top-right cluster, not in a bottom bar: that move is
     // the reason §5 gives for the split.
     expect(shape.sliderCluster).toBe('ctl ctl-tr');
@@ -1582,62 +1583,88 @@ test.describe('§5 the guided tour', () => {
 // --------------------------------------------------------------- known deviations ---
 
 test.describe('§5 clusters versus the top-left buttons', () => {
-  test('§5 the wrapped top-right cluster swallows clicks on the collapse button', async ({ page }) => {
-    // SPEC-DEVIATION: bounding `.ctl-tr` by max-width (§5) makes its box as wide
-    // as that bound whenever its content wraps — and the box is a plain div, so
-    // its empty left half still takes the hit. At 1280px with the feed open the
-    // cluster spans the whole stage from x=14, which is exactly where #sb-hide
-    // sits: a real click on the collapse chevron lands on the cluster and the
-    // sidebar never collapses. §5 puts "all controls the reader acts on" in the
-    // cluster, but the collapse chevron and the Filters FAB are not in it.
-    // Asserted as-is; the fix would be `pointer-events:none` on `.ctl` with it
-    // re-enabled on the children.
-    await openAt(page, { width: 1280 });
-    const covered = await page.evaluate(() => {
-      const b = document.getElementById('sb-hide').getBoundingClientRect();
-      const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-      return { id: top && top.id, inCluster: !!(top && top.closest('#ctl-cluster')) };
-    });
-    expect(covered.inCluster).toBe(true);
-    expect(covered.id).not.toBe('sb-hide');
+  test('§5 a wrapped cluster lets clicks through to the collapse button', async ({ page }) => {
+    // Bounding `.ctl-tr` by max-width (§5) makes its box as wide as that bound
+    // whenever its content wraps. At 1280px with the feed open it spans the
+    // stage from x=14, exactly where #sb-hide sits — and at 1440px too since
+    // the Chat pill joined the group. The box used to take the hit, so a real
+    // click on the chevron never collapsed the sidebar. The cluster boxes now
+    // take no pointer events of their own, only the controls inside them do.
+    for (const width of [1280, 1440]) {
+      await openAt(page, { width });
+      expect((await rects(page)).tr.height, `${width}px: the cluster wraps`).toBeGreaterThan(50);
+      const top = await page.evaluate(() => {
+        const b = document.getElementById('sb-hide').getBoundingClientRect();
+        return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2).id;
+      });
+      expect(top, `${width}px: the chevron is what is under the pointer`).toBe('sb-hide');
+      const box = await page.locator('#sb-hide').boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await settleCounts(page);
+      expect(await page.evaluate(() => document.body.classList.contains('sb-hidden')),
+        `${width}px: a real click collapses the sidebar`).toBe(true);
+      expect((await rects(page)).stage.left).toBe(0);
+    }
+  });
 
-    const box = await page.locator('#sb-hide').boundingBox();
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    expect(await page.evaluate(() => document.body.classList.contains('sb-hidden')),
-      'the click never reaches the chevron').toBe(false);
-    // The handler itself is fine — only the geometry is in the way.
+  test('§5 the controls inside a cluster still take every click', async ({ page }) => {
+    // The other half of letting the boxes go: what is in them must not go with
+    // them. One control of each kind, clicked for real at its centre.
+    await openAt(page, { width: 1280 });
+    const at = async (sel) => {
+      const b = await page.locator(sel).boundingBox();
+      await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    };
+    await at('#links-pill');
+    expect(await page.locator('#links-pill').getAttribute('aria-pressed')).toBe('true');
+    await at('#links-pill');
+    expect(await page.locator('#links-pill').getAttribute('aria-pressed')).toBe('false');
+    await at('.lang-switch button[data-lang="fr"]');
+    expect(await page.evaluate(() => LANG)).toBe('fr');
+    await at('#z-in');
+    await at('#help-btn');
+    expect(await page.evaluate(() => document.body.classList.contains('sb-hidden'))).toBe(false);
+  });
+
+  test('§5 SPEC-DEVIATION at 1024px the period strip itself sits over the collapse button', async ({ page }) => {
+    // Not the box this time but a control: at 1024px the cluster wraps into
+    // three rows and the period strip's own heading lands on the chevron.
+    // Letting the box through cannot help, since the strip is a real control.
+    // Unchanged by the Chat pill; asserted as-is so a layout fix shows here.
+    await openAt(page, { width: 1024 });
+    const top = await page.evaluate(() => {
+      const b = document.getElementById('sb-hide').getBoundingClientRect();
+      const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return { id: t.id, inStrip: !!t.closest('#ctl-time') };
+    });
+    expect(top.inStrip).toBe(true);
     await pressById(page, 'sb-hide');
     await settleCounts(page);
     expect(await page.evaluate(() => document.body.classList.contains('sb-hidden'))).toBe(true);
   });
 
-  test('§5 the collapse button is clickable at the widths where the cluster does not wrap', async ({ page }) => {
-    // The other side of the deviation above, and the reason it is easy to miss:
-    // at 1440px the cluster's content fits on one row, so it shrinks to that
-    // row's width and leaves the chevron alone. The bug follows the wrap, not
-    // the window.
-    await openAt(page, { width: 1440 });
-    const r = await rects(page);
-    expect(r.tr.height, 'one row').toBeLessThan(50);
-    const free = await page.evaluate(() => {
-      const b = document.getElementById('sb-hide').getBoundingClientRect();
-      return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) ===
-        document.getElementById('sb-hide');
-    });
-    expect(free, 'the unwrapped cluster leaves the chevron reachable').toBe(true);
-    await page.click('#sb-hide');
-    await settleCounts(page);
-    expect(await page.evaluate(() => document.body.classList.contains('sb-hidden'))).toBe(true);
-    expect((await rects(page)).stage.left).toBe(0);
+  test('§5 below 840px the empty part of the cluster lets taps through to the Filters FAB', async ({ page }) => {
+    // The mobile rule gives `.ctl-tr` both `left:10px` and `right:10px` — a
+    // real bound, as §5 says — and that edge-to-edge box covers #sb-open at
+    // (14,14), the only way to reach the sidebar drawer below 840px. Its empty
+    // part used to take the tap; it no longer takes any.
+    for (const width of [840, 600]) {
+      await openAt(page, { width });
+      await expect(page.locator('#sb-open')).toBeVisible();
+      const box = await page.locator('#sb-open').boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await page.waitForFunction(() =>
+        document.getElementById('sidebar').getBoundingClientRect().left === 0);
+      expect(await page.evaluate(() => document.body.classList.contains('panel-open')),
+        `${width}px: a real tap opens the drawer`).toBe(true);
+    }
   });
 
-  test('§5 below 840px the cluster\'s button row swallows taps on the Filters FAB', async ({ page }) => {
-    // SPEC-DEVIATION: the mobile rule gives `.ctl-tr` both `left:10px` and
-    // `right:10px` — a real bound, as §5 says — but that edge-to-edge box also
-    // covers #sb-open at (14,14), the only way to reach the sidebar drawer
-    // §5 promises below 840px. A tap on "Filtres" lands on the cluster (on the
-    // "Liens" pill at 375px) and nothing opens. Asserted as-is.
-    for (const width of [840, 375]) {
+  test('§5 SPEC-DEVIATION at 375px the Links pill itself sits over the Filters FAB', async ({ page }) => {
+    // Not the box but a control: at phone width the button row reaches the
+    // left edge, and the "Liens" pill lands on the FAB. A tap opens the links
+    // instead of the drawer. Asserted as-is so a layout fix shows here.
+    for (const width of [375]) {
       await openAt(page, { width });
       await expect(page.locator('#sb-open')).toBeVisible();
       const covered = await page.evaluate(() => {

@@ -42,6 +42,14 @@
       offlineHow: 'Lancez-le depuis le dépôt, puis rechargez :',
       offlineModel: 'Ollama ne répond pas à l’adresse configurée.',
       offlineModelPull: 'Modèle absent — tirez-le avec :',
+      // What a visitor of the published map reads instead: no command to run,
+      // because there is nothing on their machine to run it on.
+      offlinePublic: 'Le chat n’est pas disponible pour le moment : son serveur ne répond pas. La carte, elle, fonctionne normalement.',
+      modelPublic: 'Le modèle du chat n’est pas disponible pour le moment.',
+      ghPublic: 'Les propositions ne peuvent pas être envoyées pour le moment.',
+      tooMany: 'Beaucoup de demandes depuis cette adresse — réessayez un peu plus tard.',
+      busyServer: 'Le chat répond à d’autres visiteurs — réessayez dans une minute.',
+      tooLong: 'Ce message est trop long pour le chat.',
       ready: 'prêt', model: 'modèle',
       // proposal
       propAdd: 'Proposer un ajout', propFix: 'Proposer une correction',
@@ -92,6 +100,12 @@
       offlineHow: 'Start it from the repository, then reload:',
       offlineModel: 'Ollama is not answering at the configured address.',
       offlineModelPull: 'Model not pulled — get it with:',
+      offlinePublic: 'The chat is not available right now: its server is not answering. The map itself works as usual.',
+      modelPublic: 'The chat’s model is not available right now.',
+      ghPublic: 'Proposals cannot be sent right now.',
+      tooMany: 'Many requests from this address — try again a little later.',
+      busyServer: 'The chat is answering other visitors — try again in a minute.',
+      tooLong: 'That message is too long for the chat.',
       ready: 'ready', model: 'model',
       propAdd: 'Propose an addition', propFix: 'Propose a correction',
       stepRef: '1 · The reference', stepDraft: '2 · The card', stepIssue: '3 · The issue',
@@ -132,12 +146,26 @@
 
   // ---------- where the server is ----------
   const PARAMS = new URLSearchParams(location.search);
-  // Same origin when the chat server also serves the page, which is the
-  // documented way to run it. The override is for a Jekyll dev server on
-  // another port — still this machine, and the server only accepts loopback.
+  // The published map reaches the curator's machine through the tunnel in
+  // front of chat/server.py (§18.6). A page on this machine is served by the
+  // server itself, so its API is same-origin; that is the documented way to
+  // run it locally.
+  const PUBLIC_SERVER = 'https://mac.tail9919aa.ts.net:8443';
+  const LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/;
+  const PUBLIC = !(LOOPBACK.test(location.hostname) || location.protocol === 'file:');
   const BASES = (() => {
+    if (PUBLIC) return [PUBLIC_SERVER];
+    // `?chatapi=` points a local page at a server on another port — a Jekyll
+    // dev server, say. Only a loopback address is taken, and only here: on the
+    // published map a crafted link would otherwise send a visitor's
+    // conversation, and their proposal, wherever it named.
     const given = PARAMS.get('chatapi');
-    if (given) return [given.replace(/\/+$/, '')];
+    if (given) {
+      try {
+        const u = new URL(given);
+        if (LOOPBACK.test(u.hostname)) return [u.origin];
+      } catch (e) { /* not a URL — ignored */ }
+    }
     const here = location.origin && location.origin !== 'null' ? [''] : [];
     return here.concat(['http://127.0.0.1:8765']);
   })();
@@ -315,17 +343,21 @@
   document.head.appendChild(style);
 
   // ---------- markup ----------
-  const pill = document.createElement('button');
+  // The map puts the pill in its own markup, so it is there for every reader
+  // before this file is (§18.1); it is adopted here rather than duplicated.
+  const pill = document.getElementById('chat-pill') || document.createElement('button');
   pill.className = 'pill';
   pill.id = 'chat-pill';
   pill.setAttribute('aria-pressed', 'false');
   pill.innerHTML = `<span>${esc(w('pill'))}</span>`;
-  // Straight after the Feed pill, whose place in the column it takes: same
-  // group, same reading order, and the tab order stays links → my map → feed →
-  // chat → language → help.
-  const feedPill = document.getElementById('feed-pill');
-  if (feedPill) feedPill.insertAdjacentElement('afterend', pill);
-  else (document.querySelector('.ctl-group') || document.body).appendChild(pill);
+  if (!pill.isConnected) {
+    // Straight after the Feed pill, whose column it shares: same group, same
+    // reading order, and the tab order stays links → my map → feed → chat →
+    // language → help.
+    const feedPill = document.getElementById('feed-pill');
+    if (feedPill) feedPill.insertAdjacentElement('afterend', pill);
+    else (document.querySelector('.ctl-group') || document.body).appendChild(pill);
+  }
 
   const panel = document.createElement('aside');
   panel.id = 'chat';
@@ -476,7 +508,7 @@
         body: JSON.stringify({ lang: lang(), messages: outgoing }),
         signal: ac.signal,
       });
-      if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+      if (!res.ok || !res.body) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -511,7 +543,13 @@
     }
   }
 
+  // The server's own refusals, in the reader's words rather than its English.
+  const REFUSED = { 413: 'tooLong', 429: 'tooMany', 503: 'busyServer' };
+
   function offlineHtml(err) {
+    const refused = REFUSED[err && err.status];
+    if (refused) return esc(w(refused));
+    if (PUBLIC) return `<strong>${esc(w('offlinePublic'))}</strong>`;
     return `<strong>${esc(w('offline'))}</strong><br>${esc(w('offlineHow'))}
       <code>python3 chat/server.py</code>
       <span style="color:var(--ink-faint)">${esc(String(err && err.message || err))}</span>`;
@@ -786,7 +824,11 @@
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    if (!res.ok) {
+      const refused = REFUSED[res.status];
+      throw Object.assign(new Error(refused ? w(refused) : (data.error || ('HTTP ' + res.status))),
+        { status: res.status });
+    }
     return data;
   }
 
@@ -1045,15 +1087,16 @@
     }
     const model = h.model || {};
     const bits = [];
-    if (!model.reachable) bits.push(w('offlineModel'));
+    if (!model.reachable) bits.push(w(PUBLIC ? 'modelPublic' : 'offlineModel'));
     else if ((model.missing || []).length) {
-      bits.push(w('offlineModelPull') + ' ollama pull ' + model.missing.join(' / '));
+      bits.push(PUBLIC ? w('modelPublic')
+        : w('offlineModelPull') + ' ollama pull ' + model.missing.join(' / '));
     }
     const dot = model.reachable && !(model.missing || []).length ? 'on' : 'off';
     stateEl.innerHTML = `<span class="ch-dot ${dot}"></span>`
       + esc(`${w('model')} ${model.chat_model || '?'}`);
     const gh = h.github || {};
-    if (!gh.ok) bits.push(w('noGh') + (gh.error || '?'));
+    if (!gh.ok) bits.push(PUBLIC ? w('ghPublic') : w('noGh') + (gh.error || '?'));
     if (bits.length) {
       S.log.push({ role: 'system', html: bits.map(esc).join('<br>') });
       render();

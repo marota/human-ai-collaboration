@@ -254,13 +254,14 @@ test.describe('§14 landmarks and regions', () => {
 
 // ---------------------------------------------------------------------------
 test.describe('§14 aria-pressed on every toggle', () => {
-  test('§14 exactly eight controls claim a pressed state, and they are the toggles', async ({ page }) => {
+  test('§14 exactly nine controls claim a pressed state, and they are the toggles', async ({ page }) => {
     await openMap(page);
     // Enumerated rather than spot-checked: the failure this guards against is a
     // new two-state control that keeps its state in a CSS class only.
     expect(await page.evaluate(() =>
       [...document.querySelectorAll('[aria-pressed]')].map((el) => el.id || el.dataset.layer)))
-      .toEqual(['project', 'team', 'commons', 'framework', 'links-row', 'links-pill', 'mymap-pill', 'feed-pill']);
+      .toEqual(['project', 'team', 'commons', 'framework', 'links-row', 'links-pill', 'mymap-pill',
+        'feed-pill', 'chat-pill']);
   });
 
   test('§14 the four layer toggles start pressed and track state', async ({ page }) => {
@@ -1037,12 +1038,13 @@ test.describe('§14 focus visibility and order', () => {
   // entirely and the collapse button cannot be clicked at all.
   test('§14 SPEC-DEVIATION the collapsed panel leaves two controls stacked in one corner', async ({ page }) => {
     await openMap(page);
-    // With the feed open, the cluster is over the collapse button.
+    // With the feed open the wrapped cluster's box spans the collapse button,
+    // and lets the pointer through to it: the box takes no clicks of its own.
     expect(await page.evaluate(() => {
       const r = document.getElementById('sb-hide').getBoundingClientRect();
       const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
       return top.closest('#ctl-cluster') ? 'ctl-cluster' : top.id;
-    })).toBe('ctl-cluster');
+    })).toBe('sb-hide');
     await page.click('#fd-close');
     await page.click('#sb-hide');
     const stacked = await page.evaluate(() => {

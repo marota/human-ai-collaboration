@@ -204,6 +204,13 @@
 
   /* ---------- period filter (top-right cluster) ---------- */
   .ctl-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  /* The clusters are invisible boxes around visible controls. Wrapped, a box
+     is as wide as its bound, and its empty part took the clicks meant for
+     whatever lay under it — the sidebar's collapse chevron at 1280px with the
+     feed open, and at 1440px once the Chat pill joined the group. So the boxes
+     let clicks through, and only the controls inside them take any. */
+  .ctl,.ctl-group{pointer-events:none}
+  .ctl > :not(.ctl-group),.ctl-group > *{pointer-events:auto}
   /* Two stacked rows, not one ever-widening one: .ctl-tr is absolutely
      positioned with `right` but no `left`/width, so an unbounded single row
      grows leftward with nothing to stop it — past the sidebar's edge and into
@@ -580,6 +587,7 @@
         <button class="pill" id="links-pill" aria-pressed="false"><span data-i18n="linksPill">Liens</span></button>
         <button class="pill" id="mymap-pill" aria-pressed="false"><span data-i18n="myMapTitle">Ma carte</span><span class="cnt-badge" id="mymap-badge">0</span></button>
         <button class="pill" id="feed-pill" aria-pressed="false"><span data-i18n="feedPill">Fil</span></button>
+        <button class="pill" id="chat-pill" aria-pressed="false"><span data-i18n="chatPill">Chat</span></button>
         <div class="lang-switch" role="group" aria-label="Langue">
           <button type="button" data-lang="en">EN</button><button type="button" data-lang="fr" class="is-active">FR</button>
         </div>
@@ -729,7 +737,7 @@ const I18N = {
     dateHost:'Année de fondation de l\u2019institution hôte : la date propre de cette équipe n\u2019est pas publiée. Elle borne le démarrage — la carte la montre pleine à partir de 2020, atténuée entre les deux, absente avant.',
     dateApprox:'Date approchée, reconstituée à partir d\u2019indices indirects.',
     timeFrom:'Première année', timeTo:'Dernière année', timeFloor:'les fondations antérieures restent incluses',
-    feedPill:'Fil', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
+    feedPill:'Fil', chatPill:'Chat', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
     feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
     // Accord du verbe : « 0 / 1 correspond », « 25 correspondent ».
     stNote:n=>`dans la vue · ${n} ${n>1?'correspondent':'correspond'} aux filtres`,
@@ -812,7 +820,7 @@ const I18N = {
     dateHost:'Founding year of the host institution: this team\u2019s own start date is not published. It bounds the start — the map shows it solid from 2020, dimmed in between, and hides it before.',
     dateApprox:'Approximate date, reconstructed from indirect evidence.',
     timeFrom:'First year', timeTo:'Last year', timeFloor:'earlier foundings stay included',
-    feedPill:'Feed', feedTitle:'In view', feedHide:'Hide feed',
+    feedPill:'Feed', chatPill:'Chat', feedTitle:'In view', feedHide:'Hide feed',
     feedEmpty:'Nothing in view — zoom out or widen the filters.',
     stNote:n=>`in view · ${n} ${n===1?'matches':'match'} the filters`,
     stNoteWhy:(n,why)=>`in view · ${n} ${n===1?'matches':'match'} the filters (${why})`,
@@ -2236,17 +2244,19 @@ refresh();
 if (deepEntity){ lsSet('hai-map-v2-seen','1'); openEntity(deepEntity); }
 else if (!lsGet('hai-map-v2-seen')) openWelcome();
 
-// ---------- chat (opt-in, local only) ----------
+// ---------- chat (§18) ----------
 // This page is a reading surface: it loads three local files and asks the
-// network for nothing, at load and under every interaction (§1, invariant 10).
-// The chat column is the one exception, and it is deliberately not part of this
-// file. It arrives only when a reader opens the page with ?chat=1 — which is
-// only useful alongside the local server in chat/, on the curator's own machine
-// — so every reader of the published map still gets exactly the page the
-// specification describes. hai-chat.js carries its own markup, styles and the
-// only network calls on the page; everything it needs from here goes through
-// the one object below, so the reading surface has no knowledge of it.
-if (new URLSearchParams(location.search).get('chat') === '1'){
+// network for nothing, at load and under every interaction but one (§1,
+// invariant 10). The one is the Chat pill. Every reader sees it, and nothing
+// behind it exists until it is pressed: the first press — or `?chat=1`, which
+// presses it on arrival — fetches hai-chat.js, which carries its own markup,
+// styles and the only network calls on the page, and adopts the pill. A reader
+// who never presses it gets exactly the page the specification describes.
+// Everything the chat needs from here goes through the one object below, so
+// the reading surface has no knowledge of it.
+const chatPill = document.getElementById('chat-pill');
+function loadChat(){
+  if (window.HAI_CHAT_HOST) return;
   window.HAI_CHAT_HOST = {
     lang: () => LANG, taxo: DATA.TAXO, asOf: DATA.AS_OF,
     esc, toast, byId, items, state,
@@ -2256,6 +2266,8 @@ if (new URLSearchParams(location.search).get('chat') === '1'){
   chat.src = 'hai-chat.js';
   document.body.appendChild(chat);
 }
+chatPill.addEventListener('click', loadChat, { once: true });
+if (new URLSearchParams(location.search).get('chat') === '1') loadChat();
 </script>
 </body>
 </html>

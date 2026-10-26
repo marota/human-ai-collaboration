@@ -838,12 +838,12 @@ A change that breaks one of these is a regression even if nothing throws.
 7. Descriptions are never truncated.
 8. Every user-visible string goes through `t()` and exists in both languages.
 9. Every string interpolated into HTML goes through `esc()`.
-10. The page never makes a network request. The chat column of §18 is the one
-    exception, and it is deliberately not part of the page: it arrives only when
-    a reader opens the map with `?chat=1`, from a file the page does not
-    otherwise name. Without that parameter the page requests its three local
-    files and nothing else, at load and under every interaction — which is every
-    reader of the published map.
+10. The page never makes a network request — at load, or under any interaction
+    but one. The one is the Chat pill of §18: every reader sees it, and nothing
+    behind it exists until it is pressed. The first press, or `?chat=1`, fetches
+    `hai-chat.js` from beside the page, and from then on the chat talks to its
+    server (§18.6). A reader who never presses it gets the page's three local
+    files and nothing else.
 11. No floating cluster (`.ctl-tr`, `.ctl-br`, `.ctl-bl`) or its content can
     grow past `#stage`'s visible area — each carries an explicit width bound
     rather than relying on its content staying small (§5).
@@ -908,13 +908,15 @@ language and preset changes, which is not when the filters move.
 
 ---
 
-## 18. The chat column (opt-in)
+## 18. The chat column
 
 The map is a reading surface, and §1 says editing, authentication and server
 round-trips are non-goals. §18 is the one place that line is crossed, and the
-way it is crossed is the design: the chat is **not part of the published page**.
-It exists for the curator's own machine, where a local model and a local server
-are running, and for anyone they hand the map to while they are in the room.
+way it is crossed is the design: the chat is **behind a pill, not in the page**.
+Every reader sees the pill; none of the chat's code, markup or requests exists
+until it is pressed. Behind it is a model running on the curator's own machine —
+reached from that machine directly, and from the published map through a tunnel
+(§18.6).
 
 Three things it does:
 
@@ -924,7 +926,7 @@ Three things it does:
   there to answer;
 - opens a GitHub issue with that draft for a maintainer to review.
 
-It never writes to the map (invariant 15). The data repository's
+It never writes to the map (invariant 16). The data repository's
 [`CONTRIBUTING.md`][contrib] already describes this route — *"open a GitHub
 issue… the maintainers (or AI suggestions reviewed by maintainers) will turn it
 into a PR"* — and the chat is an implementation of it, not a new authority.
@@ -932,26 +934,33 @@ into a PR"* — and the chat is an implementation of it, not a new authority.
 ### 18.1 How it attaches
 
 ```
-eu-hai-map.html            ?chat=1 → window.HAI_CHAT_HOST + one <script>
-    │                                         │
-    │  (unchanged for every other reader)     ▼
-    │                              assets/map/hai-chat.js
-    │                                 markup, styles, every fetch
-    ▼                                         │
-window.HAI_DATA                               ▼
-                                   chat/server.py  (127.0.0.1)
-                                         │        │
-                                         ▼        ▼
-                                      Ollama    gh issue create
+eu-hai-map.html       the Chat pill, in the markup, for every reader
+    │                          │ first press, or ?chat=1
+    │  (nothing else until)    ▼
+    │                 window.HAI_CHAT_HOST + one <script>
+    ▼                          ▼
+window.HAI_DATA       assets/map/hai-chat.js — markup, styles, every fetch
+                               │
+               ┌───────────────┴───────────────┐
+     a page on this machine            the published map
+          same origin            https://…ts.net:8443 (Tailscale Funnel)
+               └───────────────┬───────────────┘
+                               ▼
+                    chat/server.py  (127.0.0.1)
+                          │        │
+                          ▼        ▼
+                       Ollama    gh issue create
 ```
 
-The page's own contribution is some twenty lines at the end of its script: read
-the parameter, publish one object of host functions (`openEntity`, `esc`,
-`toast`, `byId`, `lang()`, the taxonomy), append a `<script>`. There is no
-`fetch(` in `eu-hai-map.html`, no fourth `<script>` tag in its markup, and no
-chat markup in its DOM — so §1's three-file reading, §2's single-document
-contract and invariant 10 all still describe the file as published. The chat
-column is 380 px. When the feed is open too, the two share it rather than one
+The page's own contribution is the pill in its markup — labelled through the
+dictionary like the pills beside it — and a dozen lines at the end of its
+script: on the first press, publish one object of host functions
+(`openEntity`, `esc`, `toast`, `byId`, `lang()`, the taxonomy) and append a
+`<script>`. `hai-chat.js` adopts the pill rather than adding one. There is no
+`fetch(` in `eu-hai-map.html`, no fourth `<script>` tag in its markup, and
+nothing behind the pill in its DOM until it is pressed — so §1's three-file
+reading, §2's single-document contract and invariant 10 describe the file as
+every reader receives it who never presses the pill. The chat column is 380 px. When the feed is open too, the two share it rather than one
 replacing the other: the right column becomes two grid rows, the feed above and
 the chat below, and the sidebar and stage span both. They answer the same
 question from two directions — what is in view, and what about it — so taking
@@ -959,16 +968,18 @@ the feed away to make room for the chat removed the thing the chat talks about.
 Below 840 px, where both are drawers over the map, the halves are top and
 bottom of the drawer.
 
-**The server also serves the repository**, so the map and the API share an
-origin and running the chat is one command:
+**The server also serves the map**, so on the curator's machine the map and
+the API share an origin and running the chat is one command:
 
 ```bash
 python3 chat/server.py            # then open the URL it prints
 ```
 
-It binds to the loopback interface and it can open issues as whoever `gh` is
-logged in as, which is why it is not something to expose to a network. A Jekyll
-dev server on another port can reach it with `?chat=1&chatapi=http://127.0.0.1:8765`.
+It binds to the loopback interface, and it can open issues as whoever `gh` is
+logged in as. It serves `assets/map/` and the API to this machine, and only the
+API through the tunnel (§18.6). A Jekyll dev server on another port can reach
+it with `?chat=1&chatapi=http://127.0.0.1:8765` — a loopback address only, and
+only from a page served on this machine.
 
 ### 18.2 What the model is allowed to know
 
@@ -1016,9 +1027,10 @@ enumerate the corpus for ten minutes.
    close.
 2. **The reference.** The contributor gives the page that documents the entity.
    The server fetches it once, says whether it loaded and whether the name
-   actually appears on it, and keeps the text for the drafter. Hosts that
-   resolve inside this machine or the local network are refused: a box that
-   fetches any URL must not become a way to read the network the server sits on.
+   actually appears on it, and keeps the text for the drafter. Only globally
+   routable addresses are fetched, checked on the socket for every hop of every
+   redirect: a box that fetches any URL must not become a way to read the
+   network the server sits on (§18.6).
    The URL becomes `provenance.source`, and the verdict sets the default
    `provenance.confidence`.
 3. **The draft.** One constrained call: Ollama is handed a JSON schema built
@@ -1045,23 +1057,77 @@ enumerate the corpus for ten minutes.
 
 ### 18.4 What it is not
 
-No authentication, no accounts, no write access, no telemetry, no cloud. The
-server holds no state between requests beyond the payload it reloads when the
-file changes; the conversation lives in the reader's `localStorage` and nowhere
-else. `HAI_CHAT_DRY_RUN=1` runs the whole flow and posts nothing, which is how
+No authentication, no accounts, no write access, no telemetry, and no model
+anywhere but the curator's machine — the tunnel carries requests, it runs
+nothing. The server holds no state between requests beyond the payload it
+reloads when the file changes and the counts behind §18.6's ceilings; the
+conversation lives in the reader's `localStorage` and nowhere else. `HAI_CHAT_DRY_RUN=1` runs the whole flow and posts nothing, which is how
 the tests exercise it.
 
 ### 18.5 Where the code is
 
 | Path | Role |
 |---|---|
-| `assets/map/eu-hai-map.html` | the `?chat=1` opt-in, ~20 lines at the end |
-| `assets/map/hai-chat.js` | the column: markup, styles, the form, every fetch |
-| `chat/server.py` | the local server, stdlib only; also serves the repository |
+| `assets/map/eu-hai-map.html` | the Chat pill, and a dozen lines that load the chat on its first press |
+| `assets/map/hai-chat.js` | the column: markup, styles, the form, every fetch, where the server is |
+| `chat/server.py` | the server, stdlib only; the map to this machine, the API to both |
 | `chat/hai_data.py` | the payload, retrieval, the figures, the gazetteer |
 | `chat/cards.py` | the field table, the checks, the YAML |
 | `chat/prompts.py` | the two prompts, the grammar, intent |
 | `chat/reference.py` | fetching and confirming a reference |
 | `chat/issues.py` | the issue body, and `gh issue create` |
 | `tests/chat/*.py` | the server side, with no model running |
-| `tests/interface/chat.spec.js` | the column, against a stubbed server |
+| `tests/chat/test_public.py` | what a visitor can and cannot reach (§18.6) |
+| `tests/interface/chat.spec.js` | the column, against a stubbed server, and from the published origin |
+
+### 18.6 The published map
+
+The map on GitHub Pages carries the same pill, and pressing it reaches the
+curator's machine. `hai-chat.js` served from any origin but this machine's talks
+to `https://mac.tail9919aa.ts.net:8443`, which Tailscale Funnel forwards to
+`chat/server.py` on loopback; the server itself is never bound wider. When the
+machine is off or the server down, the column says so in the reader's language,
+with no command to run — the map is unaffected, and nothing was requested
+before the press.
+
+A request through the tunnel is a **visitor's**, held to rules the curator's are
+not:
+
+| | Curator (this machine) | Visitor (through the tunnel) |
+|---|---|---|
+| Files | `assets/map/` only | none — the API and nothing else |
+| Cross-origin callers | loopback origins | `https://marota.github.io` (`HAI_CHAT_ORIGINS`) |
+| Ceilings, per address | none | 20 chat turns / 10 min · 6 drafts / hour · 12 references / 10 min · 3 issues / day |
+| Ceilings, all visitors | none | 20 issues / day (`HAI_CHAT_ISSUES_PER_DAY`) |
+| At once | — | 2 conversations, 1 draft; past that "busy" (503), not a queue |
+| Request size | 1 MB | 64 KB; the last 12 turns are read, none over 4 000 characters |
+| `/api/health` | everything | whether it can answer and send — no model inventory, address or account |
+| An issue | as written | says a visitor opened it; `@` and `#` inert outside code blocks; the conversation in a code block; `force` refused |
+
+**Telling a visitor apart.** The tunnel connects from loopback, so the socket
+cannot. A request is the curator's only if its `Host` is a loopback name *and*
+it carries no proxy header (`X-Forwarded-For`, `X-Forwarded-Host`,
+`Forwarded`, `Tailscale-Funnel-Request`); anything else, including anything
+ambiguous, is a visitor's — it fails closed. Visitors are counted by the last
+`X-Forwarded-For` entry, which the tunnel wrote, not by one they can write.
+
+**References.** `/api/reference` fetches a URL on a visitor's behalf from inside
+the curator's network, so it fetches only from globally routable addresses. That
+is an allow-list on purpose: the block-list it replaced (`is_private`,
+`is_loopback`, …) let `100.64.0.0/10` through — where Tailscale numbers every
+machine on the curator's tailnet — and a reference to the machine's own
+tailnet name returned a private service's page. The check is made on the
+socket, after it connects and before TLS, for every hop of every redirect, so
+neither a redirect nor a second DNS answer can point it inward; a redirect off
+the web is refused, and no proxy from the environment stands in between.
+
+**What the published page will not do.** `?chatapi=` is ignored on any origin
+but this machine's: on the published map a crafted link would otherwise send a
+visitor's words, and their proposal, wherever it named. A page on the published
+origin never calls `127.0.0.1`, so a visitor is never asked whether a website
+may reach their own network.
+
+A visitor's issue lands under the account `gh` is logged in as, labelled
+`via-public-chat` where the repository has that label. Nothing reaches the map
+until a maintainer turns it into a pull request (invariant 16) — the same
+review the curator's own proposals get.

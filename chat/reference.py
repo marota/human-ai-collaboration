@@ -8,15 +8,19 @@ verdict before the card is drafted — a 404 or a page about something else is
 better caught in the conversation than in a pull request three weeks later.
 
 The fetch is the one outward request this feature makes, and it goes exactly
-where the contributor pointed it. Hosts that resolve inside the machine or the
-local network are refused: a chat box that will fetch any URL for you must not
-be a way to read the network the server sits on.
+where the contributor pointed it. Only globally routable addresses are allowed:
+a chat box that will fetch any URL for you must not be a way to read the network
+the server sits on. Since the published map reaches this server from the
+internet, that is checked where it cannot be talked around — on the socket,
+after the connection is made, for every hop of every redirect — rather than only
+on the name the contributor typed.
 """
 from __future__ import annotations
 
 import datetime as _dt
 import gzip
 import html
+import http.client
 import ipaddress
 import os
 import re
@@ -67,12 +71,93 @@ def _check_host(url: str) -> str:
         raise ReferenceError(f"The host {parts.hostname} does not resolve.") from None
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
-        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
-                or ip.is_multicast or ip.is_unspecified):
-            raise ReferenceError(
-                f"{parts.hostname} resolves inside this network ({ip}); references have "
-                "to be publicly reachable for a maintainer to check them too.")
+        if _refused(ip):
+            raise ReferenceError(_inside(parts.hostname, ip))
     return parts.hostname
+
+
+def _refused(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Whether a reference may not be fetched from this address.
+
+    An allow-list — globally routable or nothing — because the block-list it
+    replaces (`is_private`, `is_loopback`, …) let 100.64.0.0/10 through, and
+    that is where Tailscale numbers every machine on a tailnet. Exposed to the
+    internet, the server would have read the curator's own tailnet, by name,
+    for anyone who asked.
+    """
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return not ip.is_global or ip.is_multicast
+
+
+def _inside(host: str, ip: Any) -> str:
+    return (f"{host} resolves inside this network ({ip}); references have to be "
+            "publicly reachable for a maintainer to check them too.")
+
+
+def _checked_create_connection(address: Any, *args: Any, **kwargs: Any) -> socket.socket:
+    """Connect, then refuse if the far end is not a public address.
+
+    Checking the name before fetching is not enough on its own: the name can
+    resolve differently a second time (DNS rebinding), and a public page can
+    redirect to a private one. Checking the socket's peer covers both, and it
+    happens before TLS, so nothing is sent to an address that was refused.
+    """
+    sock = socket.create_connection(address, *args, **kwargs)
+    if not ALLOW_PRIVATE:
+        peer = ipaddress.ip_address(sock.getpeername()[0])
+        if _refused(peer):
+            sock.close()
+            raise ReferenceError(_inside(str(address[0]), peer))
+    return sock
+
+
+class _CheckedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._create_connection = _checked_create_connection
+
+
+class _CheckedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._create_connection = _checked_create_connection
+
+
+class _CheckedHTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req: urllib.request.Request) -> Any:
+        return self.do_open(_CheckedHTTPConnection, req)
+
+
+class _CheckedHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req: urllib.request.Request) -> Any:
+        return self.do_open(_CheckedHTTPSConnection, req, context=self._context)
+
+
+class _CheckedRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect only to the web, and say so early when it points inward.
+
+    urllib follows a redirect to ftp:// as readily as to https://, and an FTP
+    connection would not go through the checked socket above.
+    """
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any,
+                         newurl: str) -> Any:
+        _check_host(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _opener() -> urllib.request.OpenerDirector:
+    # No proxy from the environment: behind one, the socket's peer would be the
+    # proxy, and the check above would be checking the wrong machine. An empty
+    # ProxyHandler registers nothing, and stops build_opener adding the one
+    # that reads http_proxy.
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}), _CheckedHTTPHandler, _CheckedHTTPSHandler,
+        _CheckedRedirects)
+
+
+_OPENER = _opener()
 
 
 def _text_of(body: str) -> tuple[str, str]:
@@ -135,7 +220,7 @@ def fetch(url: str, name: str = "") -> dict[str, Any]:
         "Accept-Language": "en,fr;q=0.8",
     })
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        with _OPENER.open(req, timeout=TIMEOUT) as r:
             out["status"] = r.status
             out["final_url"] = r.geturl()
             ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
