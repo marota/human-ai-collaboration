@@ -483,6 +483,31 @@ The fixes are structural rather than cosmetic:
 - **Countries leads the caption instead of taking a fifth tile.** It is not a
   layer and has no control, and five tiles at 312 px clip "FRAMEWORKS".
 - **Every live count is recomputed in `refresh()`**, from the same predicate.
+- **A layer row splits its figure where the map cannot follow it.** See §9.1.1.
+
+### 9.1.1 The placeless half of a layer
+
+One reading of the panel still contradicted itself after the fixes above, and it
+was reported twice. Narrowed to 1945–2011, the Frameworks row read **30** while
+the tile two centimetres above it read **23** — both correct, both labelled
+"Frameworks", and the caption's single "(7 off the map)" never said *which*
+layer owned the seven. The reader was left to attribute the gap by hovering.
+
+The two figures part company only where a layer holds entities with no
+coordinates (§3.1, point 4): international standards — ISO, IEC, IEEE, SAE — and
+one non-EU commons. They match the filters and they keep a card, so the row
+counts them; they have no marker, so the tile never can.
+
+So the row now splits at exactly that seam — `23+7`, the second half dimmed —
+and the parts say what the whole could not: twenty-three you can see, seven you
+cannot, thirty in all. Both halves are viewport-independent, so the row stays a
+filter control: panning and zooming move the tile, never the row.
+
+The suffix appears **only when there is something to explain**. A layer whose
+matches are all placed renders a bare number, or the split degrades into
+decoration on every row and stops being read at all. Projects and teams are
+always fully placed, so in practice it is the Commons and Frameworks rows that
+ever carry one.
 
 ### 9.2 Counters follow the viewport
 
@@ -830,6 +855,10 @@ A change that breaks one of these is a regression even if nothing throws.
 14. **Every headline figure traces to one control.** A tile that aggregates two
     layers has no row a reader can check it against, which is how "Commons 25"
     and "Resources 24" came to sit two centimetres apart (§9.1).
+15. **Where a layer row and its tile must differ, the row says why.** The two
+    read different quantities, and they diverge by exactly the layer's placeless
+    entities. That difference is shown in the row itself rather than left to a
+    caption that names a total without attributing it (§9.1.1).
 
 ---
 

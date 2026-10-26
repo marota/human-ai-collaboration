@@ -322,9 +322,14 @@ function liveNumbers(page) {
     const nums = {}, named = [];
     [document.getElementById('sidebar'), document.querySelector('.ctl-tr')].forEach((host) => {
       host.querySelectorAll('*').forEach((el) => {
-        if (el.children.length) return;              // only the leaf holding the figure
+        // A layer row whose layer holds placeless entities splits its figure
+        // into "23+7" and so is no longer a leaf. It is still one count, so it
+        // is read whole rather than skipped — otherwise invariant 13's closed
+        // list quietly loses the two rows that carry a split.
+        const split = el.matches('.layer-row[data-layer] .cnt');
+        if (el.children.length && !split) return;    // only the leaf holding the figure
         const txt = el.textContent.trim();
-        if (!/^\d+$/.test(txt)) return;
+        if (!/^\d+(\+\d+)?$/.test(txt)) return;
         const k = keyOf(el);
         nums[k] = txt;
         if (el.matches(INV13)) named.push(k);
@@ -519,13 +524,88 @@ test.describe('§9.1 two readings', () => {
     // figure to show and the title stays empty rather than restating them.
     for (const r of await layerRows(page)) {
       expect(r.count).toBe(c.totals[r.kind]);
-      expect(r.title).toBe('');
+      // A layer holding placeless entities carries the split in its title at every
+      // filter state, because that figure is about the data and not about
+      // narrowing. Only the layers whose matches all have markers have nothing
+      // to say here.
+      if (r.offMap) expect(r.title).toBe(
+        `${r.placed} on the map · ${r.offMap} with no coordinates · ${r.count} match the filters`);
+      else expect(r.title).toBe('');
     }
     await setPeriod(page, 2010, 2012);
     await settleCounts(page);
     for (const r of await layerRows(page)) {
-      if (r.count === c.totals[r.kind]) expect(r.title).toBe('');
+      // Same three cases, now that the period has narrowed: a split layer still
+      // names its placeless half, a narrowed layer names the corpus it came
+      // from, and a layer sitting at its total has nothing to add.
+      if (r.offMap) expect(r.title).toBe(
+        `${r.placed} on the map · ${r.offMap} with no coordinates · ${r.count} ${r.count === 1 ? 'matches' : 'match'} the filters`);
+      else if (r.count === c.totals[r.kind]) expect(r.title).toBe('');
       else expect(r.title).toBe(`${r.count} of ${c.totals[r.kind]} under the current filters`);
+    }
+  });
+
+  test('§9.1 a layer row splits its figure where the map cannot follow it', async ({ page }) => {
+    // The reported bug, twice over: "Frameworks 30" in the layer rows sat above
+    // a tile reading 23, and the caption's single "(7 off the map)" never said
+    // which layer owned the seven. The row now splits at that seam — 23 you can
+    // see, +7 you cannot — so the two numbers reconcile where they are read.
+    await open(page);
+    await setPeriod(page, await page.evaluate(() => YMIN), 2011);
+    await settleCounts(page);
+    // Derived from the payload: of the entities matching this period, how many
+    // of each layer can never carry a marker.
+    const want = await page.evaluate(() => {
+      const n = { project: 0, team: 0, commons: 0, framework: 0 };
+      const all = { project: 0, team: 0, commons: 0, framework: 0 };
+      items.forEach((it) => {
+        if (periodState(it) === 'out') return;
+        all[it.kind]++;
+        if (!it.geo) n[it.kind]++;
+      });
+      return { placeless: n, matching: all };
+    });
+    expect(want.placeless.framework, 'the period that reproduced the report').toBeGreaterThan(0);
+
+    for (const r of await layerRows(page)) {
+      expect(r.count, `${r.kind} row counts what matches`).toBe(want.matching[r.kind]);
+      expect(r.offMap, `${r.kind} row names its placeless half`).toBe(want.placeless[r.kind]);
+      expect(r.placed).toBe(want.matching[r.kind] - want.placeless[r.kind]);
+    }
+    // And the half the reader can see is the number the tile reports, which is
+    // the comparison that read as a contradiction before.
+    const seen = await page.evaluate(() => state.offScreen);
+    expect(seen, 'nothing off screen at the default fit').toBe(0);
+    const t = await tiles(page);
+    for (const r of await layerRows(page)) {
+      expect(t.find((x) => x.kind === r.kind).count,
+        `the ${r.kind} tile agrees with the visible half of its row`).toBe(r.placed);
+    }
+  });
+
+  test('§9.1 a layer with every match on the map shows no split at all', async ({ page }) => {
+    // The suffix is not decoration: it appears only where there is something to
+    // explain, or it becomes noise on every row.
+    await open(page);
+    const rows = await layerRows(page);
+    const placeless = await page.evaluate(() => {
+      const n = { project: 0, team: 0, commons: 0, framework: 0 };
+      items.forEach((it) => { if (!it.geo) n[it.kind]++; });
+      return n;
+    });
+    expect(placeless.project, 'every project is placed').toBe(0);
+    expect(placeless.team, 'every team is placed').toBe(0);
+    for (const r of rows) {
+      if (placeless[r.kind]) expect(r.offMap).toBe(placeless[r.kind]);
+      else expect(r.offMap, `${r.kind} has nothing to split`).toBe(0);
+    }
+    // Rendered, not merely parsed: a row with nothing to split is a bare number.
+    const markup = await page.evaluate(() =>
+      [...document.querySelectorAll('.layer-row[data-layer]')]
+        .map((b) => [b.dataset.layer, b.querySelector('.cnt').innerHTML]));
+    for (const [kind, html] of markup) {
+      if (placeless[kind]) expect(html).toMatch(/^\d+<span class="off">\+\d+<\/span>$/);
+      else expect(html).toMatch(/^\d+$/);
     }
   });
 
@@ -1185,7 +1265,7 @@ test.describe('inv 13 no frozen counts', () => {
       .toBe(KINDS.length * 2 + 2);
     for (const k of before.named) {
       expect(unchanged, `${k} is a live count and must have followed the filters`).not.toContain(k);
-      expect(after.nums[k], `${k} is still a figure after the narrowing`).toMatch(/^\d+$/);
+      expect(after.nums[k], `${k} is still a figure after the narrowing`).toMatch(/^\d+(\+\d+)?$/);
     }
   });
 
@@ -1252,7 +1332,10 @@ test.describe('inv 13 no frozen counts', () => {
     await setPeriod(page, bounds.ymin - 500, bounds.ymax + 500);
     await settleCounts(page);
     expect((await layerRows(page)).map((r) => r.count)).toEqual(KINDS.map((k) => c.totals[k]));
-    for (const r of await layerRows(page)) expect(r.title).toBe('');
+    for (const r of await layerRows(page)) {
+      if (r.offMap) expect(r.title).toContain('with no coordinates');
+      else expect(r.title).toBe('');
+    }
     expect((await snapshot(page)).matchCount).toBe(c.all);
   });
 
