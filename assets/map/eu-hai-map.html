@@ -113,6 +113,9 @@
   .layer-row .glyph{flex:none;width:20px;height:20px;display:grid;place-items:center}
   .layer-row .lbl{flex:1}
   .layer-row .cnt{font-size:10.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  /* The entities of this layer that match but have no marker. Subordinate to
+     the figure beside it, because it is a part of it, not a second count. */
+  .layer-row .cnt .off{opacity:.6;margin-left:1px}
   .layer-row .sw{flex:none;width:26px;height:15px;border-radius:999px;background:var(--rule-strong);position:relative;transition:background .15s}
   .layer-row .sw::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;
     background:var(--surface);transition:transform .15s;box-shadow:var(--shadow-sm)}
@@ -732,8 +735,12 @@ const I18N = {
     stNote:n=>`dans la vue · ${n} ${n>1?'correspondent':'correspond'} aux filtres`,
     stNoteWhy:(n,why)=>`dans la vue · ${n} ${n>1?'correspondent':'correspond'} aux filtres (${why})`,
     stNoteMyMap:n=>`dans la vue · ${n} sur votre carte`,
+    stNoteMyMapWhy:(n,why)=>`dans la vue · ${n} sur votre carte (${why})`,
+    stTileMyMap:(v,m)=>`${v} dans la vue · ${m} sur votre carte`,
+    layerCountMyMap:n=>`${n} sur votre carte`,
     stKeptOpen:'plus la fiche ouverte',
     layerCount:(n,tot)=>`${n} sur ${tot} avec les filtres actuels`,
+    layerSplit:(placed,off,tot)=>`${placed} sur la carte · ${off} sans coordonnées · ${tot} ${tot>1?'correspondent':'correspond'} aux filtres`,
     nogeoCount:(n,tot)=>`${n} sur ${tot} ${n>1?'correspondent':'correspond'} aux filtres actuels`,
     stOffScreen:n=>`${n} hors écran`,
     stOffMap:n=>`${n} hors carte`,
@@ -810,8 +817,12 @@ const I18N = {
     stNote:n=>`in view · ${n} ${n===1?'matches':'match'} the filters`,
     stNoteWhy:(n,why)=>`in view · ${n} ${n===1?'matches':'match'} the filters (${why})`,
     stNoteMyMap:n=>`in view · ${n} on your map`,
+    stNoteMyMapWhy:(n,why)=>`in view · ${n} on your map (${why})`,
+    stTileMyMap:(v,m)=>`${v} in view · ${m} on your map`,
+    layerCountMyMap:n=>`${n} on your map`,
     stKeptOpen:'plus the open card',
     layerCount:(n,tot)=>`${n} of ${tot} under the current filters`,
+    layerSplit:(placed,off,tot)=>`${placed} on the map · ${off} with no coordinates · ${tot} ${tot===1?'matches':'match'} the filters`,
     nogeoCount:(n,tot)=>`${n} of ${tot} ${n===1?'matches':'match'} the current filters`,
     stOffScreen:n=>`${n} off screen`,
     stOffMap:n=>`${n} off the map`,
@@ -1307,13 +1318,29 @@ function renderLayerRows(){
 // useless for deciding whether to switch it back on.
 function updateLayerCounts(){
   const n = { project:0, team:0, commons:0, framework:0 };
-  scopeItems('layer').forEach(it=>{ n[it.kind]++; });
+  // Of those, the ones that will never carry a marker (§3.1 point 4): the
+  // international standards and the one non-EU commons that have no
+  // coordinates. They match the filters and they have cards, but the map
+  // cannot show them.
+  const off = { project:0, team:0, commons:0, framework:0 };
+  scopeItems('layer').forEach(it=>{ n[it.kind]++; if (!it.geo) off[it.kind]++; });
   document.querySelectorAll('.layer-row[data-layer]').forEach(b=>{
     const k = b.dataset.layer, el = b.querySelector('.cnt');
-    el.textContent = n[k];
+    // A layer row counts what matches the filters; the tile above counts what
+    // is on screen. When a layer holds placeless entities those two readings
+    // part company — "Frameworks 30" over a tile reading 23 — and the caption's
+    // single "7 off the map" does not say which layer owns them, so the reader
+    // is left to guess. Splitting the figure at its seam says it in place:
+    // 23 you can see, 7 you cannot, 30 in all.
+    if (off[k]) el.innerHTML = `${n[k]-off[k]}<span class="off">+${off[k]}</span>`;
+    else el.textContent = n[k];
     // The corpus total is what the number used to be; it stays one hover away
-    // so a narrowed figure can still be read against the whole.
-    const msg = n[k] === TOTALS[k] ? '' : t('layerCount')(n[k], TOTALS[k]);
+    // so a narrowed figure can still be read against the whole. My map has left
+    // that corpus behind, so there the tooltip names the set instead of
+    // measuring it against a whole the reader is no longer looking at.
+    const msg = off[k] ? t('layerSplit')(n[k]-off[k], off[k], n[k])
+      : state.myMap ? t('layerCountMyMap')(n[k])
+      : (n[k] === TOTALS[k] ? '' : t('layerCount')(n[k], TOTALS[k]));
     el.title = msg; el.setAttribute('aria-label', msg);
   });
 }
@@ -1696,7 +1723,7 @@ function renderStats(){
   KINDS.forEach(k=>{
     const el = document.getElementById('st-'+k), tile = el.parentNode;
     el.textContent = n[k];
-    const msg = t('stTile')(n[k], m[k]);
+    const msg = t(state.myMap ? 'stTileMyMap' : 'stTile')(n[k], m[k]);
     tile.title = msg;
     // The tiles sit in an aria-live region, so the label has to stay in the
     // accessible name — a bare tooltip would announce the reconciliation and
@@ -1711,12 +1738,19 @@ function renderStats(){
   // matching nothing. Left unnamed it looks like an off-by-one.
   if (state.keptOpen) why.push(t('stKeptOpen'));
   // In My map mode there are no filters to match — the pins and their
-  // neighbours are the whole set — so the caption says so instead.
+  // neighbours are the whole set — so the caption says so instead. It still
+  // has to name the gap: the three terms above are what make invariant 12
+  // readable, and dropping them here left the tiles summing to 2 under a
+  // caption reading "1 on your map", which is the arithmetic-with-a-missing-
+  // term that §9.1 exists to prevent.
+  const headline = state.myMap
+    ? (why.length ? t('stNoteMyMapWhy')(state.matchCount, why.join(', '))
+                  : t('stNoteMyMap')(state.matchCount))
+    : (why.length ? t('stNoteWhy')(state.matchCount, why.join(', '))
+                  : t('stNote')(state.matchCount));
   document.getElementById('st-note').textContent = [
     ctry.size ? t('stCountriesN')(ctry.size) : null,   // "0 countries ·" is noise
-    state.myMap ? t('stNoteMyMap')(state.matchCount)
-      : (why.length ? t('stNoteWhy')(state.matchCount, why.join(', '))
-                    : t('stNote')(state.matchCount)),
+    headline,
   ].filter(Boolean).join(' · ');
 }
 let ivTimer = null;

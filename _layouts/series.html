@@ -11,6 +11,19 @@ layout: default
 
 <section class="section">
   <div class="shell">
+    <nav class="series-sections-nav" aria-label="Sections of the series">
+      {%- assign all_parts = site.series | sort: "part" -%}
+      {%- for s in site.data.series_sections -%}
+        {%- assign members = all_parts | where: "phase", s.phase -%}
+        {%- assign first_n = members.first.part | plus: 0 -%}
+        {%- assign last_n = members.last.part | plus: 0 -%}
+        <a class="series-sections-nav__item" href="#{{ s.slug }}">
+          <span class="series-sections-nav__num">{{ s.number }}</span>
+          <span class="series-sections-nav__title">{{ s.title }}</span>
+          <span class="series-sections-nav__meta">Parts {{ first_n }}–{{ last_n }}</span>
+        </a>
+      {%- endfor -%}
+    </nav>
     {%- include series-list.html detail='full' -%}
   </div>
 </section>

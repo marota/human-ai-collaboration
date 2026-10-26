@@ -4,7 +4,7 @@ Coverage of [`docs/map-interface-spec.md`](../docs/map-interface-spec.md) and th
 specifies: the ecosystem map (`assets/map/eu-hai-map.html`) and its generator
 (`scripts/build-map-data.py`).
 
-**1 130 tests** — 758 in a real browser, 372 in Python. Every test names the spec claim it
+**1 192 tests** — 809 in a real browser, 383 in Python. Every test names the spec claim it
 defends, so a failure says which claim broke rather than only which assertion did.
 
 ## Running them
@@ -77,6 +77,34 @@ export shims. `tests/interface/_map.js` wraps the common moves; read it before w
 `tests/_harness.py` does the equivalent on the Python side: it loads `build-map-data.py` by path
 (the hyphen makes it unimportable by name) and parses the generated `hai-data.js` back into
 Python objects without a JS runtime.
+
+## No figure from the data is written down twice
+
+§3.2 of the specification says it plainly: *"Counts are a snapshot and move with every upstream
+regeneration; the shape of the table is what is normative, not the figures."* The first version
+of this suite ignored that and pinned `449`, `438`, `111`, `37` as literals. The next data change
+turned about a hundred tests red at once — not because anything broke, but because the corpus had
+grown, which is the one thing the corpus is supposed to do.
+
+So **every expectation is derived from the payload the page actually loaded**, and then compared
+exactly:
+
+```js
+// not: expect(before).toHaveLength(438)
+const placed = await page.evaluate(() =>
+  items.filter((it) => it.geo).length);          // derived from HAI_DATA
+expect(before).toHaveLength(placed);             // still an exact assertion
+```
+
+Derive from `window.HAI_DATA` (or from a rule the spec states) and assert against what the
+interface renders — never read the expectation back out of the code path under test, which is a
+tautology wearing a number. Where a test needs one particular entity, select it by a property
+("the longest description", "the one commons with no coordinates") rather than by id, so a
+regeneration cannot silently void the test.
+
+Note that `window.HAI_DATA` is the **merged** payload: the page currently loads
+`hai-data-additions.js` after `hai-data.js`, which patches extra entries in by id. Anything
+derived from `HAI_DATA` at runtime already accounts for it.
 
 ## Conventions
 

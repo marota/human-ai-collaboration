@@ -11,9 +11,19 @@
 // page's own `items`/`matchesFilters`/`TOTALS`. A test that asked the implementation what
 // it thought the answer was would pass for any implementation, which is worse than no
 // test at all.
+//
+// Every figure here is derived from that payload rather than written out. §3.2 is explicit:
+// the counts "are a snapshot and move with every upstream regeneration; the shape of the
+// table is what is normative, not the figures" — and `hai-data-additions.js`, merged into
+// `window.HAI_DATA` after `hai-data.js` loads, moved all of them. Where a literal used to
+// stand in as a guard against a degenerate oracle, what is pinned now is an arithmetic
+// relation around the figure — a partition, a sum, a strict narrowing — reached by a second
+// route through the payload that never touches the axis machinery. Entities are chosen by
+// the property that makes them the right subject ("the widest pie", "a commons with a
+// start year of its own") rather than by id wherever the id is not itself the point.
 import { test, expect } from '@playwright/test';
 import {
-  openMap, snapshot, tiles, layerRows, caption, toggleLayer, setLayers,
+  MAP_PATH, openMap, snapshot, tiles, layerRows, caption, toggleLayer, setLayers,
   setPeriod, periodLabel, applyPreset, settleCounts, fitAll, expectCountersReconcile,
 } from './_map.js';
 
@@ -39,7 +49,7 @@ const ORACLE_SRC = `window.__oracle = (function () {
     const tl = d.timeline || {};
     const y0 = yr(tl.start), y1 = yr(tl.end), dated = (y0 != null || y1 != null);
     const it = { id: d.id, kind, doms, y0, y1, dated, vague: (!dated || !!d.dateHost),
-                 geo: d.lat != null && d.lon != null };
+                 geo: d.lat != null && d.lon != null, country: d.country };
     list.push(it); byId[it.id] = it;
   });
   add(D.PROJECTS, 'project'); add(D.COMMONS, 'commons'); add(D.TEAMS, 'team'); add(D.FRAMEWORKS, 'framework');
@@ -115,7 +125,12 @@ const ORACLE_SRC = `window.__oracle = (function () {
     pins.forEach(id => { if (byId[id]) s.add(id); });
     pins.forEach(id => (nb.get(id) || new Set()).forEach(n => s.add(n)));
     return [...s]; };
+  // items is the flat record of the whole payload — one entry per entity, with the four
+  // axis properties plus the two the captions read (geo, country). Tests scan it to pick
+  // their own subject by property, and to reach a figure by a route that does not go
+  // through pass() or counts() at all. (No backticks in here: this is a template literal.)
   return { ALL, KINDS, GROUPS, TOTALS, YMIN, YMAX, PRESENT_FROM,
+           items: list, size: list.length, itemOf: id => byId[id],
            ids: list.map(i => i.id), kindOf: id => byId[id].kind, domsOf: id => byId[id].doms,
            neighboursOf: id => [...(nb.get(id) || new Set())],
            pass, counts: c => countsOf(pass(c)), countsOf, vagueOf, noGeoOf, noDateOf,
@@ -133,7 +148,41 @@ async function open(page, opts) {
   return page;
 }
 
+/** A first visit, with nothing in storage at all. `openMap` seeds `hai-map-v2-seen`
+ *  so the welcome overlay stays out of the way; the welcome panel carries its own copy
+ *  of the preset chips (§9.1), and reaching those means arriving cold. */
+async function openCold(page, { lang = 'en' } = {}) {
+  await page.addInitScript(() => {
+    try { localStorage.clear(); } catch { /* private mode — the page must cope */ }
+  });
+  await page.goto(`${MAP_PATH}?lang=${lang}`);
+  await expect(page.locator('#st-note')).not.toBeEmpty();
+  await installOracle(page);
+  return page;
+}
+
+const ls = (page, k) => page.evaluate((x) => localStorage.getItem(x), k);
+
 const sorted = (a) => [...a].sort();
+
+// --- the corpus, derived -----------------------------------------------------
+// The four shapes a test used to spell out as a literal. Each reads the oracle's own
+// derivation of `window.HAI_DATA`, which is where the additions file has already been
+// merged, so a regeneration moves them instead of breaking the suite (§3.2).
+const corpusSize = (page) => page.evaluate(() => window.__oracle.size);
+const corpusTotals = (page) => page.evaluate(() => window.__oracle.TOTALS);
+const bounds = (page) =>
+  page.evaluate(() => ({ YMIN: window.__oracle.YMIN, YMAX: window.__oracle.YMAX }));
+/** The unknown-start population of the whole corpus — the figure the switch's own row
+ *  shows at the default state, and the "of N" its tooltip names (§6.1, inv13). */
+const vagueCorpus = (page) =>
+  page.evaluate(() => window.__oracle.vagueOf(window.__oracle.pass({})));
+/** `state.years` as a clean slate: the whole axis, unknown starts included. What a preset
+ *  and Reset must put back (§6), with the two ends derived rather than written out. */
+const defaultYears = async (page) => {
+  const { YMIN, YMAX } = await bounds(page);
+  return { a: YMIN, b: YMAX, undated: true };
+};
 
 // --- reading the page under test ------------------------------------------
 const passIds = (page, skip = null) =>
@@ -188,6 +237,12 @@ async function setDomains(page, wanted) {
 const domainGroup = (page, key, which) =>
   page.click(`#domain-groups .mini-btn[data-ga="${which}"][data-g="${key}"]`);
 
+/** Which starting-view chips read as the current view, in one of the two hosts
+ *  `renderPresets()` fills — the sidebar's `#presets` and the welcome panel's `#w-presets`. */
+const activePresets = (page, host) => page.evaluate((h) =>
+  [...document.querySelectorAll(`${h} [data-preset]`)]
+    .filter((b) => b.classList.contains('active')).map((b) => b.dataset.preset), host);
+
 /** The "unknown start" checkbox. Its row only unfolds once a period is engaged (§10),
  *  so a caller that wants it off has to narrow the range first. */
 const setUndated = (page, on) =>
@@ -197,10 +252,25 @@ const setUndated = (page, on) =>
  *  focused entity, and a 520 ms camera move would put the in-view counters in motion. */
 const focus = (page, id) => page.evaluate((x) => openEntity(x, { fly: false }), id);
 
-// A team with a small, mixed neighbourhood: two projects and one commons. Small enough
-// to assert on member by member, mixed enough that a single layer toggle can hide the
-// neighbours while leaving the entity itself.
+// A team with a small, mixed neighbourhood — consortium projects and a commons. Small
+// enough to assert on member by member, mixed enough that a single layer toggle can hide
+// the neighbours while leaving the entity itself. The one id in this file that is kept
+// deliberately: it is the subject of the inv6 and My map blocks, not a stand-in for a
+// property, and every figure about it below is derived from the payload.
 const SBB = 'sbb';
+
+// Entities of each layer that carry the given domain and have no coordinates —
+// read straight out of the payload, so the expected split is derived from the
+// data rather than from the tally the page just computed.
+const placelessByDomain = (page, dom) => page.evaluate((d) => {
+  const n = { project: 0, team: 0, commons: 0, framework: 0 };
+  const LAYER = { PROJECTS: 'project', TEAMS: 'team', COMMONS: 'commons', FRAMEWORKS: 'framework' };
+  Object.entries(LAYER).forEach(([key, kind]) => window.HAI_DATA[key].forEach((e) => {
+    const doms = (e.domains && e.domains.length) ? e.domains : [e.domain];
+    if (doms.includes(d) && (e.lat == null || e.lon == null)) n[kind]++;
+  }));
+  return n;
+}, dom);
 
 test.describe('§6 the predicate', () => {
   test('§6 with every control at its default every entity passes — no domain code is unreachable', async ({ page }) => {
@@ -225,7 +295,7 @@ test.describe('§6 the predicate', () => {
     await setPeriod(page, cfg.a, cfg.b);
     const want = await page.evaluate((c) => window.__oracle.pass(c).sort(), cfg);
     expect(want.length).toBeGreaterThan(0);           // guard: an empty oracle proves nothing
-    expect(want.length).toBeLessThan(449);
+    expect(want.length).toBeLessThan(await corpusSize(page));   // and a real narrowing
     expect(await passIds(page)).toEqual(want);
   });
 
@@ -255,14 +325,18 @@ test.describe('§6 the predicate', () => {
 
   test('§6.1 skip:"period" leaves the period axis out and keeps the other two', async ({ page }) => {
     await open(page);
-    const cfg = { layers: ['project'], domains: ['health'], a: 1945, b: 1946 };
+    const { YMIN } = await bounds(page);
+    const cfg = { layers: ['project'], domains: ['health'], a: YMIN, b: YMIN + 1 };
     await setLayers(page, cfg.layers);
     await setDomains(page, cfg.domains);
     await setPeriod(page, cfg.a, cfg.b);
-    // 1945–1946 excludes every project, so the skip is doing visible work here.
+    // Two years at the floor exclude every project, so the skip is doing visible work here:
+    // the unskipped predicate is empty and the skipped one is not, both derived.
+    const want = await page.evaluate((c) => window.__oracle.pass({ ...c, skip: 'period' }).sort(), cfg);
+    expect(want.length).toBeGreaterThan(0);
+    expect(await page.evaluate((c) => window.__oracle.pass(c).length, cfg)).toBe(0);
     expect(await passIds(page)).toEqual([]);
-    expect(await passIds(page, 'period'))
-      .toEqual(await page.evaluate((c) => window.__oracle.pass({ ...c, skip: 'period' }).sort(), cfg));
+    expect(await passIds(page, 'period')).toEqual(want);
   });
 
   test('§6.1 only the three axis names are honoured — any other skip filters on all three', async ({ page }) => {
@@ -280,10 +354,16 @@ test.describe('§6 the predicate', () => {
   test('§6 the domain axis is an OR: a multi-domain entity survives until its last domain is unchecked', async ({ page }) => {
     // The legend promises this in so many words — "it stays visible while any of them is
     // ticked" — and it is the whole reason a pie-slice marker is honest.
+    //
+    // The subject is "the widest pie on the map", not a named entity: the test needs an
+    // entity with several domains, and a regeneration that trimmed the one it used to name
+    // would leave the loop below running on a single-domain dot, where it proves nothing.
     await open(page);
-    const id = 'ai4realnet';
-    const doms = await page.evaluate((x) => window.__oracle.domsOf(x), id);
-    expect(doms.length).toBe(6);
+    const { id, doms } = await page.evaluate(() => {
+      const widest = window.__oracle.items.reduce((a, b) => (b.doms.length > a.doms.length ? b : a));
+      return { id: widest.id, doms: widest.doms };
+    });
+    expect(doms.length).toBeGreaterThan(1);           // guard: one slice is not a pie
     for (let i = 0; i < doms.length; i++) {
       await page.locator(`#domain-groups input[data-dom="${doms[i]}"]`).uncheck();
       const left = doms.length - i - 1;
@@ -294,17 +374,29 @@ test.describe('§6 the predicate', () => {
 
   test('§6 unchecking a domain the entity does not carry leaves it visible', async ({ page }) => {
     await open(page);
-    const id = 'sbb';                                  // rail, and rail only
-    await setDomains(page, (await page.evaluate(() => window.__oracle.ALL)).filter((d) => d !== 'energy'));
+    // An entity carrying exactly one domain code, chosen by that property: what matters is
+    // that exactly one of the seventeen checkboxes can hide it, not which entity it is.
+    const { id, dom, other } = await page.evaluate(() => {
+      const one = window.__oracle.items.find((i) => i.doms.length === 1);
+      return { id: one.id, dom: one.doms[0],
+               other: window.__oracle.ALL.find((d) => d !== one.doms[0]) };
+    });
+    expect(typeof id).toBe('string');                  // guard: no single-domain entity, no test
+    await setDomains(page, (await page.evaluate(() => window.__oracle.ALL)).filter((d) => d !== other));
     expect((await visible(page)).vis).toContain(id);
-    await page.locator('#domain-groups input[data-dom="rail"]').uncheck();
+    await page.locator(`#domain-groups input[data-dom="${dom}"]`).uncheck();
     expect((await visible(page)).vis).not.toContain(id);
   });
 
   test('§6 the axes combine with AND: a ticked domain cannot save an entity whose layer is off', async ({ page }) => {
     await open(page);
-    const id = 'openclsim';                            // a commons, maritime
-    await setDomains(page, ['maritime']);
+    // A commons — picked by its layer, and filtered on a domain it carries itself, so the
+    // only thing left to take it off the map is the Commons toggle.
+    const { id, dom } = await page.evaluate(() => {
+      const c = window.__oracle.items.find((i) => i.kind === 'commons');
+      return { id: c.id, dom: c.doms[0] };
+    });
+    await setDomains(page, [dom]);
     expect((await visible(page)).vis).toContain(id);
     await toggleLayer(page, 'commons');
     expect((await visible(page)).vis).not.toContain(id);
@@ -313,9 +405,14 @@ test.describe('§6 the predicate', () => {
 
   test('§6 the axes combine with AND: an on layer cannot save an entity the period excludes', async ({ page }) => {
     await open(page);
-    const id = 'openclsim';                            // starts 2019, no end
+    // A commons whose start year is its own and later than the floor, so a two-year range
+    // at the floor is guaranteed to exclude it however the corpus is regenerated.
+    const { YMIN } = await bounds(page);
+    const id = await page.evaluate((y) => (window.__oracle.items
+      .find((i) => i.kind === 'commons' && !i.vague && i.y0 != null && i.y0 > y + 1) || {}).id, YMIN);
+    expect(typeof id).toBe('string');
     await setLayers(page, ['commons']);
-    await setPeriod(page, 1945, 1946);
+    await setPeriod(page, YMIN, YMIN + 1);
     expect((await visible(page)).vis).not.toContain(id);
     expect(await passIds(page, 'period')).toContain(id);
   });
@@ -410,54 +507,88 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
     await open(page);
     await setDomains(page, ['energy']);
     const want = await page.evaluate(() => window.__oracle.counts({ domains: ['energy'], skip: 'layer' }));
-    expect(want).toEqual({ project: 13, team: 57, commons: 11, framework: 4 });
+    // The figures are a snapshot (§3.2), so what is held against them is the arithmetic:
+    // with the period wide open the four rows must partition exactly the entities carrying
+    // `energy`, counted here by a flat scan of the payload that never enters pass().
+    const flat = await page.evaluate(() =>
+      window.__oracle.items.filter((i) => i.doms.indexOf('energy') >= 0).length);
+    expect(Object.values(want).reduce((a, b) => a + b, 0)).toBe(flat);
     expect(await layerCounts(page)).toEqual(want);
     // every one of the four actually moved
-    const corpus = await page.evaluate(() => window.__oracle.TOTALS);
+    const corpus = await corpusTotals(page);
     for (const k of Object.keys(corpus)) expect(want[k], k).toBeLessThan(corpus[k]);
   });
 
   test('§6.1 a period change moves every layer figure', async ({ page }) => {
     await open(page);
-    await setPeriod(page, 1945, 1945);
-    const want = await page.evaluate(() => window.__oracle.counts({ a: 1945, b: 1945, skip: 'layer' }));
-    expect(want).toEqual({ project: 0, team: 22, commons: 0, framework: 0 });
+    const { YMIN } = await bounds(page);
+    await setPeriod(page, YMIN, YMIN);
+    const want = await page.evaluate((y) => window.__oracle.counts({ a: y, b: y, skip: 'layer' }), YMIN);
     expect(await layerCounts(page)).toEqual(want);
+    // The figures move with the corpus; the shape of this state does not. Nothing but a
+    // team reaches back to the floor year — the dated projects, commons and frameworks all
+    // start later, and every entity whose start is unknown is a team (§10.1) — so three
+    // rows are exactly 0 while the fourth is neither 0 nor the whole layer.
+    const nonTeams = await page.evaluate((y) => window.__oracle.items
+      .filter((i) => i.kind !== 'team' && (i.vague || (i.y0 != null && i.y0 <= y))).length, YMIN);
+    expect(nonTeams).toBe(0);
+    expect([want.project, want.commons, want.framework]).toEqual([0, 0, 0]);
+    expect(want.team).toBeGreaterThan(0);
+    expect(want.team).toBeLessThan((await corpusTotals(page)).team);
   });
 
   test('§6.1 the "unknown start" switch is part of the period axis, so it moves the layer figures too', async ({ page }) => {
-    // Its 22 teams at 1945 are mostly *possible* rather than established; dropping the
-    // unknown starts is a period change like any other and the rows must follow it.
+    // The teams the floor year holds are mostly *possible* rather than established;
+    // dropping the unknown starts is a period change like any other and the rows must
+    // follow it. The two figures are derived, the narrowing between them is the assertion.
     await open(page);
-    await setPeriod(page, 1945, 1945);
+    const { YMIN } = await bounds(page);
+    await setPeriod(page, YMIN, YMIN);
+    const loose = await page.evaluate((y) => window.__oracle.counts({ a: y, b: y, skip: 'layer' }), YMIN);
     await setUndated(page, false);
-    const want = await page.evaluate(() =>
-      window.__oracle.counts({ a: 1945, b: 1945, undated: false, skip: 'layer' }));
-    expect(want).toEqual({ project: 0, team: 7, commons: 0, framework: 0 });
+    const want = await page.evaluate((y) =>
+      window.__oracle.counts({ a: y, b: y, undated: false, skip: 'layer' }), YMIN);
     expect(await layerCounts(page)).toEqual(want);
+    expect(want.team).toBeLessThan(loose.team);         // the switch really narrowed the row
+    expect(want.team).toBeGreaterThan(0);
+    expect([want.project, want.commons, want.framework]).toEqual([0, 0, 0]);
   });
 
   test('§6.1 / inv13 a narrowed layer figure keeps the corpus total one hover away', async ({ page }) => {
     await open(page);
-    // At the corpus there is nothing to reconcile, so no tooltip at all.
-    expect(await layerTitles(page)).toEqual({ project: '', team: '', commons: '', framework: '' });
+    // At the corpus there is nothing to reconcile, so no tooltip at all —
+    // except on the layers that hold placeless entities, whose title carries the
+    // split at every filter state because it describes the data, not a narrowing.
+    const bare = await layerRows(page);
+    for (const r of bare) {
+      if (r.offMap) expect(r.title).toContain('with no coordinates');
+      else expect(r.title).toBe('');
+    }
     await setDomains(page, ['energy']);
-    expect(await layerTitles(page)).toEqual({
-      project: '13 of 111 under the current filters',
-      team: '57 of 268 under the current filters',
-      commons: '11 of 25 under the current filters',
-      framework: '4 of 45 under the current filters',
-    });
+    // Rebuilt from the derived narrowed and corpus figures, and still compared as the exact
+    // string a reader hovers: "N of TOTAL under the current filters", one row at a time.
+    const corpus = await corpusTotals(page);
+    const want = await page.evaluate(() => window.__oracle.counts({ domains: ['energy'], skip: 'layer' }));
+    const gone = await placelessByDomain(page, 'energy');
+    expect(await layerTitles(page)).toEqual(Object.fromEntries(Object.keys(corpus).map((k) => [k,
+      gone[k]
+        ? `${want[k] - gone[k]} on the map · ${gone[k]} with no coordinates · ${want[k]} ${want[k] === 1 ? 'matches' : 'match'} the filters`
+        : `${want[k]} of ${corpus[k]} under the current filters`])));
+    // and all four rows genuinely have something to reconcile, or the strings are noise
+    for (const k of Object.keys(corpus)) expect(want[k], k).toBeLessThan(corpus[k]);
   });
 });
 
 test.describe('§6.1 the unknown-start count', () => {
   test('§6.1 the unknown-start figure skips the period axis — neither the range nor its own switch moves it', async ({ page }) => {
     await open(page);
-    const corpus = await page.evaluate(() => window.__oracle.vagueOf(window.__oracle.pass({})));
-    expect(corpus).toBe(37);
+    const corpus = await vagueCorpus(page);
+    // The figure moves with the corpus; that it is a real subset of it does not.
+    expect(corpus).toBeGreaterThan(0);
+    expect(corpus).toBeLessThan(await corpusSize(page));
     expect(await undatedCount(page)).toBe(corpus);
-    for (const [a, b] of [[1945, 1945], [2000, 2010], [2026, 2026], [1945, 2026]]) {
+    const { YMIN, YMAX } = await bounds(page);
+    for (const [a, b] of [[YMIN, YMIN], [2000, 2010], [YMAX, YMAX], [YMIN, YMAX]]) {
       await setPeriod(page, a, b);
       expect(await undatedCount(page), `${a}–${b}`).toBe(corpus);
     }
@@ -468,17 +599,22 @@ test.describe('§6.1 the unknown-start count', () => {
     expect(await undatedCount(page)).toBe(corpus);
   });
 
-  test('§6.1 filtered to Commons the unknown-start figure is 0, not 37', async ({ page }) => {
-    // Named in the spec because it shipped wrong: every one of the 37 is a team, so a
-    // reader looking at Commons was shown 37 for a set the switch could not touch.
+  test('§6.1 filtered to Commons the unknown-start figure is 0, not the corpus figure', async ({ page }) => {
+    // Named in the spec because it shipped wrong: every entity with an unknown start is a
+    // team, so a reader looking at Commons was shown the whole corpus figure for a set the
+    // switch could not touch. The "every one of them is a team" half is derived too — it is
+    // the reason 0 is the right answer here rather than a coincidence.
     await open(page);
+    const corpus = await vagueCorpus(page);
+    expect(await page.evaluate(() =>
+      window.__oracle.items.filter((i) => i.vague && i.kind !== 'team').length)).toBe(0);
     await setLayers(page, ['commons']);
     expect(await undatedCount(page)).toBe(0);
     expect(await page.evaluate(() =>
       window.__oracle.vagueOf(window.__oracle.pass({ layers: ['commons'], skip: 'period' })))).toBe(0);
     // and it comes back when the team layer does
     await setLayers(page, ['commons', 'team']);
-    expect(await undatedCount(page)).toBe(37);
+    expect(await undatedCount(page)).toBe(corpus);
   });
 
   test('§6.1 the unknown-start figure follows the domain axis', async ({ page }) => {
@@ -488,7 +624,14 @@ test.describe('§6.1 the unknown-start count', () => {
     await setDomains(page, ['energy']);
     const want = await page.evaluate(() =>
       window.__oracle.vagueOf(window.__oracle.pass({ domains: ['energy'], skip: 'period' })));
-    expect(want).toBe(5);
+    // Reached a second way — a flat scan of the payload for `energy` entities with an
+    // unknown start, no axis machinery involved — so the figure is derived twice over and
+    // written out nowhere.
+    const flat = await page.evaluate(() =>
+      window.__oracle.items.filter((i) => i.vague && i.doms.indexOf('energy') >= 0).length);
+    expect(want).toBe(flat);
+    expect(want).toBeGreaterThan(0);                   // guard: a zero would prove nothing
+    expect(want).toBeLessThan(await vagueCorpus(page));
     expect(await undatedCount(page)).toBe(want);
     await setDomains(page, []);
     expect(await undatedCount(page)).toBe(0);
@@ -496,17 +639,22 @@ test.describe('§6.1 the unknown-start count', () => {
 
   test('§6.1 / inv13 the unknown-start figure names the corpus only once it has narrowed', async ({ page }) => {
     await open(page);
+    const corpus = await vagueCorpus(page);
     expect(await undatedTitle(page)).toBe('');
     await setLayers(page, ['commons']);
-    expect(await undatedTitle(page)).toBe('0 of 37 under the current filters');
+    expect(await undatedTitle(page)).toBe(`0 of ${corpus} under the current filters`);
   });
 });
 
 test.describe('§6.1 the period histogram', () => {
   test('§6.1 the histogram skips the period axis: moving the range repaints, it does not redraw', async ({ page }) => {
     await open(page);
+    const { YMIN, YMAX } = await bounds(page);
     const before = await histBars(page);
-    expect(before.length).toBe(82);                     // 1945–2026, every year populated
+    // One bar per year of the axis §10 describes — the floor to the data's own freshness
+    // date — because at the corpus every year of that span carries something.
+    expect(before.map((b) => b.y))
+      .toEqual(Array.from({ length: YMAX - YMIN + 1 }, (_, i) => YMIN + i));
     expect(before.every((b) => b.on)).toBe(true);
     await setPeriod(page, 2000, 2010);
     const after = await histBars(page);
@@ -519,16 +667,28 @@ test.describe('§6.1 the period histogram', () => {
   });
 
   test('§6.1 the histogram follows the layer and domain axes', async ({ page }) => {
-    // The curve is the period control's own backdrop: drawn over all 449 while the reader
-    // has narrowed to two AI-network teams, it would size the handles against a population
-    // they are not selecting from.
+    // The curve is the period control's own backdrop: drawn over the whole corpus while the
+    // reader has narrowed to the handful of AI-network teams, it would size the handles
+    // against a population they are not selecting from.
     await open(page);
+    const { YMIN, YMAX } = await bounds(page);
     await setDomains(page, ['cluster']);
     const want = await page.evaluate(() =>
       window.__oracle.histYearsOf(window.__oracle.pass({ domains: ['cluster'], skip: 'period' })));
-    expect(want).toEqual([2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]);
+    // Derived, and held to the two things that make it the *narrowed* curve: it starts at
+    // the earliest `cluster` entity's own start year, and it is shorter than the axis.
+    const first = await page.evaluate(() => Math.min(...window.__oracle.items
+      .filter((i) => i.doms.indexOf('cluster') >= 0 && i.y0 != null).map((i) => i.y0)));
+    expect(want[0]).toBe(first);
+    expect(want.length).toBeGreaterThan(0);
+    expect(want.length).toBeLessThan(YMAX - YMIN + 1);
     expect((await histBars(page)).map((b) => b.y)).toEqual(want);
-    await setLayers(page, ['project']);                 // no project carries `cluster`
+    // `cluster` is an infrastructure code and §3.1 keeps those off the project layer, so
+    // narrowing to Projects empties the curve outright. Derived, because an emptiness that
+    // held for the wrong reason would be the same green.
+    expect(await page.evaluate(() => window.__oracle.items
+      .filter((i) => i.kind === 'project' && i.doms.indexOf('cluster') >= 0).length)).toBe(0);
+    await setLayers(page, ['project']);
     expect(await histBars(page)).toEqual([]);
   });
 
@@ -539,8 +699,9 @@ test.describe('§6.1 the period histogram', () => {
   });
 
   test('§6.1 the histogram is normalised to the filtered peak, so a narrow scope still has a full-height bar', async ({ page }) => {
-    // Normalising to a fixed corpus peak would draw a 25-entity layer as a flat line one
-    // pixel high; the shape is what is being read, not the height against other states.
+    // Normalising to a fixed corpus peak would draw the two-dozen-entity Commons layer as a
+    // flat line one pixel high; the shape is what is being read, not the height against
+    // other states. 19 is the band's own height in user units, a constant of the control.
     await open(page);
     await setLayers(page, ['commons']);
     const bars = await histBars(page);
@@ -549,11 +710,11 @@ test.describe('§6.1 the period histogram', () => {
   });
 
   test('§6.1 a year carrying a single entity still draws a bar the reader can see', async ({ page }) => {
-    // The other end of the same normalisation. Against the 25-entity Commons peak, a year
-    // with one entity is 0.76 of the 19-unit band — a sliver at this size. The floor is
-    // what keeps the sparse years of a narrow scope legible, so it is pinned here: without
-    // it the curve still has the right shape and the wrong readability, which is the kind
-    // of regression a shape-only comparison cannot see.
+    // The other end of the same normalisation. Against the whole Commons layer as the peak,
+    // a year with one entity is well under a unit of the 19-unit band — a sliver at this
+    // size. The floor is what keeps the sparse years of a narrow scope legible, so the
+    // 1.1 is pinned here: without it the curve still has the right shape and the wrong
+    // readability, which is the kind of regression a shape-only comparison cannot see.
     await open(page);
     await setLayers(page, ['commons']);
     const want = await page.evaluate(() =>
@@ -562,7 +723,13 @@ test.describe('§6.1 the period histogram', () => {
     expect(bars.map((b) => b.y)).toEqual(want.map((w) => w.y));
     const h = Object.fromEntries(bars.map((b) => [b.y, Number(b.h)]));
     const peak = Math.max(...want.map((w) => w.n));
-    expect(peak).toBe(25);
+    // The peak is the whole dated layer, derived rather than written out: no commons has a
+    // recorded end, so every one of them is still running at the ceiling year and the last
+    // bar carries all of them.
+    const dated = await page.evaluate(() =>
+      window.__oracle.items.filter((i) => i.kind === 'commons' && i.dated).length);
+    expect(want[want.length - 1].n).toBe(dated);
+    expect(peak).toBe(dated);
     const sparse = want.filter((w) => w.n === 1).map((w) => w.y);
     expect(sparse.length).toBeGreaterThan(0);           // guard: nothing floored, nothing proven
     for (const y of sparse) expect(h[y], `${y} carries one commons`).toBeCloseTo(1.1, 5);
@@ -578,16 +745,26 @@ test.describe('§6.1 the period histogram', () => {
     // Invariant 4 from the histogram's side. An entity with no dates at all, read through
     // the same `y0 ?? YMIN / y1 ?? YMAX` clamp the dated ones use, would draw a bar in
     // every year of the axis and drag the curve back to the floor year — a span it never
-    // had. Telecom is the clean case: one of its teams has no dates, and no dated telecom
-    // entity reaches back before 1964, so the mistake shows as nineteen invented years.
+    // had. Telecom is the clean case: one of its teams has no dates at all, and the dated
+    // ones reach back only to the mid-sixties, so the mistake shows as two decades of
+    // invented years. Both ends of that are derived; the floor year is the axis's own.
     await open(page);
+    const { YMIN } = await bounds(page);
     await setDomains(page, ['telecom']);
     const scope = await page.evaluate(() =>
       window.__oracle.pass({ domains: ['telecom'], skip: 'period' }));
-    expect(await page.evaluate((x) => window.__oracle.noDateOf(x), scope)).toBe(1);  // guard
+    const noDate = await page.evaluate(() =>
+      window.__oracle.items.filter((i) => i.doms.indexOf('telecom') >= 0 && !i.dated).length);
+    expect(noDate).toBeGreaterThan(0);               // guard: nothing undated, nothing proven
+    expect(await page.evaluate((x) => window.__oracle.noDateOf(x), scope)).toBe(noDate);
     const years = (await histBars(page)).map((b) => b.y);
     expect(years).toEqual(await page.evaluate((x) => window.__oracle.histYearsOf(x), scope));
-    expect([years[0], years.length]).toEqual([1964, 63]);
+    // The curve starts at the earliest telecom entity that has a date of its own, which is
+    // strictly later than the floor the undated one would have dragged it back to.
+    const first = await page.evaluate(() => Math.min(...window.__oracle.items
+      .filter((i) => i.doms.indexOf('telecom') >= 0 && i.y0 != null).map((i) => i.y0)));
+    expect(years[0]).toBe(first);
+    expect(first).toBeGreaterThan(YMIN);
     // It is in the scope the bars are drawn from all the same — the unknown-start figure
     // counts it; only the curve declines to give it a span.
     expect(await undatedCount(page)).toBeGreaterThan(0);
@@ -632,12 +809,70 @@ test.describe('invariant 6 — a filter change never hides the open card', () =>
 
   test('inv6 §6/§10 the focused entity survives a period that excludes it', async ({ page }) => {
     await open(page);
-    await focus(page, 'openclsim');
-    await setPeriod(page, 1945, 1946);
+    // An entity with a start year of its own, later than the floor, and a marker to watch:
+    // a two-year range at the floor then excludes it whatever the corpus holds.
+    const { YMIN } = await bounds(page);
+    const id = await page.evaluate((y) => (window.__oracle.items
+      .find((i) => i.geo && !i.vague && i.y0 != null && i.y0 > y + 1) || {}).id, YMIN);
+    expect(typeof id).toBe('string');
+    await focus(page, id);
+    await setPeriod(page, YMIN, YMIN + 1);
     const v = await visible(page);
-    expect(v.vis).toContain('openclsim');
-    expect(v.matched).not.toContain('openclsim');
-    expect(await markerOf(page, 'openclsim')).toEqual({ hidden: false, dim: false, focus: true });
+    expect(v.vis).toContain(id);
+    expect(v.matched).not.toContain(id);
+    expect(await markerOf(page, id)).toEqual({ hidden: false, dim: false, focus: true });
+  });
+
+  test('inv6 §6 the focused entity survives the switch into My map', async ({ page }) => {
+    // The three tests above narrow one of the three filter axes, so every one of them
+    // lands in the `else` half of visibleSet(). My map is the other half, and the tests
+    // that cover it elsewhere deliberately have no card open — which leaves the focus
+    // override free to slide inside the `else` without a single failure anywhere, while
+    // a reader who opens a card and then clicks My map watches the marker disappear from
+    // under it. §6 puts the override after both branches for that reason.
+    await open(page, { storage: { 'hai-map-v2-pins': JSON.stringify([SBB]) } });
+    // An entity with a marker, picked for the one property that matters: it is outside the
+    // pin's neighbourhood, so it can only be in `vis` as the kept-open card.
+    const want = sorted(await page.evaluate((p) => window.__oracle.mapSetOf(p), [SBB]));
+    const outside = await page.evaluate((set) => (window.__oracle.items
+      .find((i) => i.geo && set.indexOf(i.id) < 0) || {}).id, want);
+    expect(want).not.toContain(outside);
+    await focus(page, outside);
+    await page.click('#mymap-pill');
+    await settleCounts(page);
+
+    expect((await snapshot(page)).focusId).toBe(outside);
+    const v = await visible(page);
+    expect(v.vis).toContain(outside);
+    expect(v.matched).toEqual(want);
+    expect(v.matched).not.toContain(outside);
+    expect(await markerOf(page, outside)).toEqual({ hidden: false, dim: false, focus: true });
+    const s = await snapshot(page);
+    expect(s.matchCount).toBe(want.length);
+    // invariant 12's third term, in the mode where nothing else ever exercises it
+    expect(s.keptOpen).toBe(1);
+    await expectCountersReconcile(page, 'My map with an outside card open');
+
+    // §9.2 makes the open card its own named term — "(plus the open card)" — precisely so
+    // the surplus does not read as an off-by-one. This used to be a SPEC-DEVIATION: `why`
+    // was assembled for the filter wording only, so the My map branch dropped the term and
+    // the tiles summed to one above a caption that did not say why. Fixed upstream, and
+    // asserted here as the exact string, rebuilt from the derived pin set: the My map fit
+    // brings the kept-open card into view with the four, so every one of them is counted.
+    const countries = await page.evaluate((ids) =>
+      new Set(ids.map((id) => window.__oracle.itemOf(id).country)).size, [...want, outside]);
+    expect(s.inView).toBe(want.length + 1);
+    expect(await caption(page)).toBe(
+      `${countries} ${countries === 1 ? 'country' : 'countries'} · in view`
+      + ` · ${want.length} on your map (plus the open card)`);
+    expect((await tiles(page)).reduce((a, x) => a + x.count, 0)).toBe(want.length + 1);
+
+    // And the entity really was out of scope, rather than having been in it all along:
+    // close the card and the only thing holding it on the map goes with it.
+    await page.keyboard.press('Escape');
+    await settleCounts(page);
+    expect((await markerOf(page, outside)).hidden).toBe(true);
+    expect((await snapshot(page)).keptOpen).toBe(0);
   });
 
   test('inv6 §6 closing the card gives the filters the last word again', async ({ page }) => {
@@ -673,7 +908,11 @@ test.describe('invariant 6 — a filter change never hides the open card', () =>
   test('§6 the focus\'s visible neighbours are un-dimmed, and everything else is dimmed', async ({ page }) => {
     await open(page);
     const nbs = sorted(await page.evaluate((x) => window.__oracle.neighboursOf(x), SBB));
-    expect(nbs).toEqual(['ai4realnet', 'osrd', 'r2dato']);
+    expect(nbs.length).toBeGreaterThan(0);             // guard: no neighbourhood, no test
+    // The two derivations of the same neighbourhood must agree, which is also what makes
+    // the My map set below the pin plus exactly these.
+    expect(sorted(await page.evaluate((x) => window.__oracle.mapSetOf([x]), SBB)))
+      .toEqual(sorted([SBB, ...nbs]));
     await focus(page, SBB);
     const v = await visible(page);
     for (const n of nbs) {
@@ -681,18 +920,29 @@ test.describe('invariant 6 — a filter change never hides the open card', () =>
       expect(v.dimmed, n).not.toContain(n);
       expect(await markerOf(page, n), n).toEqual({ hidden: false, dim: false, focus: false });
     }
-    expect(await markerOf(page, 'openclsim')).toEqual({ hidden: false, dim: true, focus: false });
+    // "everything else": an entity with a marker that is neither the focus nor one of its
+    // neighbours, chosen by that property rather than named.
+    const far = await page.evaluate((x) => {
+      const near = new Set([x, ...window.__oracle.neighboursOf(x)]);
+      return (window.__oracle.items.find((i) => i.geo && !near.has(i.id)) || {}).id;
+    }, SBB);
+    expect(await markerOf(page, far)).toEqual({ hidden: false, dim: true, focus: false });
   });
 
   test('§6 only *visible* neighbours are un-dimmed — one the filters hide stays hidden', async ({ page }) => {
     // The focus override re-adds the card's own entity, not its neighbourhood: a reader
-    // who filters to Teams should not get three projects back through the side door.
+    // who filters to Teams should not get the consortia around it back through the side door.
     await open(page);
+    // SBB's neighbours that are not themselves teams, derived: those are exactly the ones
+    // the Teams filter has to keep out.
+    const nbs = await page.evaluate((x) => window.__oracle.neighboursOf(x)
+      .filter((n) => window.__oracle.kindOf(n) !== 'team'), SBB);
+    expect(nbs.length).toBeGreaterThan(0);             // guard: nothing to hide, nothing proven
     await focus(page, SBB);
     await setLayers(page, ['team']);
     const v = await visible(page);
     expect(v.vis).toContain(SBB);
-    for (const n of ['ai4realnet', 'r2dato', 'osrd']) {
+    for (const n of nbs) {
       expect(v.vis, n).not.toContain(n);
       expect((await markerOf(page, n)).hidden, n).toBe(true);
     }
@@ -708,7 +958,9 @@ test.describe('§6 My map replaces the axes', () => {
     await open(page, pinned);
     await page.click('#mymap-pill');
     const want = sorted(await page.evaluate((p) => window.__oracle.mapSetOf(p), [PIN]));
-    expect(want).toEqual(['ai4realnet', 'osrd', 'r2dato', 'sbb']);
+    expect(want).toContain(PIN);                       // the pin itself, plus its neighbours
+    expect(want.length).toBeGreaterThan(1);
+    expect(want.length).toBeLessThan(await corpusSize(page));
     for (const skip of [null, 'layer', 'domain', 'period']) {
       expect(await scopeIds(page, skip), `skip=${skip}`).toEqual(want);
     }
@@ -721,23 +973,30 @@ test.describe('§6 My map replaces the axes', () => {
   test('§6.1 in My map the layer figures describe the pin set, not the corpus', async ({ page }) => {
     await open(page, pinned);
     await page.click('#mymap-pill');
-    const want = await page.evaluate((p) => window.__oracle.countsOf(window.__oracle.mapSetOf(p)), [PIN]);
-    expect(want).toEqual({ project: 2, team: 1, commons: 1, framework: 0 });
+    const ids = await page.evaluate((p) => window.__oracle.mapSetOf(p), [PIN]);
+    const want = await page.evaluate((x) => window.__oracle.countsOf(x), ids);
+    // The four rows partition the pin set exactly — nothing counted twice, nothing dropped —
+    // and every one of them is below its corpus total, which is the whole point of the mode.
+    expect(Object.values(want).reduce((a, b) => a + b, 0)).toBe(ids.length);
     expect(await layerCounts(page)).toEqual(want);
+    const corpus = await corpusTotals(page);
+    for (const k of Object.keys(corpus)) expect(want[k], k).toBeLessThan(corpus[k]);
   });
 
   test('§6.1 in My map the unknown-start figure and the histogram describe the pin set too', async ({ page }) => {
     await open(page, pinned);
     await page.click('#mymap-pill');
     const ids = await page.evaluate((p) => window.__oracle.mapSetOf(p), [PIN]);
-    expect(await undatedCount(page)).toBe(await page.evaluate((x) => window.__oracle.vagueOf(x), ids));
-    expect((await histBars(page)).map((b) => b.y))
-      .toEqual(await page.evaluate((x) => window.__oracle.histYearsOf(x), ids));
-    // Both figures are pinned as well as compared: an oracle that drifted to zero bars and
-    // a zero count would agree with a page that had stopped computing either of them.
-    expect(await undatedCount(page)).toBe(1);           // the pin itself dates from its host
-    expect((await histBars(page)).map((b) => b.y))
-      .toEqual([2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]);
+    const vague = await page.evaluate((x) => window.__oracle.vagueOf(x), ids);
+    const years = await page.evaluate((x) => window.__oracle.histYearsOf(x), ids);
+    expect(await undatedCount(page)).toBe(vague);
+    expect((await histBars(page)).map((b) => b.y)).toEqual(years);
+    // Both figures are guarded as well as compared: an oracle that drifted to zero bars and
+    // a zero count would agree with a page that had stopped computing either of them. The
+    // pin itself dates from its host, which is where the unknown start comes from.
+    expect(vague).toBeGreaterThan(0);
+    expect(years.length).toBeGreaterThan(0);
+    expect(years.length).toBeLessThan((await bounds(page)).YMAX - (await bounds(page)).YMIN + 1);
   });
 
   test('§6 a pin whose entity has left the data is ignored rather than counted', async ({ page }) => {
@@ -751,14 +1010,21 @@ test.describe('§6 My map replaces the axes', () => {
     await page.click('#mymap-pill');
     const s = await snapshot(page);
     expect(s.myMap).toBe(true);
-    expect(await scopeIds(page)).toEqual(['ai4realnet', 'osrd', 'r2dato', 'sbb']);
-    expect(s.matchCount).toBe(4);
+    // The scope is the live pin's neighbourhood and nothing else: `mapSetOf` is given both
+    // ids and guards them the same way the page must, so the stale one contributes nothing.
+    const want = sorted(await page.evaluate((p) => window.__oracle.mapSetOf(p),
+      ['left-in-a-regeneration', SBB]));
+    expect(want).toEqual(sorted(await page.evaluate((p) => window.__oracle.mapSetOf(p), [SBB])));
+    expect(await scopeIds(page)).toEqual(want);
+    expect(s.matchCount).toBe(want.length);
     // Every facet count still answers, which is where a refresh() that threw would show.
-    expect(await layerCounts(page)).toEqual({ project: 2, team: 1, commons: 1, framework: 0 });
-    expect(await undatedCount(page)).toBe(1);
+    expect(await layerCounts(page))
+      .toEqual(await page.evaluate((x) => window.__oracle.countsOf(x), want));
+    expect(await undatedCount(page))
+      .toBe(await page.evaluate((x) => window.__oracle.vagueOf(x), want));
     expect((await histBars(page)).map((b) => b.y))
-      .toEqual([2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]);
-    expect(await caption(page)).toContain('4 on your map');
+      .toEqual(await page.evaluate((x) => window.__oracle.histYearsOf(x), want));
+    expect(await caption(page)).toContain(`${want.length} on your map`);
     // SPEC-DEVIATION: the pill's badge counts the stored ids (2) while the My map list
     // below it drops the one that no longer resolves (1), so the two disagree about the
     // size of the reader's own map. §6.1 would have every figure describe the set the
@@ -788,11 +1054,16 @@ test.describe('§6 My map replaces the axes', () => {
   test('§6 in My map the pins are solid and their neighbours dimmed', async ({ page }) => {
     await open(page, pinned);
     await page.click('#mymap-pill');
+    const nbs = sorted(await page.evaluate((x) => window.__oracle.neighboursOf(x), PIN));
+    expect(nbs.length).toBeGreaterThan(0);             // guard: nothing to dim, nothing proven
     const v = await visible(page);
-    expect(v.vis).toEqual(['ai4realnet', 'osrd', 'r2dato', 'sbb']);
-    expect(v.dimmed).toEqual(['ai4realnet', 'osrd', 'r2dato']);
+    expect(v.vis).toEqual(sorted([PIN, ...nbs]));
+    expect(v.dimmed).toEqual(nbs);                      // the pin is solid, everything it reaches is faint
     expect(await markerOf(page, PIN)).toEqual({ hidden: false, dim: false, focus: false });
-    expect((await markerOf(page, 'r2dato')).dim).toBe(true);
+    // Only the ones with coordinates have a marker to be faint (invariant 3).
+    const placed = await page.evaluate((ids) =>
+      ids.filter((id) => window.__oracle.itemOf(id).geo), nbs);
+    for (const n of placed) expect((await markerOf(page, n)).dim, n).toBe(true);
   });
 
   test('§6 My map with no pins refuses to engage', async ({ page }) => {
@@ -822,10 +1093,11 @@ test.describe('§6 My map replaces the axes', () => {
     await page.evaluate((x) => togglePin(x), SBB);
     expect((await snapshot(page)).pins).toBe(1);
     await page.evaluate(() => toggleMyMap());
+    const want = sorted(await page.evaluate((x) => window.__oracle.mapSetOf([x]), SBB));
     const s = await snapshot(page);
     expect(s.myMap).toBe(true);
-    expect(s.matchCount).toBe(4);
-    expect(await scopeIds(page, 'layer')).toEqual(['ai4realnet', 'osrd', 'r2dato', 'sbb']);
+    expect(s.matchCount).toBe(want.length);
+    expect(await scopeIds(page, 'layer')).toEqual(want);
   });
 });
 
@@ -836,7 +1108,7 @@ test.describe('§6 starting views are a clean slate', () => {
     const s = await snapshot(page);
     expect(s.domains).toEqual(['energy']);
     expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
-    expect(s.years).toEqual({ a: 1945, b: 2026, undated: true });
+    expect(s.years).toEqual(await defaultYears(page));
     expect(s.myMap).toBe(false);
   });
 
@@ -846,7 +1118,8 @@ test.describe('§6 starting views are a clean slate', () => {
     await applyPreset(page, 'overview');
     expect(sorted((await snapshot(page)).domains))
       .toEqual(sorted(await page.evaluate(() => window.__oracle.ALL)));
-    expect((await snapshot(page)).matchCount).toBe(449);
+    // All seventeen checked is the whole corpus — derived, because the corpus moves (§3.2).
+    expect((await snapshot(page)).matchCount).toBe(await corpusSize(page));
   });
 
   test('§6 a preset is a clean slate, not a modifier on the current state', async ({ page }) => {
@@ -862,7 +1135,7 @@ test.describe('§6 starting views are a clean slate', () => {
     const s = await snapshot(page);
     expect(sorted(s.domains)).toEqual(['hf', 'xai']);
     expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
-    expect(s.years).toEqual({ a: 1945, b: 2026, undated: true });
+    expect(s.years).toEqual(await defaultYears(page));
     expect(s.myMap).toBe(false);
     expect(s.matchCount).toBe(await page.evaluate(() => window.__oracle.pass({ domains: ['hf', 'xai'] }).length));
   });
@@ -892,6 +1165,40 @@ test.describe('§6 starting views are a clean slate', () => {
           .filter((b) => b.classList.contains('active')).map((b) => b.dataset.preset));
       expect(active, id).toEqual([id]);
     }
+  });
+
+  test('§6/§9.1 a starting view chosen from the welcome panel applies and dismisses it', async ({ page }) => {
+    // `renderPresets()` fills two hosts from one `mk()` helper, called twice: the sidebar's
+    // `#presets` and the welcome panel's `#w-presets`. Every other preset test goes through
+    // the sidebar copy, so losing the second binding would leave the chips a first-time
+    // reader actually sees inert — the click does nothing, the overlay stays up — with the
+    // suite still green. This is the cold-arrival path, end to end.
+    await openCold(page);
+    await expect(page.locator('#welcome')).toHaveClass(/open/);
+    expect(await ls(page, 'hai-map-v2-seen')).toBe(null);
+
+    await page.click('#w-presets [data-preset="energy"]');
+
+    // applyPreset() does four things from here, and nothing checks them together.
+    await expect(page.locator('#welcome')).not.toHaveClass(/open/);
+    expect(await ls(page, 'hai-map-v2-seen')).toBe('1');
+    const s = await snapshot(page);
+    expect(s.domains).toEqual(['energy']);
+    expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
+    expect(s.years).toEqual(await defaultYears(page));
+    expect(s.myMap).toBe(false);
+    const want = await page.evaluate(() => window.__oracle.pass({ domains: ['energy'] }).length);
+    expect(want).toBeGreaterThan(0);        // a preset selecting nothing would agree with itself
+    expect(s.matchCount).toBe(want);
+    // Both hosts read back the view the reader is now in, the welcome copy included —
+    // `renderPresetsActive()` walks `[data-preset]` document-wide for that reason.
+    expect(await activePresets(page, '#presets')).toEqual(['energy']);
+    expect(await activePresets(page, '#w-presets')).toEqual(['energy']);
+    // applyPreset() calls closeWelcome() without the `first` flag, so the first-marker
+    // hint stays unspent: it belongs to the reader who chose "Explore freely" and is now
+    // looking at an unexplained map, not to one who has just picked a starting view.
+    expect(await ls(page, 'hai-map-v2-hint-click')).toBe(null);
+    expect(await page.locator('#toast').textContent()).toBe('');
   });
 
   test('§6 no preset reads as active while My map has replaced the axes', async ({ page }) => {
@@ -970,23 +1277,36 @@ test.describe('§6 boundaries', () => {
   });
 
   test('§6/§9.1 exactly one result: the caption agrees with itself in the singular', async ({ page }) => {
-    // n=1 verb agreement, and the narrowest non-empty state the filters can reach through
-    // two axes: maritime is carried by exactly one commons.
+    // n=1 verb agreement, in the narrowest non-empty state two axes can reach. The pair of
+    // settings is searched for rather than named: `maritime` + Commons was a population of
+    // one when this was written and a population of two after the next regeneration, which
+    // would have left the singular wording untested with the suite still green. The entity
+    // has to be a placed one, or "1 country" and "1 in view" would both be wrong for a
+    // reason that has nothing to do with agreement.
     await open(page);
-    await setLayers(page, ['commons']);
-    await setDomains(page, ['maritime']);
+    const one = await page.evaluate(() => {
+      for (const kind of window.__oracle.KINDS) for (const dom of window.__oracle.ALL) {
+        const hit = window.__oracle.items.filter((i) => i.kind === kind && i.doms.indexOf(dom) >= 0);
+        if (hit.length === 1 && hit[0].geo) return { kind, dom, id: hit[0].id };
+      }
+      return null;
+    });
+    expect(one).not.toBeNull();                        // guard: no singleton scope, no test
+    await setLayers(page, [one.kind]);
+    await setDomains(page, [one.dom]);
     await fitAll(page);
     const s = await snapshot(page);
     expect(s.matchCount).toBe(1);
-    expect(await passIds(page)).toEqual(['openclsim']);
+    expect(await passIds(page)).toEqual([one.id]);
     expect(await caption(page)).toBe('1 country · in view · 1 matches the filters');
-    expect((await tiles(page)).find((t) => t.kind === 'commons').title).toBe('1 in view · 1 matches the filters');
+    expect((await tiles(page)).find((t) => t.kind === one.kind).title)
+      .toBe('1 in view · 1 matches the filters');
     await expectCountersReconcile(page, 'exactly one match');
   });
 
   test('§6 an entity with no coordinates is filtered like any other — it just has no marker', async ({ page }) => {
-    // Invariant 3: the eleven placeless entities keep their card, their search result and
-    // their feed row, so they have to keep passing and failing the predicate too.
+    // Invariant 3: the placeless entities keep their card, their search result and their
+    // feed row, so they have to keep passing and failing the predicate too.
     await open(page);
     await setLayers(page, ['framework']);
     await setDomains(page, ['hf']);
@@ -997,24 +1317,46 @@ test.describe('§6 boundaries', () => {
     expect(await passIds(page)).toEqual(sorted(want));
     expect(s.offMapMatch).toBe(await page.evaluate((x) => window.__oracle.noGeoOf(x), want));
     expect(s.offMapMatch).toBeGreaterThan(0);          // guard: the case would be vacuous at 0
-    expect(await page.evaluate(() => document.querySelector('.mk[data-id="fitts-list-maba-maba"]'))).toBeNull();
-    expect((await visible(page)).vis).toContain('fitts-list-maba-maba');
+    // One of them, chosen for having no coordinates rather than by name, plus a domain it
+    // does not carry — which is what has to take it out of the set.
+    const { id, other } = await page.evaluate((ids) => {
+      const it = ids.map((x) => window.__oracle.itemOf(x)).find((i) => !i.geo);
+      return { id: it.id, other: window.__oracle.ALL.find((d) => it.doms.indexOf(d) < 0) };
+    }, want);
+    expect(await page.evaluate((x) => document.querySelector(`.mk[data-id="${x}"]`), id)).toBeNull();
+    expect((await visible(page)).vis).toContain(id);
     // and it leaves the set when its domain does
-    await setDomains(page, ['energy']);
-    expect((await visible(page)).vis).not.toContain('fitts-list-maba-maba');
+    await setDomains(page, [other]);
+    expect((await visible(page)).vis).not.toContain(id);
   });
 
   test('§6 the period floor and ceiling are inclusive at both ends', async ({ page }) => {
     await open(page);
-    const { YMIN, YMAX } = await page.evaluate(() => window.__oracle);
-    expect([YMIN, YMAX]).toEqual([1945, 2026]);
+    const { YMIN, YMAX } = await bounds(page);
+    // §10's own rule, re-derived straight off the payload: the axis runs from 1945 — a
+    // handful of founders predate it, so the floor is a clamp and not the earliest year —
+    // to the data's freshness date `AS_OF`, not to the furthest funded end-date.
+    const rule = await page.evaluate(() => {
+      const D = window.HAI_DATA;
+      const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
+      const ys = [], starts = [];
+      [].concat(D.PROJECTS, D.TEAMS, D.COMMONS, D.FRAMEWORKS).forEach((d) => {
+        const tl = d.timeline || {}, a = yr(tl.start), b = yr(tl.end);
+        if (a != null) { ys.push(a); starts.push(a); }
+        if (b != null) ys.push(b);
+      });
+      return { floor: 1945, earliest: Math.min(...ys),
+               ceiling: Math.max(+String(D.AS_OF).slice(0, 4), Math.max(...starts)) };
+    });
+    expect(rule.earliest).toBeLessThan(rule.floor);    // guard: the clamp is doing work
+    expect([YMIN, YMAX]).toEqual([rule.floor, rule.ceiling]);
     for (const [a, b] of [[YMIN, YMIN], [YMAX, YMAX], [YMIN, YMAX]]) {
       await setPeriod(page, a, b);
       expect(await passIds(page), `${a}–${b}`)
         .toEqual(await page.evaluate((c) => window.__oracle.pass(c).sort(), { a, b }));
     }
     // the full span is the unfiltered corpus again
-    expect((await snapshot(page)).matchCount).toBe(449);
+    expect((await snapshot(page)).matchCount).toBe(await corpusSize(page));
   });
 
   test('§6.1 a collapsed sidebar still has current figures when it comes back', async ({ page }) => {
@@ -1029,14 +1371,16 @@ test.describe('§6 boundaries', () => {
     await page.click('#sb-hide');
     expect(await page.evaluate(() => getComputedStyle(document.getElementById('sidebar')).display))
       .toBe('none');
+    const { YMIN } = await bounds(page);
+    const corpus = await vagueCorpus(page);
     const knob = page.locator('#tf-b');
     await knob.focus();
     await knob.press('Home');                           // both handles to the floor year
-    expect(await periodLabel(page)).toBe('1945');
+    expect(await periodLabel(page)).toBe(String(YMIN));
     await page.click('#sb-open');
     expect(await layerCounts(page))
-      .toEqual(await page.evaluate(() => window.__oracle.counts({ a: 1945, b: 1945, skip: 'layer' })));
-    expect(await undatedCount(page)).toBe(37);          // still the period's own count, unmoved
+      .toEqual(await page.evaluate((y) => window.__oracle.counts({ a: y, b: y, skip: 'layer' }), YMIN));
+    expect(await undatedCount(page)).toBe(corpus);       // still the period's own count, unmoved
   });
 
   test('§6 Reset puts the axes back where they started and keeps the pins', async ({ page }) => {
@@ -1049,10 +1393,10 @@ test.describe('§6 boundaries', () => {
     const s = await snapshot(page);
     expect(sorted(s.domains)).toEqual(sorted(await page.evaluate(() => window.__oracle.ALL)));
     expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
-    expect(s.years).toEqual({ a: 1945, b: 2026, undated: true });
+    expect(s.years).toEqual(await defaultYears(page));
     expect(s.myMap).toBe(false);
     expect(s.focusId).toBe(null);
-    expect(s.matchCount).toBe(449);
+    expect(s.matchCount).toBe(await corpusSize(page));
     expect(s.pins).toBe(1);                             // Reset clears the filters, not the pins
   });
 

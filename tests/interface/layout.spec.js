@@ -39,6 +39,26 @@ async function openAt(page, { width, height = 820, lang = 'en', denyStorage = fa
   return page;
 }
 
+/** Wait until a transitioned element has stopped moving, then hand back
+ *  nothing. `#tour-spot` is `transition:all .3s`, so a rectangle read straight
+ *  after a step change is a frame of the animation rather than the step's
+ *  geometry. Polling for *stability* rather than for an expected value keeps
+ *  the wait from deciding the assertion.  */
+async function settleRect(page, sel) {
+  const read = () => page.evaluate((s) => {
+    const b = document.querySelector(s).getBoundingClientRect();
+    return [b.left, b.top, b.width, b.height].join(',');
+  }, sel);
+  let prev = null;
+  for (let i = 0; i < 40; i++) {
+    const now = await read();
+    if (now === prev) return;
+    prev = now;
+    await page.waitForTimeout(80);
+  }
+  throw new Error(`${sel} never stopped moving`);
+}
+
 /** The stage, the three floating clusters and the period pill, as rectangles.
  *  Rounded to hundredths of a pixel so sub-pixel noise cannot decide an
  *  inequality; a cluster hidden by `display:none` comes back as null, which is
@@ -155,7 +175,58 @@ const viewState = (page) => page.evaluate(() => ({
 const gridColumns = (page) =>
   page.evaluate(() => getComputedStyle(document.getElementById('app')).gridTemplateColumns);
 
-const total = (page) => page.evaluate(() => items.length);
+/** The corpus as the page was *handed* it: read off `window.HAI_DATA`, which in
+ *  the browser is the merged payload — hai-data.js plus whatever
+ *  hai-data-additions.js folded into it — and never off the page's own `items`,
+ *  `byId`, `TOTALS` or `NOGEO`, which are the derivations the assertions below
+ *  are checking.
+ *
+ *  §3.2: "Counts are a snapshot and move with every upstream regeneration; the
+ *  shape of the table is what is normative, not the figures." So no figure in
+ *  this file is written down — each is computed here, from the payload, at the
+ *  moment the test runs. The entities the file needs to open are picked by a
+ *  property for the same reason: the fullest card, the longest name, the ones
+ *  the payload gives no coordinates. A regeneration that renames or drops any
+ *  one of them cannot leave a test quietly measuring nothing. */
+function corpus(page) {
+  return page.evaluate(() => {
+    // The four entity layers §3.2 tables. EDGES are relations rather than
+    // entities, and TAXO/AS_OF are not arrays at all.
+    const LAYERS = ['PROJECTS', 'TEAMS', 'COMMONS', 'FRAMEWORKS'];
+    const seen = new Set(); const all = [];
+    for (const layer of LAYERS) {
+      for (const d of (window.HAI_DATA[layer] || [])) {
+        // The additions file merges by id, so an id appearing twice would be a
+        // payload bug rather than two entities: counted once, as the page's own
+        // `byId` would count it.
+        if (!seen.has(d.id)) { seen.add(d.id); all.push(d); }
+      }
+    }
+    const placed = all.filter((d) => d.lat != null && d.lon != null);
+    const off = all.filter((d) => d.lat == null || d.lon == null);
+    // Ties keep the earlier entity, so the pick is a function of the payload
+    // alone and the same at every width.
+    const longestBy = (xs, len) => xs.reduce((a, x) => (len(x) > len(a) ? x : a));
+    const fullest = longestBy(placed, (d) => String(d.desc || '').length);
+    const named = longestBy(placed, (d) => d.name.length);
+    return {
+      total: all.length,
+      placed: placed.length,
+      offMap: off.length,
+      // Distinct country codes among the *placed* entities: what the caption's
+      // leading term counts whenever every marker is in view, which the one
+      // test that uses it asserts rather than assumes.
+      countries: new Set(placed.map((d) => d.country).filter(Boolean)).size,
+      fullestCard: fullest.id,
+      longestName: { id: named.id, name: named.name },
+      offMapIds: off.map((d) => d.id),
+    };
+  });
+}
+
+/** How many entities the payload holds — the figure the reconciliations below
+ *  are owed, derived from the data rather than from the page's own count. */
+const total = async (page) => (await corpus(page)).total;
 
 // ------------------------------------------------------- §5 · the three-column grid ---
 
@@ -202,6 +273,37 @@ test.describe('§5 the grid', () => {
       expect(inSidebar, `#${id} lives in the left panel`).toBe(true);
       expect(onStage, `#${id} does not float over the map`).toBe(false);
     }
+  });
+
+  test('§5 the sidebar\'s sections sit in the order §5 enumerates them', async ({ page }) => {
+    await openAt(page, { width: 1440 });
+    // §5's list is a reading order, not a set: "Identity, counters, search,
+    // starting views, layer toggles, domain filters, links toggle, off-the-map
+    // list, My map, help." The test above proves each of those is in the panel
+    // and not on the map; this one proves the panel is walked in that sequence,
+    // which is what the section's own argument — "there should be one place to
+    // look for interactions" — rests on.
+    //
+    // It is also the sidebar's tab order, and a11y.spec.js asserts that tabbing
+    // follows *document* order: so it would certify any permutation of these
+    // sections just as happily. Moving the counters below the filters, or the
+    // search box under the domain groups, is a one-line markup edit that changes
+    // what a first-time reader meets first and that nothing else here notices.
+    const WRITTEN = ['.brand', '#st-project', '#st-note', '#search', '#presets',
+      '#f-layers', '#f-domains', '#links-row', '#f-nogeo', '#f-mymap', '#intro-btn'];
+    const got = await page.evaluate((sels) => {
+      const pairs = sels.map((s) => [s, document.querySelector(s)]);
+      const missing = pairs.filter(([, el]) => !el).map(([s]) => s);
+      if (missing.length) return { missing, order: null };
+      const sorted = [...pairs].sort(([, a], [, b]) =>
+        (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+      return { missing, order: sorted.map(([s]) => s) };
+    }, WRITTEN);
+    // A renamed anchor has to fail loudly rather than quietly shrinking the
+    // list that the comparison below is made against.
+    expect(got.missing, 'every anchor §5 enumerates resolves').toEqual([]);
+    // Sorted by document position, the anchors read back as §5 writes them.
+    expect(got.order).toEqual(WRITTEN);
   });
 
   test('§5 the top-right cluster holds the period slider and the mode pills', async ({ page }) => {
@@ -520,6 +622,62 @@ test.describe('invariant 11 the width bounds themselves', () => {
   });
 });
 
+// ------------------------------------- §5 · the one floating box CSS does not place ---
+
+test.describe('§5 the tooltip', () => {
+  test('§5 the tooltip follows the pointer and flips rather than leaving the window', async ({ page }) => {
+    await openAt(page, { width: 1280 });
+    // Every other floating surface on the stage is pinned by CSS and measured
+    // against #stage by expectClustersInsideStage above. #tooltip is the one
+    // exception: `position:fixed`, `pointer-events:none`, `max-width:240px`, and
+    // a position its own `pointermove` handler computes against
+    // `window.innerWidth/innerHeight`. Nothing in the suite reads the result —
+    // card.spec.js checks the tooltip's text, integrity.spec.js fires one
+    // pointermove only to prove it asks the network for nothing — so a broken
+    // flip would put the card half outside the window with no way for the reader
+    // to pull it back, and on the right-hand markers (Finland, Cyprus, Romania)
+    // that is exactly where the hover lands.
+    const seen = await page.evaluate(() => {
+      const r2 = (n) => Math.round(n * 100) / 100;
+      const mk = document.querySelector('.mk');
+      const tt = document.getElementById('tooltip');
+      // The handlers are delegated from the marker group, so a bubbling
+      // PointerEvent on a marker is the same path a real hover takes — and it
+      // lets the pointer be put in a corner the mouse could not reach here.
+      mk.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+      const probe = ([x, y]) => {
+        mk.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: x, clientY: y }));
+        const b = tt.getBoundingClientRect();
+        return { at: `${x},${y}`,
+          left: r2(b.left), top: r2(b.top), right: r2(b.right), bottom: r2(b.bottom),
+          width: r2(b.width), height: r2(b.height) };
+      };
+      const W = window.innerWidth, H = window.innerHeight;
+      return {
+        W, H, display: getComputedStyle(tt).display,
+        corners: [[6, 6], [W - 6, 6], [6, H - 6], [W - 6, H - 6]].map(probe),
+        near: probe([300, 300]),
+      };
+    });
+    expect(seen.display, 'the hover opened the tooltip').toBe('block');
+    for (const c of seen.corners) {
+      const at = `pointer at (${c.at})`;
+      // A 0×0 box would be "inside the window" and show the reader nothing.
+      expect(c.width, `${at} — the tooltip has a real box to place`).toBeGreaterThan(0);
+      expect(c.height, `${at} — the tooltip has a real box to place`).toBeGreaterThan(0);
+      expect(c.left, `${at} — left edge inside the window`).toBeGreaterThanOrEqual(0);
+      expect(c.top, `${at} — top edge inside the window`).toBeGreaterThanOrEqual(0);
+      expect(c.right, `${at} — right edge inside the window`).toBeLessThanOrEqual(seen.W);
+      expect(c.bottom, `${at} — bottom edge inside the window`).toBeLessThanOrEqual(seen.H);
+    }
+    // And the flip has to be a flip rather than the only behaviour: well inside
+    // the window the card sits down-right of the pointer, at the handler's own
+    // 14px pad. A handler that always flipped would satisfy the four corners.
+    expect(seen.near.left, 'placed 14px to the right of the pointer').toBe(314);
+    expect(seen.near.top, 'and 14px below it').toBe(314);
+  });
+});
+
 // ------------------------------------------------ §5 · the collapsed sidebar's track ---
 
 test.describe('§5 the collapsed sidebar', () => {
@@ -771,8 +929,18 @@ test.describe('§5 the stats tiles', () => {
       expect(l.scroll, 'a fifth column clips the longest label').toBeGreaterThan(l.client);
     }
     // Countries is not a layer and has no control of its own, so it leads the
-    // caption rather than taking the fifth tile.
-    expect(await page.locator('#st-note').textContent()).toMatch(/^\d+ countr/);
+    // caption rather than taking the fifth tile — with the figure the payload
+    // entitles it to, rebuilt here and compared as an exact string. The figure
+    // the caption prints is over what is *in view*, so the premise that makes
+    // the placed corpus the right set to count is asserted first rather than
+    // assumed: at the opening fit nothing is off screen.
+    const c = await corpus(page);
+    expect((await snapshot(page)).inView, 'the opening fit holds every placed marker')
+      .toBe(c.placed);
+    const lead = `${c.countries} ${c.countries === 1 ? 'country' : 'countries'} \u00b7 `;
+    const note = await page.locator('#st-note').textContent();
+    expect(note.slice(0, lead.length), `Countries leads the caption (got "${note}")`)
+      .toBe(lead);
   });
 });
 
@@ -943,8 +1111,11 @@ test.describe('§5 the 840px breakpoint', () => {
     await openAt(page, { width: 375, height: 820 });
     // Opened through the page's own entry point rather than a marker tap: at
     // this width the markers are 3 px wide and this test is about the panel's
-    // rectangle, not about hit-testing a marker.
-    await page.evaluate(() => openEntity(items.find((i) => i.geo).id));
+    // rectangle, not about hit-testing a marker. The entity is the fullest card
+    // the payload can offer — the placed entity with the longest description —
+    // so the 58vh cap is measured against the most content the data can put in
+    // the sheet, and no id is written down for a regeneration to invalidate.
+    await page.evaluate((id) => openEntity(id), (await corpus(page)).fullestCard);
     await expect(page.locator('#detail')).toBeVisible();
     const d = await page.evaluate(() => {
       const b = document.getElementById('detail').getBoundingClientRect();
@@ -973,7 +1144,10 @@ test.describe('§5 the 840px breakpoint', () => {
     await openAt(page, { width: 1280 });
     await page.click('#feed-pill');                  // the feed renders the card instead
     await settleCounts(page);
-    await page.evaluate(() => openEntity(items.find((i) => i.geo).id));
+    // Again the fullest card in the payload, so the column's bounds are read
+    // off the tallest content there is rather than off whichever entity the
+    // page happens to have registered first.
+    await page.evaluate((id) => openEntity(id), (await corpus(page)).fullestCard);
     await expect(page.locator('#detail')).toBeVisible();
     const { d, stage } = await page.evaluate(() => {
       const b = document.getElementById('detail').getBoundingClientRect();
@@ -1012,6 +1186,115 @@ test.describe('§5 the 840px breakpoint', () => {
     expect(await gridColumns(page)).toBe('840px');
   });
 
+  test('§5 crossing 840px upward leaves the drawer\'s scrim over the desktop layout', async ({ page }) => {
+    // SPEC-DEVIATION: §5 makes 840px the line between overlay drawers and
+    // in-flow columns, but nothing re-evaluates `body.panel-open` when a live
+    // page crosses it. `.sb-backdrop` is global CSS — `body.panel-open
+    // .sb-backdrop{opacity:1;pointer-events:auto}` sits outside the
+    // `max-width:840px` query — so the full-viewport scrim that belonged to the
+    // phone drawer stays lit, at opacity 1 and pointer-events auto, over the
+    // whole three-column desktop layout. The map, the clusters and the feed are
+    // all behind an interactive scrim until the reader clicks once to dismiss
+    // it. A tablet turning from 768 portrait to 1024 landscape crosses that
+    // line, as does any windowed desktop reader. Asserted as-is; the fix would
+    // be for the resize handler to drop `panel-open` above the breakpoint.
+    //
+    // Every other narrow-width test in this file sets the viewport *before*
+    // navigating, deliberately (see openAt), so none of them has ever taken a
+    // live page across the breakpoint.
+    await openAt(page, { width: 375, height: 812 });
+    // Through the handler: the cluster covers the FAB, which is the deviation
+    // pinned at the end of this file and only in the way here.
+    await pressById(page, 'sb-open');
+    await page.waitForFunction(() =>
+      document.getElementById('sidebar').getBoundingClientRect().left === 0);
+    expect(await page.evaluate(() => document.body.classList.contains('panel-open'))).toBe(true);
+
+    // The feed booted closed at 375px, so above the breakpoint the stage is the
+    // window less the sidebar's track only.
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await page.waitForFunction(() => stageW === 1280 - 312);
+    await settleCounts(page);
+
+    const covered = await page.evaluate(() => {
+      const cs = getComputedStyle(document.getElementById('sb-backdrop'));
+      const mid = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      return {
+        panelOpen: document.body.classList.contains('panel-open'),
+        opacity: cs.opacity, pointerEvents: cs.pointerEvents,
+        midId: mid && mid.id, inStage: !!(mid && mid.closest('#stage')),
+      };
+    });
+    expect(covered.panelOpen, 'the drawer\'s class survives the crossing').toBe(true);
+    expect(covered.opacity).toBe('1');
+    expect(covered.pointerEvents).toBe('auto');
+    expect(covered.midId, 'the scrim, not the map, takes a click at the centre of the window')
+      .toBe('sb-backdrop');
+    expect(covered.inStage).toBe(false);
+
+    // What is underneath is sound — the counters reconciled against the new
+    // rectangle — and one click on the scrim gives the interface back, which is
+    // what makes this survivable rather than fatal.
+    await expectCountersReconcile(page, 'after crossing 840px with the drawer open');
+    await page.click('#sb-backdrop');
+    const freed = await page.evaluate(() => {
+      const mid = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      return {
+        panelOpen: document.body.classList.contains('panel-open'),
+        pointerEvents: getComputedStyle(document.getElementById('sb-backdrop')).pointerEvents,
+        inStage: !!(mid && mid.closest('#stage')),
+      };
+    });
+    expect(freed).toEqual({ panelOpen: false, pointerEvents: 'none', inStage: true });
+    expect(await gridColumns(page), 'and the three-column layout was there all along')
+      .toBe(`312px ${1280 - 312}px`);
+    expectClustersInsideStage(await rects(page), '1280px after crossing up from 375px');
+  });
+
+  test('§5 narrowing past 840px hands a collapsed sidebar back as a drawer', async ({ page }) => {
+    // The mirror crossing, and the rule that makes it work: `body.sb-hidden
+    // #sidebar{display:none}` is desktop CSS, and the mobile query puts the
+    // panel back with `body.sb-hidden #sidebar{display:flex}` — below 840px the
+    // sidebar is an overlay, so "collapsed" has no column left to mean anything
+    // about. No test reads that rule, and without it a reader who collapsed the
+    // panel on a desktop and then narrowed the window could never open it again.
+    await openAt(page, { width: 1280, height: 860 });
+    await pressById(page, 'sb-hide');
+    await settleCounts(page);
+    await expect(page.locator('#sidebar')).toBeHidden();
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.waitForFunction(() => stageW === 375);
+    await settleCounts(page);
+    const closed = await page.evaluate(() => ({
+      display: getComputedStyle(document.getElementById('sidebar')).display,
+      left: document.getElementById('sidebar').getBoundingClientRect().left,
+      sbHidden: document.body.classList.contains('sb-hidden'),
+      fab: getComputedStyle(document.getElementById('sb-open')).display,
+    }));
+    expect(closed.sbHidden, 'the collapse itself survives the crossing').toBe(true);
+    expect(closed.display, 'but as a parked drawer, not a removed grid item').not.toBe('none');
+    expect(closed.left, 'parked off screen to the left, as a closed drawer is').toBeLessThan(0);
+    expect(closed.fab, 'and the Filters FAB is the way back in').not.toBe('none');
+
+    await pressById(page, 'sb-open');
+    await page.waitForFunction(() =>
+      document.getElementById('sidebar').getBoundingClientRect().left === 0);
+    const reopened = await page.evaluate(() => ({
+      display: getComputedStyle(document.getElementById('sidebar')).display,
+      width: document.getElementById('sidebar').getBoundingClientRect().width,
+      panelOpen: document.body.classList.contains('panel-open'),
+      sbHidden: document.body.classList.contains('sb-hidden'),
+    }));
+    expect(reopened.panelOpen).toBe(true);
+    expect(reopened.sbHidden, 'sb-hidden stays set — below 840px it is simply inert').toBe(true);
+    expect(reopened.display).not.toBe('none');
+    expect(reopened.width, 'the drawer at min(88vw, 330px)').toBe(Math.min(0.88 * 375, 330));
+    expect(await gridColumns(page), 'and the drawer still takes no track').toBe('375px');
+    expectClustersInsideStage(await rects(page), '375px, drawer reopened after collapsing at 1280px');
+    await expectCountersReconcile(page, '375px, drawer reopened after a collapse');
+  });
+
   test('§5 the feed default survives a private window where localStorage throws', async ({ page }) => {
     // Nothing can be remembered, so the breakpoint decides alone — and the page
     // still has to boot rather than dying on the read.
@@ -1027,6 +1310,100 @@ test.describe('§5 the 840px breakpoint', () => {
     expect(await gridColumns(page)).toBe('840px');
     expectNoHorizontalScroll(await rects(page), 'private window, 840px');
   });
+});
+
+// --------------------------------- §5 overlay drawers · §7 selecting an entity ---
+
+test.describe('§5 the drawer gets out of the way of the card it opens', () => {
+  // §7: selecting an entity opens its card. Below 840px (§5) the sidebar is a
+  // fixed overlay at z-index 90 behind an opaque scrim at 85, while the card
+  // docks inside the stage at z-index 40 — so the single line in openEntity(),
+  // `if (window.innerWidth<=840) setPanel(false)`, is the whole reason a reader
+  // who taps a search result sees anything change at all. No test opened an
+  // entity from a sidebar control at phone width, so that line was unverified:
+  // exactly the profile of a line a refactor drops in silence.
+  // Each path is handed the derived corpus and names no entity of its own: the
+  // search term is the longest name the payload places, the pinned row is the
+  // fullest card, and the off-the-map row is one the payload itself leaves
+  // without coordinates. Each returns the id it asked for, so the test can
+  // insist the card that opened is the one the row named rather than merely
+  // that something opened.
+  const PATHS = {
+    'a search result': async (page, c) => {
+      await page.fill('#search', c.longestName.name);
+      const row = page.locator(`#search-drop .sd-item[data-open="${c.longestName.id}"]`);
+      await expect(row, 'the search offers the entity its own name describes').toBeVisible();
+      await row.click();
+      return c.longestName.id;
+    },
+    'a My map row': async (page, c) => {
+      const row = page.locator(`#pin-list [data-open="${c.fullestCard}"]`);
+      await expect(row, 'the pin put a row in My map').toBeVisible();
+      await row.click();
+      return c.fullestCard;
+    },
+    'an off-the-map row': async (page, c) => {
+      // The list is the payload's whole off-map population, every one of them
+      // (§5's "off-the-map list"), so the row clicked below cannot be the last
+      // survivor of a list that has quietly emptied.
+      await expect(page.locator('#nogeo-list [data-open]')).toHaveCount(c.offMap);
+      const row = page.locator(`#nogeo-list [data-open="${c.offMapIds[0]}"]`);
+      await expect(row, 'the off-the-map list carries the entity the payload leaves unplaced')
+        .toBeVisible();
+      await row.click();
+      return c.offMapIds[0];
+    },
+  };
+
+  for (const [what, act] of Object.entries(PATHS)) {
+    test(`§7 opening a card from ${what} closes the phone drawer`, async ({ page }) => {
+      await openAt(page, { width: 375, height: 812 });
+      const c = await corpus(page);
+      // My map starts empty, so the row has to be put there first — through the
+      // page's own pin handler, which is also what renders the list.
+      await page.evaluate((id) => togglePin(id), c.fullestCard);
+      await pressById(page, 'sb-open');
+      await page.waitForFunction(() =>
+        document.getElementById('sidebar').getBoundingClientRect().left === 0);
+      expect(await page.evaluate(() => document.body.classList.contains('panel-open'))).toBe(true);
+
+      const wanted = await act(page, c);
+      await expect(page.locator('#detail')).toBeVisible();
+      expect((await snapshot(page)).focusId, 'the card the row named is the one that opened')
+        .toBe(wanted);
+
+      const atOnce = await page.evaluate(() => ({
+        panelOpen: document.body.classList.contains('panel-open'),
+        detailOpen: document.body.classList.contains('detail-open'),
+        pointerEvents: getComputedStyle(document.getElementById('sb-backdrop')).pointerEvents,
+      }));
+      expect(atOnce.detailOpen).toBe(true);
+      expect(atOnce.panelOpen, 'the drawer stood aside for the card').toBe(false);
+      // pointer-events is not transitioned, so the scrim stops intercepting on
+      // the frame the class goes — the reader never has to tap through it.
+      expect(atOnce.pointerEvents).toBe('none');
+
+      // The drawer's `transform .25s` and the scrim's `opacity .25s` then run
+      // them both out of the way. Waited out rather than polled for, so the
+      // wait cannot stand in for the assertions.
+      await page.waitForTimeout(350);
+      const after = await page.evaluate(() => {
+        const b = document.getElementById('detail').getBoundingClientRect();
+        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return {
+          opacity: getComputedStyle(document.getElementById('sb-backdrop')).opacity,
+          sidebarRight: document.getElementById('sidebar').getBoundingClientRect().right,
+          inDetail: !!(mid && mid.closest('#detail')),
+          midId: mid && (mid.id || mid.className),
+        };
+      });
+      expect(after.opacity, 'the scrim faded out, not merely went inert').toBe('0');
+      expect(after.sidebarRight, 'and the drawer is back off screen').toBeLessThanOrEqual(0);
+      // The card is not merely in the DOM: the centre of its own rectangle
+      // belongs to it, which is what the drawer and the scrim had taken.
+      expect(after.inDetail, `the card takes its own centre (got ${after.midId})`).toBe(true);
+    });
+  }
 });
 
 // ------------------------------------------------------------ §5 · horizontal scroll ---
@@ -1059,6 +1436,147 @@ test('§5 the page never scrolls horizontally, whatever the columns are doing', 
   });
   expect(overflowed).toBeGreaterThan(1280);
   await check('after the control element is removed again');
+});
+
+// ------------------------------------------------ §5 help · §12 the guided tour ---
+
+test.describe('§5 the guided tour', () => {
+  // The tour is the other half of arriving cold (§5 puts help in the left
+  // panel; §12 gives the four steps their strings), and all of its behaviour is
+  // positional: a spotlight cut out of the scrim over one target per step, and
+  // a card that reflows to stay inside the window. Nothing walked it —
+  // integrity.spec.js clicks #tour-next four times only to count requests,
+  // i18n.spec.js reads #tour-n for the first two steps, a11y.spec.js presses
+  // Escape — so a wrong rectangle was invisible to every assertion in the
+  // suite, which is the same class of miss as the two period handles that could
+  // both land on one pixel while 57 tests passed.
+
+  /** The four targets, as the tour's own step table describes them: the panel,
+   *  the map twice inset by 60px, and the cluster. Expected spotlights are
+   *  computed from each target's *own* rectangle, read at the moment the step is
+   *  showing — never from what the tour put in `#tour-spot`. */
+  const STEPS = [
+    { n: 1, target: '#sidebar', inset: 0 },
+    { n: 2, target: '#stage', inset: 60 },
+    { n: 3, target: '#stage', inset: 60 },
+    { n: 4, target: '#ctl-cluster', inset: 0 },
+  ];
+  const PAD = 6;
+
+  /** One step's geometry and chrome, with the target measured alongside it. */
+  const tourState = (page, target) => page.evaluate((sel) => {
+    const r2 = (n) => Math.round(n * 100) / 100;
+    const box = (el) => {
+      const b = el.getBoundingClientRect();
+      return { left: r2(b.left), top: r2(b.top), width: r2(b.width), height: r2(b.height),
+        right: r2(b.right), bottom: r2(b.bottom) };
+    };
+    const card = document.getElementById('tour-card');
+    return {
+      step: tourStep,
+      n: document.getElementById('tour-n').textContent,
+      prev: document.getElementById('tour-prev').style.visibility,
+      next: document.getElementById('tour-next').textContent,
+      spotDisplay: getComputedStyle(document.getElementById('tour-spot')).display,
+      cardDisplay: getComputedStyle(card).display,
+      spot: box(document.getElementById('tour-spot')),
+      card: box(card),
+      target: box(document.querySelector(sel)),
+      inner: { w: window.innerWidth, h: window.innerHeight },
+    };
+  }, target);
+
+  /** The spotlight the step's own target entitles it to: the target's
+   *  rectangle, deflated by the step's inset and inflated by the 6px pad. */
+  const expectedSpot = (t, inset) => ({
+    left: t.left + inset - PAD, top: t.top + inset - PAD,
+    width: t.width - 2 * inset + 2 * PAD, height: t.height - 2 * inset + 2 * PAD,
+  });
+
+  const expectCardInsideWindow = (s, because) => {
+    expect(s.card.width, `the tour card has a real box — ${because}`).toBeGreaterThan(0);
+    expect(s.card.left, `the card's left edge is in the window — ${because}`).toBeGreaterThanOrEqual(0);
+    expect(s.card.top, `the card's top edge is in the window — ${because}`).toBeGreaterThanOrEqual(0);
+    expect(s.card.right, `the card's right edge is in the window — ${because}`).toBeLessThanOrEqual(s.inner.w);
+    expect(s.card.bottom, `the card's bottom edge is in the window — ${because}`).toBeLessThanOrEqual(s.inner.h);
+  };
+
+  test('§12 the tour walks its four steps, spotlighting each step\'s own target', async ({ page }) => {
+    await openAt(page, { width: 1440, height: 860 });
+    // Started where a cold reader starts it: the welcome panel's own button.
+    // #w-tour appears in no other test in the suite.
+    await page.click('#intro-btn');
+    await expect(page.locator('#welcome')).toHaveClass(/open/);
+    await page.click('#w-tour');
+    await expect(page.locator('#welcome')).not.toHaveClass(/open/);
+
+    for (const step of STEPS) {
+      await settleRect(page, '#tour-spot');
+      const s = await tourState(page, step.target);
+      const at = `step ${step.n}`;
+      expect(s.step, `${at} is the step the tour thinks it is on`).toBe(step.n - 1);
+      expect(s.n).toBe(`Step ${step.n} / 4`);
+      expect(s.spotDisplay, `${at} shows a spotlight`).toBe('block');
+      expect(s.cardDisplay, `${at} shows its card`).toBe('block');
+      // The rectangle, against the target's own measurement.
+      expect({ left: s.spot.left, top: s.spot.top, width: s.spot.width, height: s.spot.height })
+        .toEqual(expectedSpot(s.target, step.inset));
+      // Prev is withheld on the first step only — there is nowhere back to go.
+      expect(s.prev, `${at}: the Prev affordance`).toBe(step.n === 1 ? 'hidden' : 'visible');
+      expect(s.next, `${at}: the forward button`).toBe(step.n === 4 ? 'Done' : 'Next');
+      expectCardInsideWindow(s, at);
+      if (step.n < 4) await page.click('#tour-next');
+    }
+
+    // Walking back works too, and lands on the same rectangle rather than a
+    // recomputed guess: the step table is read fresh each time.
+    const atFour = await tourState(page, '#ctl-cluster');
+    await page.click('#tour-prev');
+    await settleRect(page, '#tour-spot');
+    const backToThree = await tourState(page, '#stage');
+    expect(backToThree.n).toBe('Step 3 / 4');
+    expect({ left: backToThree.spot.left, top: backToThree.spot.top,
+      width: backToThree.spot.width, height: backToThree.spot.height })
+      .toEqual(expectedSpot(backToThree.target, 60));
+    expect(backToThree.spot).not.toEqual(atFour.spot);
+
+    // "Done" ends it: both parts of the tour go, and the step index says so.
+    await page.click('#tour-next');          // forward to step 4 again
+    await settleRect(page, '#tour-spot');
+    await page.click('#tour-next');          // Done
+    await expect(page.locator('#tour-spot')).toBeHidden();
+    await expect(page.locator('#tour-card')).toBeHidden();
+    expect(await page.evaluate(() => tourStep), 'the tour is over, not merely hidden').toBe(-1);
+    expectClustersInsideStage(await rects(page), 'after the tour ends');
+  });
+
+  for (const how of ['375px wide', 'collapsed sidebar']) {
+    test(`§12 the tour's first step spotlights the Filters FAB when there is no panel (${how})`, async ({ page }) => {
+      // tourTargets() branches on `innerWidth<=840 || body.sb-hidden`: with no
+      // sidebar on screen, step 1's "filters and layers" has to point at the
+      // control that opens them instead. Both halves of that condition reach
+      // the same branch, and neither was exercised.
+      if (how === '375px wide') {
+        await openAt(page, { width: 375, height: 812 });
+      } else {
+        await openAt(page, { width: 1440, height: 860 });
+        await pressById(page, 'sb-hide');
+        await settleCounts(page);
+      }
+      await pressById(page, 'tour-btn');
+      await settleRect(page, '#tour-spot');
+      const s = await tourState(page, '#sb-open');
+      expect(s.n).toBe('Step 1 / 4');
+      expect(s.prev).toBe('hidden');
+      expect(s.spotDisplay).toBe('block');
+      // The FAB is a 29px-tall button, so this is a small rectangle where the
+      // desktop step 1 is a 312×860 column — the two cannot be confused.
+      expect({ left: s.spot.left, top: s.spot.top, width: s.spot.width, height: s.spot.height })
+        .toEqual(expectedSpot(s.target, 0));
+      expect(s.spot.height, 'the FAB, not the whole panel').toBeLessThan(60);
+      expectCardInsideWindow(s, `step 1, ${how}`);
+    });
+  }
 });
 
 // --------------------------------------------------------------- known deviations ---

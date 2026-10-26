@@ -131,16 +131,108 @@ const spaces = (s) => s.replace(/[\u00a0\u202f\u2009]/g, ' ');
 
 const textOf = (page, sel) => page.locator(sel).first().textContent();
 
-// Payload facts the assertions below are derived from, rather than read back out
-// of the code under test. 449 entities in four layers; 11 of them carry no
-// coordinates; 27 countries; the data's freshness date is 2026-09-03.
-const CORPUS = 449, NOGEO_TOTAL = 11, COUNTRIES = 27;
-// The same, per layer, in KINDS order — the figure a layer row shows with no
-// filter narrowing it. Spelled out here so an assertion about a *narrowed*
-// count has something to be narrower than.
-const LAYER_TOTALS = [111, 268, 25, 45];
+// §3.2 is explicit that "counts are a snapshot and move with every upstream
+// regeneration; the shape of the table is what is normative, not the figures" —
+// so no figure below is written as a literal. facts() re-derives the shape of the
+// corpus from window.HAI_DATA, the merged payload the page really loaded
+// (hai-data.js plus whatever hai-data-additions.js folded into it), and it does
+// so with its own traversal: an assertion is never compared against the counter,
+// caption or layer row it is about. The literals left in this file are the ones
+// the spec states as rules (the 1945 axis floor, §11) or that belong to the
+// interface rather than to the data (I18N keys, preset labels, the hardcoded
+// French aria-labels invariant 8 is failed by).
+const facts = (page) => page.evaluate(() => {
+  const D = window.HAI_DATA;
+  // kind → the payload array it is registered from: §3.2's table, in KINDS order.
+  const SRC = { project: 'PROJECTS', team: 'TEAMS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
+  const all = KINDS.flatMap((k) => D[SRC[k]]);
+  const placed = (e) => e.lat != null && e.lon != null;
+  const geo = {};
+  all.forEach((e) => { geo[e.id] = placed(e); });
+  // §5: adjacency is always recorded, but a link only becomes a curve — and only
+  // counts as a "documented link" on the welcome panel — when both of its ends
+  // are placed. Counted here from DATA.EDGES and the createdBy/usedBy lists
+  // rather than read off the page's own `edges` array.
+  let links = 0;
+  D.EDGES.forEach((e) => { if (geo[e.project] && geo[e.team]) links++; });
+  [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
+    (a.createdBy || []).forEach((u) => { if (geo[u] && geo[a.id]) links++; });
+    (a.usedBy || []).forEach((u) => { if (geo[u] && geo[a.id]) links++; });
+  });
+  const year = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
+  const starts = all.map((e) => year((e.timeline || {}).start)).filter((y) => y != null);
+  const years = all.flatMap((e) => [year((e.timeline || {}).start), year((e.timeline || {}).end)])
+    .filter((y) => y != null);
+  return {
+    kinds: [...KINDS],
+    corpus: all.length,
+    layerTotals: KINDS.map((k) => D[SRC[k]].length),
+    placedByLayer: KINDS.map((k) => D[SRC[k]].filter(placed).length),
+    offMapByLayer: KINDS.map((k) => D[SRC[k]].filter((e) => !placed(e)).length),
+    placed: all.filter(placed).length,
+    offMap: all.filter((e) => !placed(e)).length,
+    // The caption's first term counts the countries *in view*, so the figure to
+    // hold it to is the countries of the placed population — the off-map
+    // international standards carry no country at all.
+    countries: new Set(all.filter(placed).map((e) => e.country).filter(Boolean)).size,
+    links,
+    asOf: D.AS_OF,
+    // §11: the axis runs from the 1945 floor to the data's own freshness year,
+    // and is never cut below the latest known start year.
+    ymin: Math.max(1945, Math.min(...years)),
+    ymax: Math.max(year(D.AS_OF), ...starts),
+  };
+});
+
+/** The per-layer population carrying one domain, in KINDS order, derived from the
+ *  payload — not from the page's own filter pass, which is the thing a narrowed
+ *  layer count is being compared against. `total` counts the same set without
+ *  splitting it by layer, so a mistake in the layer mapping cannot hide. */
+const facetByLayer = (page, dom) => page.evaluate((d) => {
+  const D = window.HAI_DATA;
+  const SRC = { project: 'PROJECTS', team: 'TEAMS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
+  const doms = (e) => (e.domains && e.domains.length) ? e.domains : [e.domain];
+  const hit = (e) => doms(e).includes(d);
+  return {
+    byLayer: KINDS.map((k) => D[SRC[k]].filter(hit).length),
+    total: KINDS.flatMap((k) => D[SRC[k]]).filter(hit).length,
+  };
+}, dom);
+
+/** A layer/domain pair that narrows the corpus to exactly one placed entity in a
+ *  known country: the n = 1 boundary the singular-agreement assertions need,
+ *  reached through the real controls instead of by calling the string function.
+ *  Which pair that is belongs to the payload, so it is derived — the pair this
+ *  file used to name (commons + maritime) gained a second member upstream, and a
+ *  pinned pair quietly turns a singular test into a plural one. First match in
+ *  (domain, layer) order wins, so the choice is stable for a given payload. */
+const singleMatchPair = (page) => page.evaluate(() => {
+  const D = window.HAI_DATA;
+  const SRC = { project: 'PROJECTS', team: 'TEAMS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
+  const doms = (e) => (e.domains && e.domains.length) ? e.domains : [e.domain];
+  for (const dom of ALL_DOMS)
+    for (const kind of KINDS) {
+      const hits = D[SRC[kind]].filter((e) => doms(e).includes(dom));
+      if (hits.length === 1 && hits[0].lat != null && hits[0].lon != null && hits[0].country)
+        return { dom, kind, layer: KINDS.indexOf(kind), id: hits[0].id };
+    }
+  return null;
+});
 
 // ------------------------------------------------- invariant 8: key parity
+
+// Entities of each layer that carry the given domain and have no coordinates —
+// read straight out of the payload, so the expected split is derived from the
+// data rather than from the tally the page just computed.
+const placelessByDomain = (page, dom) => page.evaluate((d) => {
+  const n = { project: 0, team: 0, commons: 0, framework: 0 };
+  const LAYER = { PROJECTS: 'project', TEAMS: 'team', COMMONS: 'commons', FRAMEWORKS: 'framework' };
+  Object.entries(LAYER).forEach(([key, kind]) => window.HAI_DATA[key].forEach((e) => {
+    const doms = (e.domains && e.domains.length) ? e.domains : [e.domain];
+    if (doms.includes(d) && (e.lat == null || e.lon == null)) n[kind]++;
+  }));
+  return n;
+}, dom);
 
 test.describe('§16 invariant 8 — both languages, every key', () => {
   test('§16.8 I18N.fr and I18N.en declare exactly the same keys', async ({ page }) => {
@@ -249,6 +341,41 @@ test.describe('§16 invariant 8 — both languages, every key', () => {
     expect(await page.evaluate(() => t('no.such.key'))).toBe('no.such.key');
     expect(await page.evaluate(() => String(t('noSuchKey')))).toBe('noSuchKey');
   });
+
+  test('§17 the languages the page accepts are exactly the I18N blocks it ships', async ({ page }) => {
+    // §17's recipe for a new language is four steps, and three of them already
+    // complain if you skip them: the generator's TAXO tables are pinned to
+    // exactly {en, fr}, load_descriptions iterates LANGS, and the key-parity
+    // tests above sweep the I18N block. The fourth — "an entry in the switch" —
+    // understates the work: the set of accepted languages is written out three
+    // more times, in the switch markup and twice inside initialLang()
+    // (`q==='fr'||q==='en'`, then `st==='fr'||st==='en'`), and nothing ties any
+    // of them to Object.keys(I18N). A third block with no matching entry in
+    // those lists would be unreachable by URL and unpersistable.
+    await bootMap(page, { search: '?lang=en' });
+    const langs = await page.evaluate(() => ({
+      blocks: Object.keys(I18N).sort(),
+      buttons: [...document.querySelectorAll('.lang-switch button')].map((b) => b.dataset.lang).sort(),
+    }));
+    // Not pinned to the literal pair: adding a language should make this test
+    // fail at the boot loop below, which names the missing wiring, rather than
+    // here on the count. But English must always be a block — t() falls back
+    // to it — and French is the markup's own default.
+    expect(langs.blocks).toContain('en');
+    expect(langs.blocks).toContain('fr');
+    expect(langs.buttons, 'a switch entry for every block, and no entry without one').toEqual(langs.blocks);
+
+    for (const k of langs.blocks) {
+      // The browser language is set to a *different* one each time, so a
+      // rejected ?lang= or stored value falls through to a visible wrong answer
+      // instead of coincidentally landing on the expected one.
+      const other = k === 'fr' ? 'en-GB' : 'fr-FR';
+      await bootMap(page, { search: '?lang=' + k, navLang: other });
+      expect(await page.getAttribute('html', 'lang'), `?lang=${k} must be accepted`).toBe(k);
+      await bootMap(page, { storage: { 'hai-map-lang': k }, navLang: other });
+      expect(await page.getAttribute('html', 'lang'), `a stored ${k} must be honoured`).toBe(k);
+    }
+  });
 });
 
 // ------------------------------------------------- no untranslated leakage
@@ -338,12 +465,17 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // TOTALS — the regression invariant 13 names. And the expectation is
     // derived from the payload rather than read back out of the counters, so
     // the two sides of the comparison cannot rot together.
+    const f = await facts(page);
+    const av = await facetByLayer(page, 'aviation');
     await onlyDomain(page, 'aviation');
     await settleCounts(page);
-    const want = await page.evaluate(() =>
-      KINDS.map((k) => items.filter((it) => it.kind === k && it.domains.includes('aviation')).length));
-    expect(want).toEqual([24, 46, 6, 10]);
-    expect(want.filter((n, i) => n > 0 && n < LAYER_TOTALS[i])).toHaveLength(4);
+    const want = av.byLayer;
+    expect(want.reduce((a, n) => a + n, 0), 'the four layers partition the domain')
+      .toBe(av.total);
+    // Falsifiable only while every layer holds some aviation and not all of it:
+    // at 0 the row could have stopped counting, and at the layer total it could
+    // have reverted to TOTALS — the regression invariant 13 names.
+    expect(want.filter((n, i) => n > 0 && n < f.layerTotals[i])).toHaveLength(f.layerTotals.length);
     expect((await layerRows(page)).map((r) => r.count)).toEqual(want);
     await switchLang(page, 'fr');
     expect((await layerRows(page)).map((r) => r.label))
@@ -362,26 +494,35 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // where it can be read at all. A hardcoded I18N.en.layerCount there leaves
     // a French reader hovering an English sentence, silently.
     await openMap(page, { lang: 'en' });
+    const f = await facts(page);
+    const av = await facetByLayer(page, 'aviation');
     await onlyDomain(page, 'aviation');
     await settleCounts(page);
+    // Both numbers in the sentence are derived: the narrowed one from the
+    // payload's aviation population, the corpus one from the layer's own array.
+    // The sentence only exists while it has narrowed, hence the guard.
+    expect(av.byLayer.filter((n, i) => n > 0 && n < f.layerTotals[i])).toHaveLength(f.layerTotals.length);
     const titles = async () => (await layerRows(page)).map((r) => r.title);
-    expect(await titles()).toEqual([
-      '24 of 111 under the current filters',
-      '46 of 268 under the current filters',
-      '6 of 25 under the current filters',
-      '10 of 45 under the current filters',
-    ]);
+    // A layer holding placeless entities says so instead, in both languages —
+    // the split is the sentence that has to be translated there.
+    const gone = await placelessByDomain(page, 'aviation');
+    const want = (lang) => av.byLayer.map((n, i) => {
+      const off = gone[f.kinds[i]];
+      if (!off) return lang === 'en'
+        ? `${n} of ${f.layerTotals[i]} under the current filters`
+        : `${n} sur ${f.layerTotals[i]} avec les filtres actuels`;
+      return lang === 'en'
+        ? `${n - off} on the map · ${off} with no coordinates · ${n} ${n === 1 ? 'matches' : 'match'} the filters`
+        : `${n - off} sur la carte · ${off} sans coordonnées · ${n} ${n > 1 ? 'correspondent' : 'correspond'} aux filtres`;
+    });
+    expect(await titles()).toEqual(want('en'));
     await switchLang(page, 'fr');
-    expect(await titles()).toEqual([
-      '24 sur 111 avec les filtres actuels',
-      '46 sur 268 avec les filtres actuels',
-      '6 sur 25 avec les filtres actuels',
-      '10 sur 45 avec les filtres actuels',
-    ]);
+    expect(await titles()).toEqual(want('fr'));
     // §14: the same string reaches a screen reader as the accessible name, so
     // it has to be translated there too and not only in the tooltip.
+    const team = f.kinds.indexOf('team');
     expect(await page.locator('.layer-row[data-layer="team"] .cnt').getAttribute('aria-label'))
-      .toBe('46 sur 268 avec les filtres actuels');
+      .toBe(`${av.byLayer[team]} sur ${f.layerTotals[team]} avec les filtres actuels`);
   });
 
   test('§12 header tiles and their reconciliation titles', async ({ page }) => {
@@ -461,30 +602,34 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     await withCard(page);
     expect(await textOf(page, '#f-nogeo .sb-h span')).toBe('Off the map');
     expect(await textOf(page, '#f-nogeo .note')).toContain('International standards');
+    const f = await facts(page);
     const rows = () => page.locator('#nogeo-list .pin-item').count();
-    expect(await rows()).toBe(NOGEO_TOTAL);
+    expect(await rows()).toBe(f.offMap);
     await switchLang(page, 'fr');
     expect(await textOf(page, '#f-nogeo .sb-h span')).toBe('Hors carte');
     expect(await textOf(page, '#f-nogeo .note')).toContain('Normes internationales');
-    expect(await rows()).toBe(NOGEO_TOTAL);       // renderNoGeo() reruns, same eleven
+    expect(await rows()).toBe(f.offMap);          // renderNoGeo() reruns, same list
   });
 
   test('§12 the period control: labels change, the years do not', async ({ page }) => {
     await withCard(page);
-    // The axis runs from the 1945 floor to the AS_OF year, whatever the locale.
-    expect(await textOf(page, '#tf-range')).toBe('1945 – 2026');
+    const f = await facts(page);
+    // The axis runs from the 1945 floor to the AS_OF year, whatever the locale —
+    // §11's rule, with both ends derived from the payload rather than pinned.
+    const range = `${f.ymin} – ${f.ymax}`;
+    expect(await textOf(page, '#tf-range')).toBe(range);
     expect(await textOf(page, '.tf-h')).toBe('Period');
     expect(await textOf(page, '#tf-opt span')).toBe('unknown start');
     expect(await page.locator('#tf-reset').getAttribute('title')).toBe('All years');
-    expect(await page.locator('#tf-slider').getAttribute('title')).toBe('1945 – 2026 · earlier foundings stay included');
+    expect(await page.locator('#tf-slider').getAttribute('title')).toBe(`${range} · earlier foundings stay included`);
     expect(await page.locator('#tf-a').getAttribute('aria-label')).toBe('First year');
     expect(await page.locator('#tf-b').getAttribute('aria-label')).toBe('Last year');
     await switchLang(page, 'fr');
-    expect(await textOf(page, '#tf-range')).toBe('1945 – 2026');
+    expect(await textOf(page, '#tf-range')).toBe(range);
     expect(await textOf(page, '.tf-h')).toBe('Période');
     expect(await textOf(page, '#tf-opt span')).toBe('date incertaine');
     expect(await page.locator('#tf-reset').getAttribute('title')).toBe('Toutes les années');
-    expect(await page.locator('#tf-slider').getAttribute('title')).toBe('1945 – 2026 · les fondations antérieures restent incluses');
+    expect(await page.locator('#tf-slider').getAttribute('title')).toBe(`${range} · les fondations antérieures restent incluses`);
     expect(await page.locator('#tf-a').getAttribute('aria-label')).toBe('Première année');
     expect(await page.locator('#tf-b').getAttribute('aria-label')).toBe('Dernière année');
   });
@@ -523,7 +668,7 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     expect(await page.evaluate(() => state.offScreen), 'nothing off screen').toBe(0);
     const ids = () => page.locator('#fd-list .fd-item').evaluateAll((els) => els.map((e) => e.dataset.id));
     const before = await ids();
-    expect(before).toHaveLength(CORPUS - NOGEO_TOTAL);   // everything that has coordinates
+    expect(before).toHaveLength((await facts(page)).placed);   // everything that has coordinates
     await expect(page.locator('.fd-card .dt-kind')).toHaveText('Project / programme');
     await switchLang(page, 'fr');
     // Same ids, in the same order: nothing but LANG can have moved the key.
@@ -545,10 +690,16 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
 
   test('§12 the feed header and its two reconciliation buttons', async ({ page }) => {
     await withCard(page);
-    // Commons only: of the eleven off-map entities exactly one is a commons
-    // (CityLearn), so the off-map hint is the n = 1 case in both languages.
-    await setLayers(page, ['commons']);
+    // One layer only, chosen because exactly one of its entities has no
+    // coordinates — that makes the off-map hint the n = 1 case in both
+    // languages. Which layer that is (today the commons, for CityLearn) is a
+    // property of the payload, so it is derived rather than named.
+    const f = await facts(page);
+    const only = f.offMapByLayer.indexOf(1);
+    expect(only, 'one layer must hold exactly one entity without coordinates').toBeGreaterThan(-1);
+    await setLayers(page, [f.kinds[only]]);
     await settleCounts(page);
+    expect((await snapshot(page)).offMapMatch).toBe(1);
     expect(await textOf(page, '.fd-title span')).toBe('In view');
     await expect(page.locator('#fd-offmap')).toHaveText('+ 1 off the map');
     expect(await page.locator('#fd-offmap').getAttribute('title'))
@@ -580,9 +731,15 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // wFigs is one of the two interpolating keys reached through I18N[LANG]
     // directly rather than through t(); the figures are corpus totals, which is
     // allowed here because the panel describes the map, not the view (§9.1).
-    const links = await page.evaluate(() => edges.length);
-    expect(links).toBe(352);            // 299 consortium edges plus created/used
-    await expect(page.locator('#wl-figs')).toHaveText(new RegExp(`^${COUNTRIES} countries · ${links} documented links ·`));
+    // Both are re-derived from the payload — f.links recounts the consortium
+    // edges and the createdBy/usedBy pairs that have both ends placed, instead
+    // of reading back the `edges` array the panel itself prints.
+    const f = await facts(page);
+    await expect(page.locator('#wl-figs')).toHaveText(new RegExp(`^${f.countries} countries · ${f.links} documented links ·`));
+    // The per-layer figures the same panel lists, in KINDS order, then the links
+    // row: the whole table a first-time reader is shown.
+    expect(await page.locator('#wl-rows .wl-row .n').allTextContents())
+      .toEqual([...f.layerTotals, f.links].map(String));
     // The overlay is modal and covers the switch, so the click has to be
     // dispatched: applyLang()'s `if (welcome is open) renderWelcome()` guard is
     // defensive rather than reachable with a mouse. It still has to work — a
@@ -592,7 +749,7 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // guard is why this has to be tested with it open.
     await expect(page.locator('#welcome h2')).toHaveText("La carte de l’écosystème humain–IA");
     await expect(page.locator('#wl-rows .wl-row b').first()).toHaveText('Projets & programmes');
-    await expect(page.locator('#wl-figs')).toHaveText(new RegExp(`^${COUNTRIES} pays · ${links} liens documentés ·`));
+    await expect(page.locator('#wl-figs')).toHaveText(new RegExp(`^${f.countries} pays · ${f.links} liens documentés ·`));
   });
 
   test('§12 the guided tour card while it is open', async ({ page }) => {
@@ -613,6 +770,47 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     await expect(page.locator('#tour-n')).toHaveText('Étape 2 / 4');
     await expect(page.locator('#tour-title')).toHaveText('La carte');
     await expect(page.locator('#tour-next')).toHaveText('Suivant');
+  });
+
+  // "Reopen it tomorrow in the other language" usually means switching
+  // mid-task, and a list of search results is the likeliest thing to be on
+  // screen when the reader reaches for the switch. §12's list of re-rendered
+  // surfaces leaves the dropdown out, so these two pin what happens rather
+  // than what the spec claims.
+  test('§12 the open search dropdown keeps its old headings across a switch', async ({ page }) => {
+    await openMap(page, { lang: 'en' });
+    await page.fill('#search', 'delft');
+    await expect(page.locator('.sd-group').first()).toHaveText('Teams');
+    // Dispatched, not clicked: a real click moves focus to the button, and the
+    // reader we are describing still has the caret in the search field.
+    await switchLangDispatched(page, 'fr');
+    // SPEC-DEVIATION: §12 has applyLang() "re-render every dynamic surface",
+    // and the dropdown is one of them — its group headings come from
+    // t('kinds.'+k) and its empty line from t('searchEmpty'). applyLang() does
+    // not re-run runSearch(), so the markup keeps the strings it was built
+    // with. Invariant 8 is still satisfied; what the reader is looking at is
+    // not. The document-level outside-click handler closes the dropdown on the
+    // same click, which is what keeps the stale headings from being seen
+    // today — so the assertions below are on the markup, not on what is
+    // visible.
+    await expect(page.locator('#search-drop')).not.toHaveClass(/open/);
+    expect(await textOf(page, '.sd-group')).toBe('Teams');
+    // One keystroke, with the field never refocused (focus also re-runs
+    // runSearch), and the heading catches up. 'delf' still finds Delft.
+    await page.keyboard.press('Backspace');
+    await expect(page.locator('.sd-group').first()).toHaveText('Équipes');
+  });
+
+  test('§12 the "no matches" line survives a switch unchanged too', async ({ page }) => {
+    await openMap(page, { lang: 'en' });
+    await page.fill('#search', 'zzqqxx');
+    await expect(page.locator('.sd-empty')).toHaveText('No matches');
+    await switchLangDispatched(page, 'fr');
+    // SPEC-DEVIATION: same cause as above — the empty state is written once by
+    // runSearch() and applyLang() never asks for it again.
+    expect(await textOf(page, '.sd-empty')).toBe('No matches');
+    await page.keyboard.press('z');                       // still nothing matches
+    await expect(page.locator('.sd-empty')).toHaveText('Aucun résultat');
   });
 
   test('§12 document title, html lang, the switch itself and the footer', async ({ page }) => {
@@ -697,9 +895,10 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
 test.describe('§12 a missing French key falls back to English', () => {
   test('§12 a key absent from I18N.fr renders the English string, not the key', async ({ page }) => {
     await openMap(page, { lang: 'fr' });
+    const f = await facts(page);
     await zoomBy(page, 0.5);
     expect(await textOf(page, '#f-layers .sb-h')).toBe('Couches');
-    expect(await caption(page)).toBe(`${COUNTRIES} pays · dans la vue · ${CORPUS} correspondent aux filtres (${NOGEO_TOTAL} hors carte)`);
+    expect(await caption(page)).toBe(`${f.countries} pays · dans la vue · ${f.corpus} correspondent aux filtres (${f.offMap} hors carte)`);
     await page.evaluate(() => {
       for (const k of ['layersTitle', 'stCountriesN', 'stNote', 'stNoteWhy', 'stOffMap']) delete I18N.fr[k];
       applyLang();
@@ -707,7 +906,7 @@ test.describe('§12 a missing French key falls back to English', () => {
     expect(await textOf(page, '#f-layers .sb-h')).toBe('Layers');
     // The interpolating keys fall back too — a raw "stNoteWhy" in the caption is
     // the failure this guards against, and it is the caption a reader trusts.
-    expect(await caption(page)).toBe(`${COUNTRIES} countries · in view · ${CORPUS} match the filters (${NOGEO_TOTAL} off the map)`);
+    expect(await caption(page)).toBe(`${f.countries} countries · in view · ${f.corpus} match the filters (${f.offMap} off the map)`);
     expect(await page.evaluate(() => t('layersTitle'))).toBe('Layers');
   });
 
@@ -753,16 +952,35 @@ test.describe('§12 the content switches too', () => {
   });
 
   test('§12 an entity with no desc_fr/desc_en falls back to desc in both languages', async ({ page }) => {
-    // Four entities carry only the undifferentiated `desc`; the card must show
-    // it rather than the "description to come" placeholder.
-    await openMap(page, { lang: 'en', hash: '#e=uva-illc' });
-    const d = await page.evaluate(() => ({
-      desc: byId['uva-illc'].d.desc,
-      hasFr: 'desc_fr' in byId['uva-illc'].d,
-      hasEn: 'desc_en' in byId['uva-illc'].d,
-    }));
+    // A handful of entities carry only the undifferentiated `desc`; the card must
+    // show it rather than the "description to come" placeholder. The subject is
+    // chosen by that property, lowest id first, rather than named: a regeneration
+    // that finally translates this one should move the test to the next such
+    // entity, not leave it asserting nothing.
+    await openMap(page, { lang: 'en' });
+    const pick = await page.evaluate(() => {
+      const D = window.HAI_DATA;
+      const all = ['PROJECTS', 'TEAMS', 'COMMONS', 'FRAMEWORKS'].flatMap((l) => D[l]);
+      const hit = all.filter((e) => e.desc && !('desc_fr' in e) && !('desc_en' in e))
+        .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+      return hit ? { id: hit.id, desc: hit.desc } : null;
+    });
+    expect(pick, 'the payload must still hold an entity with only `desc`').not.toBeNull();
+    // Deep-link to whichever entity that is. The page reads #e= once, at boot,
+    // and a goto that differs from the current URL only in its fragment is a
+    // same-document navigation — so the reload is what makes the deep link run.
+    await page.goto(`${MAP_PATH}?lang=en#e=${pick.id}`);
+    await page.reload();
+    await expect(page.locator('#st-note')).not.toBeEmpty();
+    await expect(page.locator('.fd-card')).toBeVisible();
+    const d = await page.evaluate((id) => ({
+      desc: byId[id].d.desc,
+      hasFr: 'desc_fr' in byId[id].d,
+      hasEn: 'desc_en' in byId[id].d,
+    }), pick.id);
     expect(d.hasFr).toBe(false);
     expect(d.hasEn).toBe(false);
+    expect(d.desc).toBe(pick.desc);
     expect((await page.locator('.fd-card .dt-desc').allTextContents()).join('\n\n')).toBe(d.desc);
     await switchLang(page, 'fr');
     expect((await page.locator('.fd-card .dt-desc').allTextContents()).join('\n\n')).toBe(d.desc);
@@ -790,6 +1008,12 @@ test.describe('§12 the content switches too', () => {
       return out;
     });
     expect(audit.groups).toEqual(['access', 'confidence', 'focus', 'jurisdiction', 'kind', 'legal', 'role', 'status', 'tier', 'type']);
+    // PINNED ON PURPOSE. Everything else in this file derives its expectation
+    // from the payload, but the subject *is* the payload's own label table:
+    // counting it a second way would only restate it, and without a floor the
+    // `missing` assertion below would pass vacuously on an empty table. So the
+    // census stays a snapshot, and a regeneration that grows the vocabulary is
+    // expected to come past this line.
     expect(audit.entries).toBe(67);
     expect(audit.missing).toEqual([]);
   });
@@ -842,6 +1066,17 @@ test.describe('§12 the content switches too', () => {
       'jurisdiction.DE', 'jurisdiction.DK', 'jurisdiction.NL', 'jurisdiction.UK',
       'role.third_party',
     ]);
+    // Every one of those gaps, not just the three spot-checked below, has to
+    // degrade the way §17 promises: the de-underscored key, and the same string
+    // in both languages. Derived from the list above, so a gap that appears
+    // upstream is held to the rule too.
+    const fallback = await page.evaluate((list) => {
+      const split = (gv) => [gv.slice(0, gv.indexOf('.')), gv.slice(gv.indexOf('.') + 1)];
+      const at = (l) => { LANG = l; return list.map((gv) => taxo(...split(gv))); };
+      return { want: list.map((gv) => split(gv)[1].replace(/_/g, ' ')), fr: at('fr'), en: at('en') };
+    }, gaps);
+    expect(fallback.fr).toEqual(fallback.want);
+    expect(fallback.en).toEqual(fallback.want);
     // And what the reader gets for them is identical in both languages.
     const rendered = await page.evaluate(() => {
       const at = (l) => { LANG = l; return [taxo('role', 'third_party'), taxo('access', 'restricted'), taxo('jurisdiction', 'UK')]; };
@@ -1063,27 +1298,31 @@ test.describe('§12 verb agreement in both languages', () => {
   });
 
   test('§9.1 the caption reads the singular end to end, in both languages', async ({ page }) => {
-    // Commons + maritime is exactly one entity in the payload (OpenCLSim, NL),
-    // so this is the n = 1 boundary through the real controls rather than
-    // through the string function.
+    // One layer and one domain narrowed to a single placed entity: the n = 1
+    // boundary through the real controls rather than through the string
+    // function. The pair is derived, because it belongs to the payload — this
+    // test used to name commons + maritime, which was one entity (OpenCLSim)
+    // until OpenBridge arrived upstream and quietly made it two.
     await openMap(page, { lang: 'en' });
+    const f = await facts(page);
+    const pick = await singleMatchPair(page);
+    expect(pick, 'the payload must hold a layer/domain pair matching one placed entity').not.toBeNull();
     await zoomBy(page, 0.5);                       // everything placed is on screen
-    await setLayers(page, ['commons']);
-    await onlyDomain(page, 'maritime');
+    await setLayers(page, [pick.kind]);
+    await onlyDomain(page, pick.dom);
     await settleCounts(page);
     const s = await snapshot(page);
     expect(s.matchCount).toBe(1);
     expect(s.offScreen).toBe(0);
     expect(s.offMapMatch).toBe(0);
     await expect(page.locator('#st-note')).toHaveText('1 country · in view · 1 matches the filters');
-    expect((await tiles(page)).map((t) => t.title)).toEqual([
-      '0 in view · 0 match the filters', '0 in view · 0 match the filters',
-      '1 in view · 1 matches the filters', '0 in view · 0 match the filters',
-    ]);
+    const one = '1 in view · 1 matches the filters', none = '0 in view · 0 match the filters';
+    expect((await tiles(page)).map((t) => t.title))
+      .toEqual(f.layerTotals.map((_, i) => (i === pick.layer ? one : none)));
     await switchLang(page, 'fr');
     await expect(page.locator('#st-note')).toHaveText('1 pays · dans la vue · 1 correspond aux filtres');
-    expect((await tiles(page))[2].title).toBe('1 dans la vue · 1 correspond aux filtres');
-    await expectCountersReconcile(page, 'one commons, one maritime domain');
+    expect((await tiles(page))[pick.layer].title).toBe('1 dans la vue · 1 correspond aux filtres');
+    await expectCountersReconcile(page, `one ${pick.kind}, one ${pick.dom} domain`);
   });
 
   test('§9.1 zero results: English pluralises, French does not', async ({ page }) => {
@@ -1099,16 +1338,17 @@ test.describe('§12 verb agreement in both languages', () => {
 
   test('§9.2 the whole corpus, with the off-map term named in both languages', async ({ page }) => {
     await openMap(page, { lang: 'en' });
+    const f = await facts(page);
     await zoomBy(page, 0.5);
     const s = await snapshot(page);
-    expect(s.matchCount).toBe(CORPUS);
+    expect(s.matchCount).toBe(f.corpus);
     expect(s.offScreen).toBe(0);
-    expect(s.offMapMatch).toBe(NOGEO_TOTAL);
+    expect(s.offMapMatch).toBe(f.offMap);
     await expect(page.locator('#st-note'))
-      .toHaveText(`${COUNTRIES} countries · in view · ${CORPUS} match the filters (${NOGEO_TOTAL} off the map)`);
+      .toHaveText(`${f.countries} countries · in view · ${f.corpus} match the filters (${f.offMap} off the map)`);
     await switchLang(page, 'fr');
     await expect(page.locator('#st-note'))
-      .toHaveText(`${COUNTRIES} pays · dans la vue · ${CORPUS} correspondent aux filtres (${NOGEO_TOTAL} hors carte)`);
+      .toHaveText(`${f.countries} pays · dans la vue · ${f.corpus} correspondent aux filtres (${f.offMap} hors carte)`);
   });
 
   test('§9.2 the kept-open card is named as its own term in both languages', async ({ page }) => {
@@ -1138,25 +1378,32 @@ test.describe('§12 verb agreement in both languages', () => {
 
   test('§9.3 the off-the-map badge reads the same n as the feed button, in both languages', async ({ page }) => {
     await openMap(page, { lang: 'en' });
-    await setLayers(page, ['commons']);            // one off-map commons: CityLearn
+    // Again the layer with exactly one entity lacking coordinates — today the
+    // commons, for CityLearn — derived rather than named, and the denominator
+    // is the whole off-map population.
+    const f = await facts(page);
+    const only = f.offMapByLayer.indexOf(1);
+    expect(only, 'one layer must hold exactly one entity without coordinates').toBeGreaterThan(-1);
+    await setLayers(page, [f.kinds[only]]);
     await settleCounts(page);
     expect((await snapshot(page)).offMapMatch).toBe(1);
     expect(await textOf(page, '#nogeo-count')).toBe('1');
-    expect(await page.locator('#nogeo-count').getAttribute('title')).toBe('1 of 11 matches the current filters');
+    expect(await page.locator('#nogeo-count').getAttribute('title')).toBe(`1 of ${f.offMap} matches the current filters`);
     await switchLang(page, 'fr');
-    expect(await page.locator('#nogeo-count').getAttribute('title')).toBe('1 sur 11 correspond aux filtres actuels');
+    expect(await page.locator('#nogeo-count').getAttribute('title')).toBe(`1 sur ${f.offMap} correspond aux filtres actuels`);
   });
 
   test('§9.2 the off-screen term appears in the caption in both languages', async ({ page }) => {
     await openMap(page, { lang: 'en' });
+    const f = await facts(page);
     await zoomBy(page, 4);                          // push most markers off screen
     const s = await snapshot(page);
     expect(s.offScreen).toBeGreaterThan(0);
-    await expect(page.locator('#st-note')).toHaveText(new RegExp(`\\(${s.offScreen} off screen, ${NOGEO_TOTAL} off the map\\)$`));
+    await expect(page.locator('#st-note')).toHaveText(new RegExp(`\\(${s.offScreen} off screen, ${f.offMap} off the map\\)$`));
     await switchLang(page, 'fr');
     await settleCounts(page);
     const t = await snapshot(page);
-    await expect(page.locator('#st-note')).toHaveText(new RegExp(`\\(${t.offScreen} hors écran, ${NOGEO_TOTAL} hors carte\\)$`));
+    await expect(page.locator('#st-note')).toHaveText(new RegExp(`\\(${t.offScreen} hors écran, ${f.offMap} hors carte\\)$`));
   });
 });
 
@@ -1204,7 +1451,10 @@ test.describe('§12 locale-aware collation and number formatting', () => {
         lastB: lastOf(/^b/i), firstD: firstOf(/^d/i),
       };
     });
-    expect(pos.teamCount).toBeGreaterThan(200);        // the whole team layer is in view
+    // The whole team layer is in view — the precondition the claim needs, held
+    // to the payload's own placed-team population rather than to a round number.
+    const f = await facts(page);
+    expect(pos.teamCount).toBe(f.placedByLayer[f.kinds.indexOf('team')]);
     expect(pos.ceps).toBeGreaterThan(-1);
     expect(pos.name).toMatch(/^ČEPS/);
     // Inside the C run: both neighbours start with a plain C.
@@ -1222,17 +1472,22 @@ test.describe('§12 locale-aware collation and number formatting', () => {
     // locale-formatted euros".
     await openMap(page, { lang: 'en', hash: '#e=ai4realnet' });
     const eur = await page.evaluate(() => byId.ai4realnet.d.funding.eur);
-    expect(eur).toBe(3999976);
+    // The figure comes from the payload and the grouping is done by hand here,
+    // because Intl is the formatter under test: asking it for the expectation
+    // would make the comparison agree with itself. spaces() has already
+    // flattened the narrow spaces fr-FR groups with.
+    expect(eur, 'a budget needs thousands to have separators worth asserting').toBeGreaterThanOrEqual(1000);
+    const grouped = String(eur).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     const row = () => page.locator('.fd-card .dt-facts div', { has: page.locator('dt', { hasText: /^(Budget)$/ }) }).locator('dd').textContent();
-    expect(spaces(await row())).toBe('€3,999,976');
+    expect(spaces(await row())).toBe(`€${grouped.replace(/ /g, ',')}`);
     await switchLang(page, 'fr');
-    expect(spaces(await row())).toBe('3 999 976 €');
+    expect(spaces(await row())).toBe(`${grouped} €`);
     // The separators, not just the digits: an English reader gets ASCII commas
     // and a leading symbol, a French one narrow spaces and a trailing one.
-    const fmt = await page.evaluate(() => {
-      const at = (l) => { LANG = l; return money(3999976); };
+    const fmt = await page.evaluate((n) => {
+      const at = (l) => { LANG = l; return money(n); };
       return { fr: at('fr'), en: at('en') };
-    });
+    }, eur);
     expect(fmt.en.startsWith('€')).toBe(true);
     expect(fmt.en).toContain(',');
     expect(fmt.fr.endsWith('€')).toBe(true);
@@ -1242,13 +1497,27 @@ test.describe('§12 locale-aware collation and number formatting', () => {
 
   test('§10 the freshness date is spelled out in the reader\'s locale', async ({ page }) => {
     await openMap(page, { lang: 'en' });
+    const f = await facts(page);
+    // The sentence wraps a date Intl formats, so the expectation is spelled out
+    // from DATA.AS_OF by hand — month tables, day before month, no ordinal —
+    // rather than by asking fmtAsOf(), which would agree with itself whatever it
+    // produced. AS_OF moves on every upstream touch (§3.5), the shape of the
+    // sentence does not.
+    const EN_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const FR_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    const [yy, mm, dd] = f.asOf.split('-').map(Number);
+    const en = `${dd} ${EN_MONTHS[mm - 1]} ${yy}`, fr = `${dd} ${FR_MONTHS[mm - 1]} ${yy}`;
     const label = () => page.locator('#tf-asof').getAttribute('aria-label');
-    expect(await label()).toBe('Data current as of 3 September 2026 — the period slider stops at that year.');
+    expect(await label()).toBe(`Data current as of ${en} — the period slider stops at that year.`);
     await switchLang(page, 'fr');
-    expect(await label()).toBe('Données à jour au 3 septembre 2026 — le curseur de période s’arrête à cette année.');
-    // The same sentence reaches touch devices as a toast.
+    const frSentence = `Données à jour au ${fr} — le curseur de période s’arrête à cette année.`;
+    expect(await label()).toBe(frSentence);
+    // The same sentence reaches touch devices as a toast — all of it, not just
+    // the date.
     await page.click('#tf-asof');
-    await expect(page.locator('#toast')).toHaveText(/3 septembre 2026/);
+    await expect(page.locator('#toast')).toHaveText(frSentence);
   });
 });
 

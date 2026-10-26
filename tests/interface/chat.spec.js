@@ -1,4 +1,4 @@
-// Chat column — spec §18, invariants 10 and 15.
+// Chat column — spec §18, invariants 10 and 16.
 //
 // Two halves. The first is the opt-in, and it is the one that protects every
 // other reader: without `?chat=1` there must be no pill, no panel, no host
@@ -384,7 +384,7 @@ test.describe('§18.3 proposing a change', () => {
     await expect(page.locator('.ch-state.ok a')).toHaveAttribute(
       'href', 'https://github.com/marota/human-ai-collaboration/issues/42');
     const posted = calls.filter((c) => c.path === '/api/issue').at(-1);
-    // invariant 15: what the contributor read is what was posted, and it took
+    // invariant 16: what the contributor read is what was posted, and it took
     // a deliberate click to post it.
     expect(posted.body.preview).toBeFalsy();
     expect(posted.body.card.name).toBe('Renamed Grid Lab');

@@ -10,25 +10,38 @@ byte-stable so a no-op regeneration produces an empty diff (§3).
 Testing them one by one rather than only through `build()` is deliberate. Each
 encodes a rule from the specification — §3.1 on what regeneration must preserve,
 §3.4 on the label vocabulary, §10.2 on unknown start dates — and a failure here
-names the rule that broke instead of pointing at a 449-entity payload diff.
+names the rule that broke instead of pointing at a 460-entity payload diff.
+
+The entry point is here too. `main()` is not a pure helper, but it is the only
+thing a contributor runs, and the summary it prints — the regression signal §3
+names — is computed with its own loops over the layers rather than read off
+`build()`, so it is free to disagree with the payload written beside it.
 
 Nothing here reads the `eu-hai-collab-map` checkout: every input is built in the
-test, and `resolve_source` is driven against temporary directories with the
-candidate list patched out, so the suite runs on a machine that has never cloned
-the data repository.
+test, and `resolve_source` and `main()` are driven against temporary
+directories with the candidate list patched out, so the suite runs on a machine
+that has never cloned the data repository — and a run that was meant to fail
+cannot be rescued by a checkout that happens to sit next door.
 """
 from __future__ import annotations
 
+import ast
+import contextlib
 import datetime
+import io
 import json
 import os
 import re
+import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from tests._harness import load_generator, load_payload, map_script
+import yaml
+
+from tests._harness import GENERATOR, load_generator, load_payload, map_script
 
 MOD = load_generator()
 PAYLOAD = load_payload()
@@ -51,6 +64,37 @@ def make_checkout(parent: Path, name: str) -> Path:
     (root / "data").mkdir(parents=True)
     (root / "data" / "edges.yml").write_text("[]\n", encoding="utf-8")
     return root
+
+
+def filler(n: int) -> str:
+    """A description of exactly `n` characters: one paragraph, single-spaced,
+    never wrapped and never ending in a space, so `norm_text` hands it back
+    unchanged and "longest description N chars" is a figure the test knows
+    independently of the generator."""
+    text = ("ha " * n)[:n]
+    return text[:-1] + "h" if text.endswith(" ") else text
+
+
+def write_entity(root: Path, layer: str, ident: str, *, desc: str = "",
+                 lat=None, lon=None, updated: str = "2025-01-01") -> Path:
+    """One YAML file under `root/data/<layer>/`, carrying the least the
+    generator needs: an id, a name, a description and a provenance date.
+    Dumped at a width no line can reach, so a folded line cannot change the
+    description's length behind the test's back."""
+    d = {
+        "id": ident,
+        "name": ident.upper(),
+        "description": desc,
+        "provenance": {"added_by": "fixture", "added_on": "2024-01-01",
+                       "last_updated": updated, "confidence": "high"},
+    }
+    if lat is not None:
+        d["location"] = {"city": "Delft", "country": "NL", "lat": lat, "lon": lon}
+    path = root / "data" / layer / f"{ident}.yml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(d, width=4096, sort_keys=False, allow_unicode=True),
+                    encoding="utf-8")
+    return path
 
 
 class NormText(unittest.TestCase):
@@ -389,7 +433,7 @@ class DateQuality(unittest.TestCase):
         # The shipped payload is an independent oracle for this parse: every
         # dateConf/dateHost in it was written by an earlier run of
         # date_quality(), and `prov.src` carries the very note it read. Running
-        # the current function over all 449 notes checks the three tiers, the
+        # the current function over all 460 notes checks the three tiers, the
         # " | " cut, the host-year probe and the medium/low gate against real
         # curator prose instead of against sentences written to suit the test —
         # which is what makes it catch a pattern narrowed in a way no invented
@@ -806,6 +850,44 @@ class TaxoPayload(unittest.TestCase):
             {"commercial": "commercial", "restricted": "restricted", "DE": "DE",
              "DK": "DK", "NL": "NL", "UK": "UK", "third_party": "third party"})
 
+    def test_3_4_SPEC_DEVIATION_both_languages_are_hand_written_and_taxonomy_yml_is_never_read(self):
+        # SPEC-DEVIATION: §3.4 says "English comes from `data/taxonomy.yml`;
+        # French is a hand-written table in the generator". Both languages are
+        # hand-written in the generator: TAXO holds `{key: (en, fr)}` literals
+        # and the script never opens taxonomy.yml at all. §17 states the
+        # accurate version — a new value goes "to `data/taxonomy.yml` and to
+        # the matching TAXO table in the generator" — but nothing compares the
+        # two, so an English label renamed upstream leaves the map's vocabulary
+        # quietly disagreeing with the data repository's.
+        #
+        # The other §3.4 tests here cannot see that: they pin the emitted block
+        # against MOD.TAXO, which is the table it was produced from. This one
+        # pins the sourcing instead. Resolving the disagreement means editing
+        # either the spec or the generator, and then this test fails and says
+        # which claim moved.
+        src = GENERATOR.read_text(encoding="utf-8")
+        self.assertNotIn("taxonomy", src.lower())
+        # Every YAML path the generator names: the per-layer glob, edges.yml
+        # and the two description files. No vocabulary file among them.
+        self.assertEqual(sorted(set(re.findall(r'"([^"\s]*\.yml)"', src))),
+                         ["*.yml", "descriptions.{lang}.yml", "edges.yml"])
+        self.assertEqual(re.findall(r'load_layer\(root, "(\w+)"\)', src),
+                         ["teams", "projects", "infrastructure", "frameworks", "commons"])
+        # And a checkout that does carry a taxonomy.yml is ignored: the emitted
+        # block keeps the generator's English label, not the file's.
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        root = make_checkout(tmp, "with-taxonomy")
+        (root / "data" / "taxonomy.yml").write_text(
+            yaml.safe_dump({"status": {"concluded": "Finished"},
+                            "tier": {"core": "Central"}}), encoding="utf-8")
+        rendered = MOD.render(MOD.build(root), root)
+        block = rendered.split("const TAXO = ", 1)[1].split(";\n\n", 1)[0]
+        self.assertEqual(json.loads(block)["status"]["concluded"]["en"], "Concluded")
+        self.assertEqual(json.loads(block)["tier"]["core"]["en"], "Core")
+        self.assertNotIn("Finished", rendered)
+        self.assertNotIn("Central", rendered)
+
 
 class DataAsOf(unittest.TestCase):
     """§3.5 — AS_OF is the most recent provenance touch across every entity."""
@@ -1005,6 +1087,219 @@ class ResolveSource(unittest.TestCase):
         self.assertEqual(real[1].parent, Path(MOD.REPO).parent)
         self.assertEqual(real[2].parent,
                          Path.home() / "Documents" / "Claude" / "Projects")
+
+
+# The fixture behind the summary (§3). Per layer: entity id, description
+# length, whether it has coordinates. The counts differ from layer to layer on
+# purpose — five equal counts would let a mislabelled summary line print the
+# right number anyway — and every layer holds one entity without coordinates,
+# so a layer dropped from main()'s own geoless loop changes both the figure and
+# the list of ids, whichever layer it is.
+SUMMARY_FIXTURE = {
+    "projects":   [("p1", 30, True), ("p2", 45, False)],
+    "commons":    [("c1", 90, False)],
+    "teams":      [("t1", 60, True), ("t2", 0, True), ("t3", 75, False)],
+    "frameworks": [("f1", 20, False), ("f2", 25, True),
+                   ("f3", 35, True), ("f4", 50, True)],
+}
+SUMMARY_COUNTS = {"PROJECTS": 2, "COMMONS": 1, "TEAMS": 3, "FRAMEWORKS": 4, "EDGES": 1}
+# In the order main() walks the layers, which is not the order it prints them.
+SUMMARY_GEOLESS = ["p2", "c1", "t3", "f1"]
+# f4's English description, authored in data/i18n/descriptions.en.yml and
+# longer than any `desc` in the fixture: main() reads `desc_en or desc`, and
+# the longest thing on the map sits in the last layer its loop reaches.
+SUMMARY_LONGEST = 137
+SUMMARY_AS_OF = "2026-07-07"       # t2's last_updated — the freshest touch
+
+
+class Main(unittest.TestCase):
+    """§3 — the entry point a contributor actually types:
+    `python3 scripts/build-map-data.py --source <checkout>`, which resolves the
+    source, writes `assets/map/hai-data.js`, and prints a summary — "entities
+    per layer, entities without coordinates, longest description — so a
+    regression is visible at a glance".
+
+    That summary is the mechanism §3 names, and main() computes two of its
+    figures with its own loops over the four entity layers rather than reusing
+    anything `build()` produced: a layer dropped from one of them makes the
+    summary lie while every helper test above stays green. The argparse wiring
+    and the post-write `stat()` are in the same position — the one command the
+    README gives can break with no test to notice.
+
+    Every test patches CANDIDATE_SOURCES and clears $EU_HAI_MAP_REPO, so a real
+    checkout on the machine can neither be read instead of the fixture nor
+    rescue a run that was meant to fail.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        env = mock.patch.dict(os.environ, {}, clear=False)
+        env.start()
+        os.environ.pop("EU_HAI_MAP_REPO", None)
+        self.addCleanup(env.stop)
+        cands = mock.patch.object(MOD, "CANDIDATE_SOURCES", [])
+        cands.start()
+        self.addCleanup(cands.stop)
+
+    def checkout(self) -> Path:
+        """A source checkout matching SUMMARY_FIXTURE."""
+        root = make_checkout(self.tmp, "source")
+        for layer, entities in SUMMARY_FIXTURE.items():
+            for ident, length, located in entities:
+                write_entity(root, layer, ident, desc=filler(length),
+                             lat=52.0 if located else None,
+                             lon=4.37 if located else None,
+                             updated=SUMMARY_AS_OF if ident == "t2" else "2025-01-01")
+        (root / "data" / "i18n").mkdir()
+        (root / "data" / "i18n" / "descriptions.en.yml").write_text(
+            yaml.safe_dump({"f4": filler(SUMMARY_LONGEST)}, width=4096),
+            encoding="utf-8")
+        (root / "data" / "edges.yml").write_text(
+            "- project: p1\n  team: t1\n"               # kept
+            "- project: p1\n  team: no-such-team\n"     # dropped: unknown team
+            "- project: f4\n  team: t1\n",              # dropped: not a project
+            encoding="utf-8")
+        return root
+
+    def run_main(self, *argv) -> list[str]:
+        printed = io.StringIO()
+        with mock.patch.object(sys, "argv", ["build-map-data.py", *argv]), \
+             contextlib.redirect_stdout(printed):
+            MOD.main()
+        return printed.getvalue().splitlines()
+
+    def test_3_main_writes_the_payload_and_prints_the_summary_the_spec_names(self):
+        root = self.checkout()
+        out = self.tmp / "out" / "hai-data.js"
+        out.parent.mkdir()
+        lines = self.run_main("--source", str(root), "--out", str(out))
+
+        # The entry point and the path every other test here drives have to
+        # agree byte for byte: what render() is checked to produce is what the
+        # command leaves on disk, with no second serialisation in between.
+        data = MOD.build(root)
+        self.assertEqual(out.read_text(encoding="utf-8"), MOD.render(data, root))
+
+        self.assertEqual(lines[0], f"source  {root.resolve()}")
+        # Outside the repository, so the path is printed whole (the relative
+        # branch is the next test). The size is the file's, rounded the way the
+        # summary rounds it; the fixture is past a kilobyte so the figure is a
+        # real number rather than a floor-of-nothing zero.
+        self.assertGreater(out.stat().st_size, 1024)
+        self.assertEqual(lines[1],
+                         f"out     {out}  ({out.stat().st_size / 1024:.0f} kB)")
+
+        # One line per layer, in the printed order — which is neither the order
+        # the loops walk nor the order render() emits — each with that layer's
+        # count. The numbers come from the fixture, not from `data`; `data` is
+        # then checked against the same numbers, so the two cannot drift
+        # together into agreeing on something wrong.
+        self.assertEqual(
+            [l for l in lines if re.match(r"^  [a-z]+ +\d+$", l)],
+            [f"  {name.lower():<11} {SUMMARY_COUNTS[name]}"
+             for name in ("PROJECTS", "TEAMS", "COMMONS", "FRAMEWORKS", "EDGES")])
+        for name, count in SUMMARY_COUNTS.items():
+            self.assertEqual(len(data[name]), count, name)
+
+        # The entities without coordinates, counted and named (§3.1.4 keeps
+        # them; the summary is how a curator sees how many there are).
+        self.assertIn(
+            f"  no lat/lon  {len(SUMMARY_GEOLESS)}  ({', '.join(SUMMARY_GEOLESS)})",
+            lines)
+
+        # The longest description. `filler` is unwrapped and single-spaced, so
+        # norm_text returns it untouched and the character count is the
+        # fixture's own — a loop missing a layer, or one that stopped reading
+        # desc_en, reports 90 instead.
+        self.assertEqual(len(MOD.norm_text(filler(SUMMARY_LONGEST))), SUMMARY_LONGEST)
+        longest = next(l for l in lines if "longest description" in l)
+        self.assertTrue(longest.startswith(f"  longest description  {SUMMARY_LONGEST} chars"),
+                        longest)
+
+        # And the freshness date the period filter's upper bound comes from.
+        self.assertEqual(MOD.data_as_of(data), SUMMARY_AS_OF)
+        as_of = next(l for l in lines if l.startswith("  as of"))
+        self.assertTrue(as_of.startswith(f"  as of  {SUMMARY_AS_OF}"), as_of)
+
+    def test_3_main_prints_the_out_path_relative_to_the_repository_when_it_is_inside_it(self):
+        # Two branches behind one `is_relative_to`, and the usual run takes the
+        # one the test above does not: `out  assets/map/hai-data.js`, not a
+        # line of absolute path. REPO is patched rather than writing into the
+        # real tree, which is the only way to reach that branch without a test
+        # regenerating the committed payload.
+        root = self.checkout()
+        out = self.tmp / "assets" / "map" / "hai-data.js"
+        out.parent.mkdir(parents=True)
+        with mock.patch.object(MOD, "REPO", self.tmp):
+            lines = self.run_main("--source", str(root), "--out", str(out))
+        self.assertEqual(re.fullmatch(r"out +(\S+)  \(\d+ kB\)", lines[1]).group(1),
+                         "assets/map/hai-data.js")
+        self.assertTrue(out.exists())
+
+    def test_3_main_writes_to_assets_map_hai_data_js_when_out_is_not_given(self):
+        # §3's command line is `--source <checkout>` alone; the documented
+        # destination lives in the --out default, not in the call.
+        self.assertEqual(MOD.DEFAULT_OUT,
+                         Path(MOD.REPO) / "assets" / "map" / "hai-data.js")
+        root = self.checkout()
+        stand_in = self.tmp / "default-out.js"
+        with mock.patch.object(MOD, "DEFAULT_OUT", stand_in):
+            lines = self.run_main("--source", str(root))
+        self.assertTrue(stand_in.exists(), "nothing was written to the --out default")
+        self.assertEqual(stand_in.read_text(encoding="utf-8"),
+                         MOD.render(MOD.build(root), root))
+        self.assertEqual(re.fullmatch(r"out +(\S+)  \(\d+ kB\)", lines[1]).group(1),
+                         str(stand_in))
+
+    def test_3_main_exits_with_the_three_routes_when_there_is_no_checkout(self):
+        # Driven through main() rather than resolve_source() because this is
+        # the shape of the failure a first-time contributor actually meets: a
+        # non-zero exit with the message, before anything is written.
+        (self.tmp / "not-a-checkout").mkdir()
+        out = self.tmp / "unwritten.js"
+        with self.assertRaises(SystemExit) as caught:
+            self.run_main("--source", str(self.tmp / "not-a-checkout"),
+                          "--out", str(out))
+        self.assertNotIn(caught.exception.code, (0, None))
+        message = str(caught.exception.code)
+        self.assertIn("--source", message)
+        self.assertIn("$EU_HAI_MAP_REPO", message)
+        self.assertIn("git clone https://github.com/marota/eu-hai-collab-map.git", message)
+        self.assertFalse(out.exists(), "a failed run must not leave a partial payload")
+
+    def test_3_main_is_what_running_the_script_calls(self):
+        # The tests above import the module and call main() directly; this is
+        # the line that makes `python3 scripts/build-map-data.py` do the same.
+        self.assertIn('if __name__ == "__main__":\n    main()\n',
+                      GENERATOR.read_text(encoding="utf-8"))
+
+
+class GeneratorDependencies(unittest.TestCase):
+    """§3 — "The only dependency is PyYAML"."""
+
+    def test_3_the_generator_imports_nothing_beyond_the_standard_library_and_pyyaml(self):
+        # §1's no-dependencies commitment is proved exhaustively for the
+        # published page; for the pipeline it means something just as concrete
+        # — a contributor with PyYAML and nothing else can regenerate the
+        # payload. A `requests`, `rich` or `python-dateutil` import added for
+        # convenience breaks that for everyone cloning the repository, and the
+        # only signal is an ImportError on someone else's machine.
+        #
+        # Parsed statically rather than read off the imported module, so a
+        # convenience import tucked inside a function body counts too.
+        tree = ast.parse(GENERATOR.read_text(encoding="utf-8"), str(GENERATOR))
+        roots = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                roots |= {alias.name.split(".")[0] for alias in node.names}
+            elif isinstance(node, ast.ImportFrom):
+                # The script is standalone — it is loaded by path, not as part
+                # of a package, so a relative import could not resolve at all.
+                self.assertEqual(node.level, 0, ast.dump(node))
+                roots.add((node.module or "").split(".")[0])
+        self.assertIn("yaml", roots, "the generator stopped importing PyYAML")
+        self.assertEqual(roots - set(sys.stdlib_module_names), {"yaml"})
 
 
 if __name__ == "__main__":

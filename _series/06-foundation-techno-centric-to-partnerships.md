@@ -30,4 +30,4 @@ This is how synergistic partnerships get built — ones that get stronger over t
 
 ---
 
-*Part {{ page.part }} of [a ten-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*
+*Part {{ page.part }} of [a thirteen-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*
