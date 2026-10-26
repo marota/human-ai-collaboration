@@ -330,6 +330,71 @@ def countries_in(text: str) -> list[str]:
     return out
 
 
+_LAYER_WORDS = (
+    ("project", r"projets?|programmes?|consortiums?|project|programme"),
+    ("team", r"[ée]quipes?|laboratoires?|labos?|groupes?|teams?|labs?"),
+    ("commons", r"communs?|jeux? de donn|datasets?|benchmarks?|logiciels?|commons"),
+    ("framework", r"cadres?|normes?|standards?|r[eè]glements?|frameworks?"),
+)
+# Questions about when things began, which retrieval cannot answer: no card
+# contains the word "oldest", so a lexical search returns noise and the model
+# concludes the map holds no dates — while the period slider is built on them.
+_WHEN_RE = re.compile(
+    r"\b(ancien\w*|vieux|vieille|r[ée]cent\w*|premi[eè]re?s?|derni[eè]re?s?|"
+    r"ann[ée]e\w*|dates?|dat[ée]\w*|p[ée]riode|depuis|remonte|d[ée]but\w*|"
+    r"fond[ée]\w*|cr[ée][ée]\w*|oldest|earliest|newest|latest|recent|first|"
+    r"last|year|date[ds]?|founded|started|since|how old)\b", re.I)
+
+
+def _layer_named(text: str) -> str | None:
+    folded = fold(text)
+    for layer, pattern in _LAYER_WORDS:
+        if re.search(pattern, folded, re.I):
+            return layer
+    return None
+
+
+def _start_year(entity: dict[str, Any]) -> int | None:
+    start = (entity.get("timeline") or {}).get("start")
+    m = re.match(r"(\d{4})", str(start or ""))
+    return int(m.group(1)) if m else None
+
+
+def _when_figures(corpus: Corpus, query: str) -> list[str]:
+    """The ends of the timeline, counted rather than searched.
+
+    §10.1: a start year that is only the host institution's founding year is a
+    floor, not a start. Those entities are left out of "oldest" and counted
+    separately, so the answer cannot turn a university's 1923 into a lab's.
+    """
+    layer = _layer_named(query)
+    pool = [e for e in corpus.entities if layer is None or e["kind"] == layer]
+    own = [(y, e) for e in pool if not e.get("dateHost")
+           if (y := _start_year(e)) is not None]
+    if not own:
+        return []
+    own.sort(key=lambda pair: (pair[0], pair[1]["id"]))
+
+    def row(pair: tuple[int, dict[str, Any]]) -> str:
+        # Written as the link the reply should carry: a model copies the shape
+        # it is given, and `Name (#id)` copied verbatim is a dead string where
+        # `[Name](#id)` is a card the reader can open.
+        year, e = pair
+        return f"[{e['name']}](#{e['id']}) — {e['kind']}, {year}"
+
+    what = f"{_LAYER_PLURAL[layer]}" if layer else "entities"
+    rows = [f"Earliest {what} by start year: " + "; ".join(row(p) for p in own[:3]) + ".",
+            f"Most recent {what}: " + "; ".join(row(p) for p in reversed(own[-3:])) + "."]
+    floors = sum(1 for e in pool if e.get("dateHost"))
+    undated = sum(1 for e in pool if _start_year(e) is None)
+    if floors or undated:
+        rows.append(
+            f"Left out of those two lines: {floors} {what} whose recorded year is "
+            f"their host institution's founding rather than their own, and {undated} "
+            "with no start year at all. Say so if the answer turns on it.")
+    return rows
+
+
 def figures(corpus: Corpus, query: str) -> str:
     """Counts for the question, computed rather than estimated.
 
@@ -362,6 +427,9 @@ def figures(corpus: Corpus, query: str) -> str:
     for key in sorted(k for k in focus_keys if set(k.split("_")) <= wanted):
         n = sum(1 for e in corpus.entities if key in (e.get("focus") or []))
         rows.append(f"Focus {key}: {n} entities.")
+
+    if _WHEN_RE.search(query):
+        rows += _when_figures(corpus, query)
     return "\n".join(rows)
 
 

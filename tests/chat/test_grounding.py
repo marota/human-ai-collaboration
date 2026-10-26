@@ -12,6 +12,7 @@ Nothing here needs a model or a network: the corpus is the committed
 """
 from __future__ import annotations
 
+import re
 import unittest
 
 from tests._harness import DATA_JS, load_payload
@@ -158,6 +159,54 @@ class CountsRatherThanEstimates(unittest.TestCase):
         france = sum(1 for e in self.corpus.entities
                      if (e.get("country") or "").upper() == "FR")
         self.assertIn(f"{france} entities", text)
+
+    def test_a_question_about_age_gets_the_ends_of_the_timeline(self):
+        # No card contains the word "oldest", so retrieval returns noise and a
+        # model held to its cards says the map holds no dates — while the
+        # period filter of §10 is built on them.
+        text = CHAT.hai_data.figures(self.corpus, "quel est le projet le plus ancien ?")
+        self.assertIn("Earliest projects by start year:", text)
+        self.assertIn("Most recent projects:", text)
+
+    def test_the_earliest_are_in_order_and_are_really_the_earliest(self):
+        text = CHAT.hai_data.figures(self.corpus, "what is the oldest team?")
+        line = next(l for l in text.splitlines() if l.startswith("Earliest"))
+        years = [int(y) for y in re.findall(r", (\d{4})\)?", line)]
+        self.assertEqual(years, sorted(years))
+        teams = [(CHAT.hai_data._start_year(e), e) for e in self.corpus.entities
+                 if e["kind"] == "team" and not e.get("dateHost")]
+        truly = min(y for y, _ in teams if y is not None)
+        self.assertEqual(years[0], truly)
+
+    def test_a_host_institution_s_founding_year_is_never_read_as_the_entity_s(self):
+        # §10.1: that year is a floor, not a start. A university founded in
+        # 1923 must not be reported as the oldest lab on the map.
+        text = CHAT.hai_data.figures(self.corpus, "oldest entity on the map?")
+        line = next(l for l in text.splitlines() if l.startswith("Earliest"))
+        for e in self.corpus.entities:
+            if e.get("dateHost"):
+                self.assertNotIn(f"(#{e['id']})", line, e["id"])
+        self.assertIn("host institution's founding rather than their own", text)
+
+    def test_the_entities_are_written_as_card_links(self):
+        # A model copies the shape it is given: `Name (#id)` copied verbatim is
+        # a dead string where `[Name](#id)` is a card the reader can open.
+        text = CHAT.hai_data.figures(self.corpus, "oldest project?")
+        line = next(l for l in text.splitlines() if l.startswith("Earliest"))
+        ids = re.findall(r"\[[^\]]+\]\(#([a-z0-9-]+)\)", line)
+        self.assertTrue(ids)
+        for entity_id in ids:
+            self.assertIn(entity_id, self.corpus.by_id)
+
+    def test_a_layer_named_in_the_question_narrows_the_answer(self):
+        text = CHAT.hai_data.figures(self.corpus, "la plus ancienne équipe ?")
+        line = next(l for l in text.splitlines() if l.startswith("Earliest"))
+        for entity_id in re.findall(r"\(#([a-z0-9-]+)\)", line):
+            self.assertEqual(self.corpus.by_id[entity_id]["kind"], "team")
+
+    def test_a_question_with_no_dates_in_it_carries_no_timeline(self):
+        text = CHAT.hai_data.figures(self.corpus, "who works on grids in France?")
+        self.assertNotIn("Earliest", text)
 
     def test_a_domain_in_the_question_is_tallied(self):
         text = CHAT.hai_data.figures(self.corpus, "what does the map hold on aviation")

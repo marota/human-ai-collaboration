@@ -951,8 +951,13 @@ the parameter, publish one object of host functions (`openEntity`, `esc`,
 `fetch(` in `eu-hai-map.html`, no fourth `<script>` tag in its markup, and no
 chat markup in its DOM — so §1's three-file reading, §2's single-document
 contract and invariant 10 all still describe the file as published. The chat
-column takes the feed's place when it opens, at 380 px, and restores it when it
-closes.
+column is 380 px. When the feed is open too, the two share it rather than one
+replacing the other: the right column becomes two grid rows, the feed above and
+the chat below, and the sidebar and stage span both. They answer the same
+question from two directions — what is in view, and what about it — so taking
+the feed away to make room for the chat removed the thing the chat talks about.
+Below 840 px, where both are drawers over the map, the halves are top and
+bottom of the drawer.
 
 **The server also serves the repository**, so the map and the API share an
 origin and running the chat is one command:
@@ -972,10 +977,21 @@ a second copy. The chat therefore cannot answer from something the reader cannot
 see on the map, and a regenerated payload moves both in the same commit.
 
 Each turn the model gets three things and nothing else: standing instructions,
-**figures counted in Python** (totals per layer, per country, per domain — a
-model cannot count 450 records it has not been shown, and will estimate if
-asked), and the **full records of the entities lexical retrieval ranked for the
-question**. Those records are the only ids it may link, which is what makes
+**figures counted in Python**, and the **full records of the entities lexical
+retrieval ranked for the question**.
+
+The figures are what retrieval cannot do. A model cannot count 450 records it
+has not been shown and will estimate if asked, so totals per layer, per country
+and per domain are counted and handed over. The same applies to any question
+about the corpus as a whole: no card contains the word "oldest", so a lexical
+search for *quel est le projet le plus ancien* returns noise, and a model held
+to its cards concludes — as this one did — that the map holds no dates at all,
+while the period filter of §10 is built on them. A question about when things
+began therefore also carries the ends of the timeline, computed under §10.1's
+rule: an entity whose recorded year is only its host institution's founding is
+left out of "earliest" and counted separately, so a university's 1923 can never
+be reported as its lab's. Those rows are written as `[Name](#id)` links,
+because a model copies the shape it is given. Those records are the only ids it may link, which is what makes
 `[Name](#id)` a card-opener rather than a guess; the renderer drops any link
 whose id is not in `byId`, so an invented one degrades to plain text.
 

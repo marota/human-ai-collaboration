@@ -163,11 +163,24 @@
   #chat{display:none;flex-direction:column;height:100vh;overflow:hidden;background:var(--surface);
     border-left:1px solid var(--rule);min-width:0}
   body.chat-open #chat{display:flex}
-  body.chat-open #feed{display:none !important}
   body.chat-open #app{grid-template-columns:312px 1fr 380px}
   body.sb-hidden.chat-open #app{grid-template-columns:1fr 380px}
   body.chat-open .ctl-tr{max-width:calc(100vw - 312px - 380px - 28px)}
   body.sb-hidden.chat-open .ctl-tr{max-width:calc(100vw - 380px - 28px)}
+  /* Both open: one column, split in half — the feed above, the chat below.
+     They answer the same question from two directions ("what is in view" and
+     "what about it"), so taking the feed away to make room for the chat threw
+     out the thing the chat is talking about. The right column becomes two grid
+     rows; the sidebar and the stage span both. */
+  body.chat-open.feed-open #app{grid-template-rows:1fr 1fr}
+  body.chat-open.feed-open #sidebar,
+  body.chat-open.feed-open #stage{grid-row:1 / -1}
+  body.chat-open.feed-open #feed,
+  body.chat-open.feed-open #chat{grid-column:-2 / -1;height:auto;min-height:0}
+  body.chat-open.feed-open #feed{grid-row:1}
+  body.chat-open.feed-open #chat{grid-row:2;border-top:1px solid var(--rule)}
+  body.chat-open.feed-open .ctl-tr{max-width:calc(100vw - 312px - 380px - 28px)}
+  body.sb-hidden.chat-open.feed-open .ctl-tr{max-width:calc(100vw - 380px - 28px)}
   .ch-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 10px;
     border-bottom:1px solid var(--rule)}
   .ch-title{flex:1;font-size:10.5px;font-weight:600;text-transform:uppercase;
@@ -289,6 +302,10 @@
       box-shadow:var(--shadow-lg)}
     body.chat-open #app,body.sb-hidden.chat-open #app{grid-template-columns:1fr}
     body.chat-open .ctl-tr,body.sb-hidden.chat-open .ctl-tr{max-width:calc(100vw - 28px)}
+    /* Below 840px both are fixed drawers over the map, so the halves are
+       top and bottom of the drawer rather than grid rows. */
+    body.chat-open.feed-open #feed{bottom:50%}
+    body.chat-open.feed-open #chat{top:50%}
   }
   @media print{#chat{display:none !important}}
   `;
@@ -992,15 +1009,10 @@
   panel.querySelector('#ch-close').addEventListener('click', () => setOpen(false));
 
   // ---------- opening ----------
-  let wasFeed = false;
   function setOpen(on) {
     const body = document.body;
-    if (on) {
-      wasFeed = body.classList.contains('feed-open');
-      if (wasFeed && HOST.setFeed) HOST.setFeed(false);
-    } else if (wasFeed && HOST.setFeed) {
-      HOST.setFeed(true);
-    }
+    // The feed is left exactly as the reader had it: with both open the right
+    // column is shared, the feed above and the chat below.
     body.classList.toggle('chat-open', on);
     pill.classList.toggle('active', on);
     pill.setAttribute('aria-pressed', on ? 'true' : 'false');

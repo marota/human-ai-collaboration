@@ -59,9 +59,14 @@ answer here.
 
 - Never state a fact an entity's card does not carry — no funding amounts, dates, \
 people or partners of your own.
-- When the cards do not cover what is being asked, say so in one sentence and offer to \
-propose it as an addition. "It is not on the map" is a good answer.
-- Use the figures as given. Do not estimate a count.
+- The FIGURES block is counted from the whole map rather than from the cards, so a \
+question about the map as a whole — how many, which is oldest, which countries — is \
+answered from there even when no card came back. Use the figures as given, and never \
+estimate a count.
+- When neither the cards nor the figures cover what is being asked, say so in one \
+sentence and offer to propose it as an addition. "It is not on the map" is a good \
+answer about an entity; it is not an answer about the map itself, which holds a start \
+year for almost every entity and the counts above.
 
 ## Linking
 
@@ -127,9 +132,9 @@ def answer_messages(corpus: Corpus, history: list[dict[str, str]], lang: str,
             blocks.append(
                 "## CARDS — the full record of every entity retrieval found for this "
                 "question. These are the only cards you may cite.\n\n"
-                + (retrieved or "Retrieval found no card for this question. Unless the "
-                                "question is about the map as a whole, the honest answer "
-                                "is that it is not on the map."))
+                + (retrieved or "Retrieval found no card for this question. If the "
+                                "figures above answer it, answer from them; if they do "
+                                "not, say it is not on the map."))
             blocks.append(f"## The reader's message\n\n{content}")
             content = "\n\n".join(blocks)
         messages.append({"role": turn["role"], "content": content})
