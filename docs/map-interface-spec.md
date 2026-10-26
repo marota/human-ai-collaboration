@@ -838,7 +838,12 @@ A change that breaks one of these is a regression even if nothing throws.
 7. Descriptions are never truncated.
 8. Every user-visible string goes through `t()` and exists in both languages.
 9. Every string interpolated into HTML goes through `esc()`.
-10. The page never makes a network request.
+10. The page never makes a network request. The chat column of §18 is the one
+    exception, and it is deliberately not part of the page: it arrives only when
+    a reader opens the map with `?chat=1`, from a file the page does not
+    otherwise name. Without that parameter the page requests its three local
+    files and nothing else, at load and under every interaction — which is every
+    reader of the published map.
 11. No floating cluster (`.ctl-tr`, `.ctl-br`, `.ctl-bl`) or its content can
     grow past `#stage`'s visible area — each carries an explicit width bound
     rather than relying on its content staying small (§5).
@@ -859,6 +864,13 @@ A change that breaks one of these is a regression even if nothing throws.
     read different quantities, and they diverge by exactly the layer's placeless
     entities. That difference is shown in the row itself rather than left to a
     caption that names a total without attributing it (§9.1.1).
+16. **The chat proposes; it never writes.** Nothing said to it can change the
+    map, this repository or the data repository. Its only output besides prose
+    is a GitHub issue awaiting review, opened by an explicit click on a body the
+    contributor has read (§18).
+17. **The chat answers from the payload or says it cannot.** Its context is
+    `hai-data.js` — the same file the page draws — and figures counted from it.
+    An entity it has not been shown is one it must decline to describe (§18.2).
 
 ---
 
@@ -893,3 +905,147 @@ it from `matchesFilters()` / `scopeItems()` rather than from `items` or
 `TOTALS`, passing its own axis as `skip`; and update it from `refresh()`, not
 only from its own render function — `renderTime()` and `renderNoGeo()` run on
 language and preset changes, which is not when the filters move.
+
+---
+
+## 18. The chat column (opt-in)
+
+The map is a reading surface, and §1 says editing, authentication and server
+round-trips are non-goals. §18 is the one place that line is crossed, and the
+way it is crossed is the design: the chat is **not part of the published page**.
+It exists for the curator's own machine, where a local model and a local server
+are running, and for anyone they hand the map to while they are in the room.
+
+Three things it does:
+
+- answers questions about the map from the payload the page itself draws;
+- takes a proposal — something missing, something wrong — and turns it into a
+  draft card the contributor corrects **on the spot**, while they are still
+  there to answer;
+- opens a GitHub issue with that draft for a maintainer to review.
+
+It never writes to the map (invariant 15). The data repository's
+[`CONTRIBUTING.md`][contrib] already describes this route — *"open a GitHub
+issue… the maintainers (or AI suggestions reviewed by maintainers) will turn it
+into a PR"* — and the chat is an implementation of it, not a new authority.
+
+### 18.1 How it attaches
+
+```
+eu-hai-map.html            ?chat=1 → window.HAI_CHAT_HOST + one <script>
+    │                                         │
+    │  (unchanged for every other reader)     ▼
+    │                              assets/map/hai-chat.js
+    │                                 markup, styles, every fetch
+    ▼                                         │
+window.HAI_DATA                               ▼
+                                   chat/server.py  (127.0.0.1)
+                                         │        │
+                                         ▼        ▼
+                                      Ollama    gh issue create
+```
+
+The page's own contribution is some twenty lines at the end of its script: read
+the parameter, publish one object of host functions (`openEntity`, `esc`,
+`toast`, `byId`, `lang()`, the taxonomy), append a `<script>`. There is no
+`fetch(` in `eu-hai-map.html`, no fourth `<script>` tag in its markup, and no
+chat markup in its DOM — so §1's three-file reading, §2's single-document
+contract and invariant 10 all still describe the file as published. The chat
+column takes the feed's place when it opens, at 380 px, and restores it when it
+closes.
+
+**The server also serves the repository**, so the map and the API share an
+origin and running the chat is one command:
+
+```bash
+python3 chat/server.py            # then open the URL it prints
+```
+
+It binds to the loopback interface and it can open issues as whoever `gh` is
+logged in as, which is why it is not something to expose to a network. A Jekyll
+dev server on another port can reach it with `?chat=1&chatapi=http://127.0.0.1:8765`.
+
+### 18.2 What the model is allowed to know
+
+`chat/hai_data.py` reads `assets/map/hai-data.js` — not the data repository, not
+a second copy. The chat therefore cannot answer from something the reader cannot
+see on the map, and a regenerated payload moves both in the same commit.
+
+Each turn the model gets three things and nothing else: standing instructions,
+**figures counted in Python** (totals per layer, per country, per domain — a
+model cannot count 450 records it has not been shown, and will estimate if
+asked), and the **full records of the entities lexical retrieval ranked for the
+question**. Those records are the only ids it may link, which is what makes
+`[Name](#id)` a card-opener rather than a guess; the renderer drops any link
+whose id is not in `byId`, so an invented one degrades to plain text.
+
+The catalogue of every id can be put back in the system prompt with
+`HAI_CHAT_CATALOGUE=1`. It is off by default because a 12-billion-parameter
+model handed 7 000 tokens of list answers a one-line question by reciting it.
+
+Two models, by default two tags already on the machine: a fast one for the
+conversation (`HAI_CHAT_MODEL`) and a stronger one for drafting a card
+(`HAI_DRAFT_MODEL`), which is one call, structured, and read by a human
+afterwards. Reasoning is switched **off** — Ollama returns it in a field of its
+own, so left on it consumes the token budget before the visible answer starts.
+`HAI_CHAT_NUM_PREDICT` caps the answer; without a cap a local model will
+enumerate the corpus for ten minutes.
+
+### 18.3 The proposal flow
+
+1. **Intent.** The model opens a proposal by emitting `[PROPOSE:add:<layer>]` or
+   `[PROPOSE:fix:<id>]` as the first line of its reply; the server strips it and
+   sends an event. A small model forgets, so the reader's own words are a
+   backstop (`sniff_intent`). Both only ever *open* a panel the reader can
+   close.
+2. **The reference.** The contributor gives the page that documents the entity.
+   The server fetches it once, says whether it loaded and whether the name
+   actually appears on it, and keeps the text for the drafter. Hosts that
+   resolve inside this machine or the local network are refused: a box that
+   fetches any URL must not become a way to read the network the server sits on.
+   The URL becomes `provenance.source`, and the verdict sets the default
+   `provenance.confidence`.
+3. **The draft.** One constrained call: Ollama is handed a JSON schema built
+   from the same field table that renders the form, so the answer cannot be
+   prose, a fence or a field that does not exist. The facts a documentation page
+   always states are *required* in that schema — organisation, city, country,
+   kind, focus — because a merely optional field comes back empty and the
+   contributor inherits the work the draft was meant to save. Coordinates are
+   not in the schema at all: they are looked up from a city the map already
+   covers, and a guessed latitude puts a marker in a field.
+4. **The editable card.** The form is generated from `cards._spec(layer)`:
+   required fields first, rarely-needed ones folded away, vocabularies as
+   checkboxes and selects so no code can be invented, the YAML visible, and —
+   for a correction — a before/after table of what moved. Every edit
+   re-validates on the server against the upstream schemas' rules. This step is
+   the point of the feature: the contributor is here now, and what they can
+   correct in thirty seconds is worth more than what a maintainer reconstructs
+   in a week.
+5. **The issue.** The contributor reads the exact body first, then clicks once.
+   It carries the YAML, the file it would become in the data repository, the
+   reference and its verdict, the diff, the failed checks if any, the
+   conversation folded away, and the review bar from `CONTRIBUTING.md`. It says
+   in as many words that nothing has been changed on the map.
+
+### 18.4 What it is not
+
+No authentication, no accounts, no write access, no telemetry, no cloud. The
+server holds no state between requests beyond the payload it reloads when the
+file changes; the conversation lives in the reader's `localStorage` and nowhere
+else. `HAI_CHAT_DRY_RUN=1` runs the whole flow and posts nothing, which is how
+the tests exercise it.
+
+### 18.5 Where the code is
+
+| Path | Role |
+|---|---|
+| `assets/map/eu-hai-map.html` | the `?chat=1` opt-in, ~20 lines at the end |
+| `assets/map/hai-chat.js` | the column: markup, styles, the form, every fetch |
+| `chat/server.py` | the local server, stdlib only; also serves the repository |
+| `chat/hai_data.py` | the payload, retrieval, the figures, the gazetteer |
+| `chat/cards.py` | the field table, the checks, the YAML |
+| `chat/prompts.py` | the two prompts, the grammar, intent |
+| `chat/reference.py` | fetching and confirming a reference |
+| `chat/issues.py` | the issue body, and `gh issue create` |
+| `tests/chat/*.py` | the server side, with no model running |
+| `tests/interface/chat.spec.js` | the column, against a stubbed server |

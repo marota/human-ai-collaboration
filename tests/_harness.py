@@ -28,6 +28,31 @@ def load_generator():
     return mod
 
 
+CHAT = REPO / "chat"
+
+
+def load_chat():
+    """Import the chat server's modules.
+
+    They import each other by bare name, the way `chat/server.py` arranges by
+    putting its own directory on the path. The tests do the same rather than
+    making the layout more elaborate than one local process needs.
+    """
+    import types
+
+    if str(CHAT) not in sys.path:
+        sys.path.insert(0, str(CHAT))
+    import cards
+    import hai_data
+    import issues
+    import llm
+    import prompts
+    import reference
+
+    return types.SimpleNamespace(cards=cards, hai_data=hai_data, issues=issues,
+                                 llm=llm, prompts=prompts, reference=reference)
+
+
 def load_payload() -> dict:
     """Parse the committed hai-data.js into Python objects.
 
