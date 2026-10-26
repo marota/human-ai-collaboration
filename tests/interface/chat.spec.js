@@ -159,17 +159,49 @@ test.describe('§18.1 the opt-in', () => {
     await expect(page.locator('#ch-state .ch-dot.on')).toBeVisible();
   });
 
-  test('§5 the column takes the feed\'s place and gives it back', async ({ page }) => {
+  test('§5 with the feed open the right column is shared, feed above, chat below', async ({ page }) => {
     await stubServer(page);
     await openMap(page, CHAT);
-    // Opening the chat closes the feed rather than squeezing a fourth column
-    // into a grid that already has to fit the floating clusters (invariant 11).
-    expect(await page.evaluate(() => document.body.classList.contains('feed-open'))).toBe(false);
+    // The feed and the chat answer the same question from two directions —
+    // what is in view, and what about it — so the chat does not take the
+    // feed's place. At desktop width the right column becomes two grid rows.
+    await expect(page.locator('#feed')).toBeVisible();
+    await expect(page.locator('#chat')).toBeVisible();
+    const feed = await page.locator('#feed').boundingBox();
+    const chat = await page.locator('#chat').boundingBox();
+    expect(feed.x, 'same column').toBeCloseTo(chat.x, 0);
+    expect(feed.width).toBeCloseTo(chat.width, 0);
+    expect(chat.y, 'the chat sits under the feed').toBeGreaterThan(feed.y + feed.height - 2);
+    // Halves, not a sliver: each takes about half the viewport.
+    const port = page.viewportSize().height;
+    expect(Math.abs(feed.height - chat.height)).toBeLessThan(port * 0.1);
+    expect(feed.height + chat.height).toBeCloseTo(port, -1);
+  });
+
+  test('§5 with the feed closed the chat has the column to itself', async ({ page }) => {
+    await stubServer(page);
+    await openMap(page, CHAT);
+    await page.click('#feed-pill');
+    await expect(page.locator('#feed')).toBeHidden();
+    const chat = await page.locator('#chat').boundingBox();
+    expect(chat.height).toBeCloseTo(page.viewportSize().height, -1);
+  });
+
+  test('§5 closing the chat leaves the feed exactly as the reader had it', async ({ page }) => {
+    await stubServer(page);
+    await openMap(page, CHAT);
+    const feedOpen = () => page.evaluate(() => document.body.classList.contains('feed-open'));
+    expect(await feedOpen()).toBe(true);
     await page.click('#chat-pill');
     await expect(page.locator('#chat')).toBeHidden();
-    expect(await page.evaluate(() => document.body.classList.contains('feed-open'))).toBe(true);
+    // The feed was not touched on the way in, so there is nothing to restore
+    // on the way out — and it keeps the whole column back.
+    expect(await feedOpen()).toBe(true);
+    const feed = await page.locator('#feed').boundingBox();
+    expect(feed.height).toBeCloseTo(page.viewportSize().height, -1);
     await page.click('#chat-pill');
     await expect(page.locator('#chat')).toBeVisible();
+    expect(await feedOpen()).toBe(true);
   });
 
   test('a server that is not there is explained, not left silent', async ({ page }) => {
