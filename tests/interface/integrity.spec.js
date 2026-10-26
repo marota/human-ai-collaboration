@@ -32,20 +32,17 @@ import { openMap, settleCounts, snapshot, setLayers, setPeriod, applyPreset, nud
  *  order the document declares them — derived from MAP_PATH so a mutation run
  *  pointed at a doctored copy still compares against that copy's own directory.
  *
- *  SPEC-DEVIATION: §2's architecture table lists three files (the page,
- *  hai-data.js, europe-geo.js) and §16.10's wording — "the page loads three
- *  local files" — follows it. The shipped page loads four: `hai-data-additions.js`
- *  now sits between the payload and the geometry. That file says of itself that
- *  it is temporary — it merges a handful of entries into `window.HAI_DATA` by id
- *  and "once hai-data.js has been regenerated this file becomes a harmless
- *  no-op and can be deleted" — so the deviation closes by itself at the next
- *  regeneration, with no change to the page. The substance of invariant 10 is
- *  untouched: no network, no CDN, no analytics, no tiles, no fonts. So this list
- *  asserts the set of requests as it actually is, and nothing else may join it.
+ *  Three files, which is what §2's architecture table lists and what §16.10's
+ *  wording — "the page loads three local files" — says. A fourth sat here for a
+ *  while: `hai-data-additions.js`, a hand-written stop-gap between the payload
+ *  and the geometry, merging entries added upstream since the last
+ *  regeneration. It said of itself that it became "a harmless no-op" once
+ *  hai-data.js was regenerated; that regeneration has happened and the file is
+ *  gone, so the deviation it carried is closed. Nothing else may join this list.
  */
 function ownFiles() {
   const dir = MAP_PATH.replace(/[^/]*$/, '');
-  return [MAP_PATH, `${dir}hai-data.js`, `${dir}hai-data-additions.js`, `${dir}europe-geo.js`];
+  return [MAP_PATH, `${dir}hai-data.js`, `${dir}europe-geo.js`];
 }
 
 /** How many <script> nodes a clean document has: one per local script in
@@ -648,24 +645,17 @@ test.describe('invariant 10 — the page never makes a network request', () => {
 
 test.describe('§1 no dependencies — what the file itself says', () => {
   test('§2 one relative src per local file, then exactly one inline classic script', async ({}, testInfo) => {
-    // SPEC-DEVIATION: §2's architecture table lists three files and §16.10's
-    // wording says the page loads three; the shipped page declares four
-    // <script> tags — three relative srcs and the inline script — because
-    // hai-data-additions.js sits between the payload and the geometry. That
-    // file declares itself temporary (it merges entries into window.HAI_DATA by
-    // id and becomes a harmless no-op once hai-data.js is regenerated), so the
-    // deviation closes by itself. The expected tags are derived from ownFiles(),
-    // so the request tests and this one cannot come to disagree about what the
-    // page is allowed to load.
+    // Three <script> tags: two relative srcs and the inline script. The
+    // expected tags are derived from ownFiles(), so the request tests and this
+    // one cannot come to disagree about what the page is allowed to load.
     const html = pageSource(testInfo);
     const srcTags = ownFiles().slice(1).map((f) => `<script src="${f.replace(/^.*\//, '')}">`);
     const tags = html.match(/<script\b[^>]*>/g) || [];
     expect(tags.length).toBe(srcTags.length + 1);
     // In order, and each one a bare relative src: nothing the browser would
     // resolve against another origin, no crossorigin, no integrity, no type.
-    // The order is load-bearing twice over — the geometry and the additions
-    // both depend on hai-data.js having run, and the additions file has to
-    // merge into the payload before the inline script reads it.
+    // The order is load-bearing: both data files have to run before the
+    // inline script, which reads what they build at top level.
     expect(tags.slice(0, -1)).toEqual(srcTags);
     // The last is bare: no type="module", no defer, no src. The whole test
     // suite depends on it staying a classic script (its top-level bindings are
@@ -753,31 +743,6 @@ test.describe('§1 no dependencies — what the file itself says', () => {
       expect(src).not.toMatch(/<script/i);
       expect(src).not.toMatch(/<\/script/i);
     }
-  });
-
-  test('§16.10 the third local script only merges into window.HAI_DATA, and reaches for nothing', async ({}, testInfo) => {
-    // hai-data-additions.js is the file behind this suite's one spec deviation
-    // (see ownFiles()): a hand-written stop-gap rather than a generated
-    // payload, so it assigns no global of its own and the test above — which
-    // asks each file for its `window.X = ` — cannot cover it. What invariant 10
-    // needs of it is the same as of the other two: it is the fourth thing the
-    // page loads, and nothing in it may reach for anything.
-    const rel = ownFiles()[2].replace(/^\/+/, '');
-    const src = repoFile(testInfo, rel);
-    for (const api of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon',
-      'importScripts', 'document.', 'window.location', 'eval(', 'new Function']) {
-      expect(src.includes(api), `${rel} must not name ${api}`).toBe(false);
-    }
-    expect(src).not.toMatch(/<script/i);
-    expect(src).not.toMatch(/<\/script/i);
-    // The one global it names is the payload it merges into.
-    expect([...new Set(src.match(/window\.[A-Za-z_$][\w$]*/g) || [])]).toEqual(['window.HAI_DATA']);
-    // And it merges rather than replaces. That is not a stylistic point: a
-    // reassignment would fire this suite's HAI_DATA setter a second time
-    // (openHostile), which is how the hostile entities reach the payload at
-    // all — and it would also hand the inline script a different object than
-    // the one hai-data.js built.
-    expect(src).not.toMatch(/window\.HAI_DATA\s*=[^=]/);
   });
 });
 

@@ -10,7 +10,7 @@ byte-stable so a no-op regeneration produces an empty diff (§3).
 Testing them one by one rather than only through `build()` is deliberate. Each
 encodes a rule from the specification — §3.1 on what regeneration must preserve,
 §3.4 on the label vocabulary, §10.2 on unknown start dates — and a failure here
-names the rule that broke instead of pointing at a 449-entity payload diff.
+names the rule that broke instead of pointing at a 460-entity payload diff.
 
 The entry point is here too. `main()` is not a pure helper, but it is the only
 thing a contributor runs, and the summary it prints — the regression signal §3
@@ -433,7 +433,7 @@ class DateQuality(unittest.TestCase):
         # The shipped payload is an independent oracle for this parse: every
         # dateConf/dateHost in it was written by an earlier run of
         # date_quality(), and `prov.src` carries the very note it read. Running
-        # the current function over all 449 notes checks the three tiers, the
+        # the current function over all 460 notes checks the three tiers, the
         # " | " cut, the host-year probe and the medium/low gate against real
         # curator prose instead of against sentences written to suit the test —
         # which is what makes it catch a pattern narrowed in a way no invented
