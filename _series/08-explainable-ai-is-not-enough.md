@@ -28,4 +28,4 @@ The through-line of this series: a good tool leaves the human sharper, not more 
 
 ---
 
-*Part {{ page.part }} of [a ten-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*
+*Part {{ page.part }} of [a thirteen-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*

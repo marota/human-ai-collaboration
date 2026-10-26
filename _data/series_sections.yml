@@ -1,0 +1,27 @@
+# The three sections of the series. A post belongs to one through its `phase`
+# front matter, which must match `phase` below exactly.
+- slug: doubts
+  number: I
+  phase: "Observations that raise doubts"
+  title: "Observations that raise doubts"
+  blurb: >-
+    What erodes expert judgement when AI enters the loop: cognitive surrender,
+    skills that never form, an assistant that tells us what we want to hear —
+    and the question of who still decides.
+- slug: lessons
+  number: II
+  phase: "Lessons & perspectives"
+  title: "Lessons & perspectives"
+  blurb: >-
+    What the cognitive systems engineering literature already knows: Bainbridge's
+    ironies, partnership, high automation with high control, supportive AI, the
+    joint decision laid bare — and the Mission Control where all of it would be
+    designed, tested and certified.
+- slug: future
+  number: III
+  phase: "Building for the future"
+  title: "Building for the future"
+  blurb: >-
+    Where the work goes next: the emerging disciplines that make human command a
+    design and management decision, the European projects already practising
+    them with real operators, and the map of the whole ecosystem.

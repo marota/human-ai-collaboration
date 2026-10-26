@@ -90,6 +90,16 @@ deck: >-
   ([overview talk](https://youtu.be/b6Qt9mLFNOQ?si=VpSKN7CmIIefuMqs)).
   Automation and human control as two independent dimensions rather than one
   slider.
+- **Boy, G. A.** (2020). *[Human-Systems Integration: From Virtual to
+  Tangible](https://www.routledge.com/Human-Systems-Integration-From-Virtual-to-Tangible/Boy/p/book/9780367357733).*
+  CRC Press. Human-centred design and systems engineering as one discipline:
+  human-in-the-loop simulation from day one until the system is tangible, and a
+  move from rigid automation to flexible autonomy.
+- **Bornet, P., Wirtz, J., Stephens, T., et al.** (2026). *[The Human-Agent
+  Orchestrator: Leading and Scaling AI-Driven Organizations](https://www.worldscientific.com/worldscibooks/10.1142/15093).*
+  World Scientific. Orchestrating hybrid human–AI teams as a management
+  discipline: the Orchestration Design Canvas, the Autonomy Dial, the Supervision
+  Trap, the Holiday Test.
 - **Miller, T.** (2023). *Explainable AI is Dead, Long Live Explainable AI!
   Hypothesis-driven Decision Support using Evaluative AI.*
   [FAccT '23, ACM, 333–342](https://dl.acm.org/doi/10.1145/3593013.3594001)
@@ -137,8 +147,9 @@ deck: >-
 ## European projects and programmes
 
 - [AI4RealNet](https://ai4realnet.eu/) — trustworthy AI for power, rail and air traffic.
-- [DIALOG](https://research.dblue.it/dialog/)
-- [AI-EFFECT](https://ai-effect.eu/)
+- [DIALOG](https://research.dblue.it/dialog/) — a Teamwork Assistant for air traffic controllers (SESAR 3 JU).
+- [AI-EFFECT](https://ai-effect.eu/) — a testing and experimentation facility for AI in the energy sector.
+- [OpenBridge](https://www.openbridge.no/) — open-source design system for maritime and industrial workplaces, extended to remote and autonomous shipping.
 - [TwinEU](https://twineu.net/)
 - [Haiku](https://haikuproject.eu/)
 - [eNSEMBLE](https://www.pepr-ensemble.fr/en/)

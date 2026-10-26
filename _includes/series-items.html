@@ -1,0 +1,57 @@
+{%- comment -%}
+  One editorial list of series parts.
+  Params:
+    items  — the parts to list, already sorted
+    detail — "subtitle" (compact, home page) or "full" (series page)
+  Entries whose title still starts with "[" are treated as unwritten drafts:
+  they are listed, but not linked, and marked "In preparation".
+  The section a part belongs to is shown by its group heading, so no phase tag here.
+{%- endcomment -%}
+<ol class="series-list">
+  {%- for p in include.items -%}
+    {%- assign first_char = p.title | slice: 0 -%}
+    {%- assign is_draft = false -%}
+    {%- if first_char == '[' -%}{%- assign is_draft = true -%}{%- endif -%}
+
+    <li class="series-item{% if is_draft %} series-item--soon{% endif %}">
+      {%- if is_draft -%}
+      <div class="series-item__inner">
+        <span class="series-item__num">{{ p.part }}</span>
+        <span>
+          <span class="series-item__title">In preparation</span>
+          {%- if p.subtitle and p.subtitle != '' -%}
+            <span class="series-item__sub">{{ p.subtitle }}</span>
+          {%- endif -%}
+        </span>
+      </div>
+      {%- else -%}
+      <a class="series-item__inner" href="{{ p.url | relative_url }}">
+        <span class="series-item__num">{{ p.part }}</span>
+        <span>
+          <span class="series-item__title">{{ p.title }}</span>
+          {%- if include.detail == 'full' -%}
+            {%- if p.summary and p.summary != '' -%}
+              <span class="series-item__sub">{{ p.summary }}</span>
+            {%- elsif p.subtitle -%}
+              <span class="series-item__sub">{{ p.subtitle }}</span>
+            {%- endif -%}
+            {%- assign show_anchors = false -%}
+            {%- if p.anchors and p.anchors != '' -%}
+              {%- assign anchor_first = p.anchors | slice: 0 -%}
+              {%- if anchor_first != '[' -%}{%- assign show_anchors = true -%}{%- endif -%}
+            {%- endif -%}
+            {%- if show_anchors -%}
+            <span class="series-item__tags">
+              <span class="tag">Builds on: {{ p.anchors }}</span>
+            </span>
+            {%- endif -%}
+          {%- elsif p.subtitle -%}
+            <span class="series-item__sub">{{ p.subtitle }}</span>
+          {%- endif -%}
+        </span>
+        <span class="series-item__arrow" aria-hidden="true">→</span>
+      </a>
+      {%- endif -%}
+    </li>
+  {%- endfor -%}
+</ol>

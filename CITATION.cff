@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "If you refer to this work, please cite it as below."
-title: "Human-AI Joint Decision-Making in Critical Systems: a ten-part series"
+title: "Human-AI Joint Decision-Making in Critical Systems: a thirteen-part series"
 abstract: >-
-  A ten-part series translating the cognitive systems engineering canon into
+  A thirteen-part series translating the cognitive systems engineering canon into
   design and evaluation criteria for AI decision support in critical
   infrastructure, with an accompanying explainer video and curated reference base.
 type: generic

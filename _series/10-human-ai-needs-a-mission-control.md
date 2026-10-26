@@ -32,4 +32,4 @@ That is where the work goes next: where this is already running on real infrastr
 
 ---
 
-*Part {{ page.part }} of [a ten-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*
+*Part {{ page.part }} of [a thirteen-part series]({{ '/series/' | relative_url }}) on human--AI joint decision-making in critical systems.*

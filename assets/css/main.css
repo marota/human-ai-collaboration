@@ -597,6 +597,79 @@ a.series-item__inner:hover .series-item__arrow {
 }
 .series-more:hover { gap: 0.65rem; }
 
+/* --- Series sections ------------------------------------------------------ */
+.series-sections-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 clamp(2rem, 5vw, 3rem);
+}
+.series-sections-nav__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+.series-sections-nav__item:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-wash);
+}
+.series-sections-nav__num {
+  grid-row: 1 / span 2;
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--accent-deep);
+}
+.series-sections-nav__title {
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.series-sections-nav__meta {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+.series-section { scroll-margin-top: 5rem; }
+.series-section + .series-section { margin-top: clamp(2.5rem, 6vw, 3.75rem); }
+.series-section__head { margin-bottom: 1rem; }
+.series-section__kicker {
+  margin: 0 0 0.35rem;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+.series-section__title {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(1.45rem, 2.6vw, 1.85rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+.series-section__blurb {
+  margin: 0.5rem 0 0;
+  max-width: 46rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+@media (max-width: 720px) {
+  .series-sections-nav { grid-template-columns: 1fr; }
+}
+
 /* --- Cards ---------------------------------------------------------------- */
 
 .cards {
