@@ -636,8 +636,12 @@ test.describe('§1 no dependencies — what the file itself says', () => {
     expect(srcs.filter((s) => /^[a-z]+:|^\/\//i.test(s))).toEqual([]);
     expect(srcs.filter((s) => s.startsWith('/') || s.includes('..'))).toEqual([]);
     // The `<img src=x>` inside the escaping tests' own payload is not in the
-    // page, so the only srcs left are the two data files.
-    expect([...new Set(srcs)].sort()).toEqual(['europe-geo.js', 'hai-data.js']);
+    // page, so the only srcs left are the two data files — and `hai-chat.js`,
+    // which no markup references and the browser never fetches at load time:
+    // it is assigned in the §18 opt-in, behind `?chat=1`, and chat.spec.js
+    // asserts that it is not requested without it.
+    expect([...new Set(srcs)].sort()).toEqual([
+      'europe-geo.js', 'hai-chat.js', 'hai-data.js']);
 
     // hrefs: the only absolute ones are prose links in the two footer strings,
     // which a reader clicks — the browser never fetches them.

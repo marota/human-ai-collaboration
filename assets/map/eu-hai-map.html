@@ -2201,6 +2201,27 @@ applyView();
 refresh();
 if (deepEntity){ lsSet('hai-map-v2-seen','1'); openEntity(deepEntity); }
 else if (!lsGet('hai-map-v2-seen')) openWelcome();
+
+// ---------- chat (opt-in, local only) ----------
+// This page is a reading surface: it loads three local files and asks the
+// network for nothing, at load and under every interaction (§1, invariant 10).
+// The chat column is the one exception, and it is deliberately not part of this
+// file. It arrives only when a reader opens the page with ?chat=1 — which is
+// only useful alongside the local server in chat/, on the curator's own machine
+// — so every reader of the published map still gets exactly the page the
+// specification describes. hai-chat.js carries its own markup, styles and the
+// only network calls on the page; everything it needs from here goes through
+// the one object below, so the reading surface has no knowledge of it.
+if (new URLSearchParams(location.search).get('chat') === '1'){
+  window.HAI_CHAT_HOST = {
+    lang: () => LANG, taxo: DATA.TAXO, asOf: DATA.AS_OF,
+    esc, toast, byId, items, state,
+    openEntity, flyTo, setFeed, stageResized,
+  };
+  const chat = document.createElement('script');
+  chat.src = 'hai-chat.js';
+  document.body.appendChild(chat);
+}
 </script>
 </body>
 </html>

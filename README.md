@@ -144,11 +144,15 @@ Deux sections méritent d'être maintenues à jour en priorité :
 │   └── map-interface-spec.md   # spécification de l'interface carte (référence)
 ├── scripts/
 │   └── build-map-data.py       # régénère assets/map/hai-data.js depuis les YAML
+├── chat/                       # serveur local du chat de la carte (hors site publié)
+│   └── README.md               # comment le lancer
+├── tests/                      # harnais de test (hors site publié)
 └── assets/
     ├── css/main.css            # toute l'apparence du site
     ├── map/eu-hai-map.html     # carte autonome (SVG, sans dépendance)
     ├── map/hai-data.js         # GÉNÉRÉ — ne pas éditer à la main
     ├── map/europe-geo.js       # fond Natural Earth pré-projeté
+    ├── map/hai-chat.js         # colonne de chat, chargée seulement avec ?chat=1
     └── img/                    # favicon, illustrations série et projets
 ```
 
@@ -169,6 +173,25 @@ Le chemin peut aussi venir de `$EU_HAI_MAP_REPO`. Le script n'a besoin que de
 PyYAML, et affiche un récapitulatif (entités par couche, entités sans
 coordonnées, longueur de la plus longue description) pour repérer une régression
 d'un coup d'œil.
+
+### Le chat de la carte
+
+Une colonne de chat peut s'ouvrir à côté de la carte, **sur votre machine
+seulement** : elle répond à partir des fiches de `hai-data.js` et de rien
+d'autre, et transforme « il manque ceci » ou « cette fiche est fausse » en une
+fiche rédigée que la personne corrige sur place, puis en une issue GitHub qu'un
+mainteneur relit. Le modèle tourne en local via Ollama ; rien ne sort de la
+machine en dehors de la page de référence qu'on lui demande de lire et de
+l'issue qu'on choisit d'ouvrir.
+
+```bash
+python3 chat/server.py     # puis ouvrir l'URL affichée
+```
+
+Sans `?chat=1` la carte publiée est exactement la page qu'elle a toujours été —
+trois fichiers locaux, aucune requête réseau. C'est tout l'intérêt du paramètre.
+Le détail est dans [`chat/README.md`](chat/README.md) et au §18 de la
+spécification d'interface.
 
 Avant de toucher à `assets/map/eu-hai-map.html` ou au générateur, lire
 [`docs/map-interface-spec.md`](docs/map-interface-spec.md) : modèle de données,

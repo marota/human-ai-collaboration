@@ -37,7 +37,9 @@ becomes unassertable. So the interface tests drive a real Chromium against the r
 
 **This costs the repository a dev dependency, and nothing else.** The published page still loads
 three local files and makes no network request — [`integrity.spec.js`](interface/integrity.spec.js)
-asserts exactly that, which is the one invariant a test harness could plausibly erode.
+asserts exactly that, which is the one invariant a test harness could plausibly erode. The chat
+column of §18 is the only thing that ever reaches the network, it is not part of the published
+page, and [`chat.spec.js`](interface/chat.spec.js) asserts the gate from both sides.
 
 ## Layout
 
@@ -46,7 +48,14 @@ asserts exactly that, which is the one invariant a test harness could plausibly 
 | `tests/interface/*.spec.js` | Playwright + Chromium | the running page |
 | `tests/generator/*.py` | `unittest` (stdlib) | `scripts/build-map-data.py`, against synthetic fixtures |
 | `tests/data/*.py` | `unittest` (stdlib) | the committed `hai-data.js` payload |
+| `tests/chat/*.py` | `unittest` (stdlib) | `chat/`, against the committed payload — no model, no network |
 | `tests/fixtures/` | — | synthetic YAML trees, prefixed per test module |
+
+`tests/interface/chat.spec.js` covers the chat column (spec §18) against a stubbed server,
+and `tests/chat/` covers the server side. **Neither runs a model.** What is worth pinning is
+the contract — which events the stream carries, that a card link survives only when its id is
+real, that the generated form reads the field table the server sent, that what the contributor
+edited is what reaches the issue — not the prose a particular Ollama tag produces today.
 
 The Python side has **no dependencies at all** — `unittest` and `PyYAML`, which the generator
 already requires. The generator tests never need the `eu-hai-collab-map` checkout: they build
