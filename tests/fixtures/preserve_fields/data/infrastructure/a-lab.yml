@@ -1,0 +1,8 @@
+id: a-lab
+name: Simulator hall
+kind: testbed
+description: The hall's own description.
+operator: {org: TU Delft, url: https://tudelft.example/sim}
+access_model: gated
+capacity_indicator: 12 seats
+related_initiative_ids: [b-lab]

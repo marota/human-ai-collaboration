@@ -1,0 +1,14 @@
+{
+  "name": "human-ai-collaboration-tests",
+  "private": true,
+  "description": "Dev-only test harness for the ecosystem map. Nothing here ships: the published page still loads three local files and nothing else (invariant 10).",
+  "scripts": {
+    "test": "npm run test:interface && npm run test:python",
+    "test:interface": "playwright test",
+    "test:python": "python3 -m unittest discover -s tests -p 'test_*.py' -t .",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0"
+  }
+}

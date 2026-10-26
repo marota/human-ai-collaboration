@@ -1,0 +1,13 @@
+id: beta
+name: Beta Air Traffic Group
+type: industrial_rd
+location:
+  city: Amsterdam
+  country: NL
+  lat: 52.3702
+  lon: 4.8952
+domains:
+  - aviation
+focus_areas:
+  - explainability
+description: Controller-facing explanation interfaces for arrival management.

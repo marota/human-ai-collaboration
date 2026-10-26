@@ -1,0 +1,4 @@
+id: kappa
+name: Kappa Lab
+framework_ids: [f-shared]
+commons_ids: [c-shared]

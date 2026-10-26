@@ -1,0 +1,28 @@
+id: a-lab
+name: '  Human Factors Lab  '
+type: research_lab
+location: {city: Delft, country: NL, lat: 52.0, lon: 4.36}
+domains: [aviation, power_grid]
+focus_areas: [explainability, cobots]
+status: active
+tier: core
+homepage: https://example.org/a-lab
+affiliation: {org: TU Delft, parent: 4TU, url: https://tudelft.example}
+infrastructure: [Simulator hall]
+timeline:
+  start: 1998
+  end: 2026
+  milestones:
+    - {date: 2019, label: '  First trial  '}
+    - {date: 2020}
+links:
+  papers: ['https://doi.example/1', null, '']
+  linkedin: https://linkedin.example/a-lab
+  official_text: https://example.org/text
+provenance:
+  added_by: curator
+  added_on: 2026-01-05
+  last_updated: 2026-02-06
+  source: "timeline.start (medium): TU Delft founded 1842; the lab's own date not found"
+  confidence: medium
+description: One line.

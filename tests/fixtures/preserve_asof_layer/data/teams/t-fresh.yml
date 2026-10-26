@@ -1,0 +1,9 @@
+id: t-fresh
+name: Fresh Lab
+type: research_lab
+location: {city: Aachen, country: DE, lat: 50.78, lon: 6.08}
+description: Original wording.
+provenance:
+  added_by: curator
+  added_on: 2025-01-01
+  last_updated: 2026-01-01

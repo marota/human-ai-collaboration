@@ -1,0 +1,27 @@
+id: p-full
+name: Full Project
+kind: horizon_europe
+location: {city: Paris, country: FR, lat: 48.85, lon: 2.35}
+domains: [rail]
+timeline: {start: 2024, end: 2027}
+funding:
+  source: Horizon Europe
+  call: HORIZON-CL5-2023
+  grant: '101112131'
+  budget_eur: 4200000
+  url: https://cordis.example/1
+consortium:
+  - {org: Rail Co, role: coordinator, country: FR, initiative_id: a-lab}
+  - {org: Ghost SA, role: partner, country: DE, initiative_id: does-not-exist}
+  - {org: Standards Org, role: member, initiative_id: f-guide}
+  - {org: Bench Keeper, initiative_id: c-bench}
+  - {role: partner, country: IT}
+demonstrators:
+  - {label: Lyon pilot, url: https://example.org/lyon}
+  - {url: https://example.org/orphan}
+deliverables:
+  - {title: D1.1 Concept, url: https://example.org/d11, date: 2025-06-30}
+  - {url: https://example.org/untitled}
+framework_ids: [f-guide]
+commons_ids: [c-bench]
+provenance: {added_on: 2026-01-01}

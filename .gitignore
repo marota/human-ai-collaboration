@@ -5,3 +5,14 @@ _site/
 Gemfile.lock
 vendor/
 .DS_Store
+
+# Sortie du PDF Zenodo (scripts/build-zenodo-pdf.sh)
+build/
+
+# Dev-only test harness (nothing here ships)
+node_modules/
+test-results/
+playwright-report/
+assets/map/.mut-*.html
+__pycache__/
+*.pyc

@@ -1,0 +1,4 @@
+id: omega
+name: Omega Lab
+framework_ids: [f-shared]
+commons_ids: [c-shared]

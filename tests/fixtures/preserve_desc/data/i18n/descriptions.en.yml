@@ -1,0 +1,8 @@
+t-long: |
+  Grid operators across the Nordic synchronous area take part; the English
+  description is deliberately longer than three hundred characters so that
+  a reinstated cap would cut it, and it carries a paragraph break too.
+
+  The second paragraph exists only to be counted: one break in, one break
+  out, and no wrapped line surviving as a line.
+t-none: ''

@@ -1,0 +1,17 @@
+id: pi-project
+name: Pi Cobot Cell
+kind: horizon_europe
+location:
+  city: Torino
+  country: IT
+  lat: 45.0703
+  lon: 7.6869
+domains:
+  - manufacturing
+focus_areas:
+  - digital_twins
+  - mixed_initiative
+timeline:
+  start: 2024
+  end: 2027
+description: Shop-floor digital twins with a human-in-command assembly cell.

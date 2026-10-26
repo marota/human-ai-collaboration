@@ -1,0 +1,9 @@
+id: c-rig
+name: C Rig
+kind: compute_cluster
+location: {city: Espoo, country: FI, lat: 60.2, lon: 24.7}
+description: A cluster.
+access_model: open
+capacity_indicator: 4 PFLOPS
+related_initiative_ids: [a-lab, c-rig]
+provenance: {added_on: 2026-01-20}
