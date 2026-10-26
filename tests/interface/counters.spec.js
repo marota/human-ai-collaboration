@@ -474,9 +474,9 @@ test.describe('inv 14 one tile per layer', () => {
   });
 
   test('inv 14 / §9.1 n=1 verb agreement in a tile title and in the caption', async ({ page }) => {
-    // One commons carries the maritime domain, so this pair of axes selects
+    // One commons carries the human-factors domain, so this pair of axes selects
     // exactly one entity — the singular branch of both grammars at once.
-    await open(page, { hash: '#lay=commons&dom=maritime' });
+    await open(page, { hash: '#lay=commons&dom=hf' });
     const d = await derive(page);
     expect(d.match).toBe(1);
     expect(d.inView).toBe(1);
@@ -738,16 +738,16 @@ test.describe('§9.2 unmeasured stage', () => {
 
 test.describe('inv 13 no frozen counts', () => {
   test('inv 13 the numbers the spec names as the frozen ones are still the corpus numbers', async ({ page }) => {
-    // 111 / 268 / 25 / 45, 37 and 11 are the figures §9.1 quotes as the ones
+    // 115 / 274 / 26 / 45, 39 and 11 are the figures §9.1 quotes as the ones
     // that used to sit there whatever the reader did. Pinning them here means
     // the regression tests below keep describing the bug they were written for.
     await open(page);
     const c = await corpus(page);
-    expect(c.totals).toEqual({ project: 111, team: 268, commons: 25, framework: 45 });
-    expect(c.all).toBe(449);
-    expect(c.undated).toBe(37);
+    expect(c.totals).toEqual({ project: 115, team: 274, commons: 26, framework: 45 });
+    expect(c.all).toBe(460);
+    expect(c.undated).toBe(39);
     expect(c.nogeo).toBe(11);
-    expect(c.undatedByKind).toEqual({ team: 37 });   // "all of them teams"
+    expect(c.undatedByKind).toEqual({ team: 39 });   // "all of them teams"
     expect(await page.evaluate(() => ({ ...TOTALS }))).toEqual(c.totals);
   });
 
@@ -861,9 +861,9 @@ test.describe('inv 13 no frozen counts', () => {
     expectCurveRanks(commons, await derive(page), 'commons only, period still narrowed');
   });
 
-  test('inv 13 narrowing the layer axis moves the unknown-start count off 37 — to 0 on Commons', async ({ page }) => {
-    // The spec's example, exactly: every one of the 37 is a team, so a reader
-    // filtered to Commons was shown 37 for a set the switch cannot touch.
+  test('inv 13 narrowing the layer axis moves the unknown-start count off 39 — to 0 on Commons', async ({ page }) => {
+    // The spec's example, exactly: every one of the 39 is a team, so a reader
+    // filtered to Commons was shown 39 for a set the switch cannot touch.
     await open(page);
     const c = await corpus(page);
     expect((await panelCounts(page)).undated).toBe(c.undated);
@@ -902,7 +902,7 @@ test.describe('inv 13 no frozen counts', () => {
     const pc = await panelCounts(page);
     expect(pc.undated).toBe(d.undated);
     // The bar *set* need not shrink — one long-lived team covers every year —
-    // but the figure the switch governs must no longer be the corpus 37.
+    // but the figure the switch governs must no longer be the corpus 39.
     expect(pc.undated).toBeLessThan(c.undated);
   });
 
@@ -941,7 +941,7 @@ test.describe('inv 13 no frozen counts', () => {
     await settleCounts(page);
     const d = await derive(page);
     const pc = await panelCounts(page);
-    expect(pc.undated).toBe(0);                     // all 37 are teams, and teams are off
+    expect(pc.undated).toBe(0);                     // all 39 are teams, and teams are off
     expect(pc.undated).not.toBe(c.undated);
     expect(pc.nogeo).toBe(d.offMap);
     expect(pc.bars).toBe(d.bars);
@@ -1216,7 +1216,7 @@ test.describe('counter boundaries', () => {
   });
 
   test('§9.2 one result: the singular caption, one tile at 1, the rest at 0', async ({ page }) => {
-    await open(page, { hash: '#lay=commons&dom=maritime' });
+    await open(page, { hash: '#lay=commons&dom=hf' });
     const d = await derive(page);
     expect(d.match).toBe(1);
     expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 1, 0]);

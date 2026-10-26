@@ -225,7 +225,7 @@ test.describe('§6 the predicate', () => {
     await setPeriod(page, cfg.a, cfg.b);
     const want = await page.evaluate((c) => window.__oracle.pass(c).sort(), cfg);
     expect(want.length).toBeGreaterThan(0);           // guard: an empty oracle proves nothing
-    expect(want.length).toBeLessThan(449);
+    expect(want.length).toBeLessThan(460);
     expect(await passIds(page)).toEqual(want);
   });
 
@@ -410,7 +410,7 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
     await open(page);
     await setDomains(page, ['energy']);
     const want = await page.evaluate(() => window.__oracle.counts({ domains: ['energy'], skip: 'layer' }));
-    expect(want).toEqual({ project: 13, team: 57, commons: 11, framework: 4 });
+    expect(want).toEqual({ project: 14, team: 58, commons: 11, framework: 4 });
     expect(await layerCounts(page)).toEqual(want);
     // every one of the four actually moved
     const corpus = await page.evaluate(() => window.__oracle.TOTALS);
@@ -443,9 +443,9 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
     expect(await layerTitles(page)).toEqual({ project: '', team: '', commons: '', framework: '' });
     await setDomains(page, ['energy']);
     expect(await layerTitles(page)).toEqual({
-      project: '13 of 111 under the current filters',
-      team: '57 of 268 under the current filters',
-      commons: '11 of 25 under the current filters',
+      project: '14 of 115 under the current filters',
+      team: '58 of 274 under the current filters',
+      commons: '11 of 26 under the current filters',
       framework: '4 of 45 under the current filters',
     });
   });
@@ -455,7 +455,7 @@ test.describe('§6.1 the unknown-start count', () => {
   test('§6.1 the unknown-start figure skips the period axis — neither the range nor its own switch moves it', async ({ page }) => {
     await open(page);
     const corpus = await page.evaluate(() => window.__oracle.vagueOf(window.__oracle.pass({})));
-    expect(corpus).toBe(37);
+    expect(corpus).toBe(39);
     expect(await undatedCount(page)).toBe(corpus);
     for (const [a, b] of [[1945, 1945], [2000, 2010], [2026, 2026], [1945, 2026]]) {
       await setPeriod(page, a, b);
@@ -468,9 +468,9 @@ test.describe('§6.1 the unknown-start count', () => {
     expect(await undatedCount(page)).toBe(corpus);
   });
 
-  test('§6.1 filtered to Commons the unknown-start figure is 0, not 37', async ({ page }) => {
-    // Named in the spec because it shipped wrong: every one of the 37 is a team, so a
-    // reader looking at Commons was shown 37 for a set the switch could not touch.
+  test('§6.1 filtered to Commons the unknown-start figure is 0, not 39', async ({ page }) => {
+    // Named in the spec because it shipped wrong: every one of the 39 is a team, so a
+    // reader looking at Commons was shown 39 for a set the switch could not touch.
     await open(page);
     await setLayers(page, ['commons']);
     expect(await undatedCount(page)).toBe(0);
@@ -478,7 +478,7 @@ test.describe('§6.1 the unknown-start count', () => {
       window.__oracle.vagueOf(window.__oracle.pass({ layers: ['commons'], skip: 'period' })))).toBe(0);
     // and it comes back when the team layer does
     await setLayers(page, ['commons', 'team']);
-    expect(await undatedCount(page)).toBe(37);
+    expect(await undatedCount(page)).toBe(39);
   });
 
   test('§6.1 the unknown-start figure follows the domain axis', async ({ page }) => {
@@ -488,7 +488,7 @@ test.describe('§6.1 the unknown-start count', () => {
     await setDomains(page, ['energy']);
     const want = await page.evaluate(() =>
       window.__oracle.vagueOf(window.__oracle.pass({ domains: ['energy'], skip: 'period' })));
-    expect(want).toBe(5);
+    expect(want).toBe(6);
     expect(await undatedCount(page)).toBe(want);
     await setDomains(page, []);
     expect(await undatedCount(page)).toBe(0);
@@ -498,7 +498,7 @@ test.describe('§6.1 the unknown-start count', () => {
     await open(page);
     expect(await undatedTitle(page)).toBe('');
     await setLayers(page, ['commons']);
-    expect(await undatedTitle(page)).toBe('0 of 37 under the current filters');
+    expect(await undatedTitle(page)).toBe('0 of 39 under the current filters');
   });
 });
 
@@ -519,7 +519,7 @@ test.describe('§6.1 the period histogram', () => {
   });
 
   test('§6.1 the histogram follows the layer and domain axes', async ({ page }) => {
-    // The curve is the period control's own backdrop: drawn over all 449 while the reader
+    // The curve is the period control's own backdrop: drawn over all 460 while the reader
     // has narrowed to two AI-network teams, it would size the handles against a population
     // they are not selecting from.
     await open(page);
@@ -549,8 +549,8 @@ test.describe('§6.1 the period histogram', () => {
   });
 
   test('§6.1 a year carrying a single entity still draws a bar the reader can see', async ({ page }) => {
-    // The other end of the same normalisation. Against the 25-entity Commons peak, a year
-    // with one entity is 0.76 of the 19-unit band — a sliver at this size. The floor is
+    // The other end of the same normalisation. Against the 26-entity Commons peak, a year
+    // with one entity is 0.73 of the 19-unit band — a sliver at this size. The floor is
     // what keeps the sparse years of a narrow scope legible, so it is pinned here: without
     // it the curve still has the right shape and the wrong readability, which is the kind
     // of regression a shape-only comparison cannot see.
@@ -562,7 +562,7 @@ test.describe('§6.1 the period histogram', () => {
     expect(bars.map((b) => b.y)).toEqual(want.map((w) => w.y));
     const h = Object.fromEntries(bars.map((b) => [b.y, Number(b.h)]));
     const peak = Math.max(...want.map((w) => w.n));
-    expect(peak).toBe(25);
+    expect(peak).toBe(26);
     const sparse = want.filter((w) => w.n === 1).map((w) => w.y);
     expect(sparse.length).toBeGreaterThan(0);           // guard: nothing floored, nothing proven
     for (const y of sparse) expect(h[y], `${y} carries one commons`).toBeCloseTo(1.1, 5);
@@ -846,7 +846,7 @@ test.describe('§6 starting views are a clean slate', () => {
     await applyPreset(page, 'overview');
     expect(sorted((await snapshot(page)).domains))
       .toEqual(sorted(await page.evaluate(() => window.__oracle.ALL)));
-    expect((await snapshot(page)).matchCount).toBe(449);
+    expect((await snapshot(page)).matchCount).toBe(460);
   });
 
   test('§6 a preset is a clean slate, not a modifier on the current state', async ({ page }) => {
@@ -971,14 +971,14 @@ test.describe('§6 boundaries', () => {
 
   test('§6/§9.1 exactly one result: the caption agrees with itself in the singular', async ({ page }) => {
     // n=1 verb agreement, and the narrowest non-empty state the filters can reach through
-    // two axes: maritime is carried by exactly one commons.
+    // two axes: human factors is carried by exactly one commons.
     await open(page);
     await setLayers(page, ['commons']);
-    await setDomains(page, ['maritime']);
+    await setDomains(page, ['hf']);
     await fitAll(page);
     const s = await snapshot(page);
     expect(s.matchCount).toBe(1);
-    expect(await passIds(page)).toEqual(['openclsim']);
+    expect(await passIds(page)).toEqual(['openbridge']);
     expect(await caption(page)).toBe('1 country · in view · 1 matches the filters');
     expect((await tiles(page)).find((t) => t.kind === 'commons').title).toBe('1 in view · 1 matches the filters');
     await expectCountersReconcile(page, 'exactly one match');
@@ -1014,7 +1014,7 @@ test.describe('§6 boundaries', () => {
         .toEqual(await page.evaluate((c) => window.__oracle.pass(c).sort(), { a, b }));
     }
     // the full span is the unfiltered corpus again
-    expect((await snapshot(page)).matchCount).toBe(449);
+    expect((await snapshot(page)).matchCount).toBe(460);
   });
 
   test('§6.1 a collapsed sidebar still has current figures when it comes back', async ({ page }) => {
@@ -1036,7 +1036,7 @@ test.describe('§6 boundaries', () => {
     await page.click('#sb-open');
     expect(await layerCounts(page))
       .toEqual(await page.evaluate(() => window.__oracle.counts({ a: 1945, b: 1945, skip: 'layer' })));
-    expect(await undatedCount(page)).toBe(37);          // still the period's own count, unmoved
+    expect(await undatedCount(page)).toBe(39);          // still the period's own count, unmoved
   });
 
   test('§6 Reset puts the axes back where they started and keeps the pins', async ({ page }) => {
@@ -1052,7 +1052,7 @@ test.describe('§6 boundaries', () => {
     expect(s.years).toEqual({ a: 1945, b: 2026, undated: true });
     expect(s.myMap).toBe(false);
     expect(s.focusId).toBe(null);
-    expect(s.matchCount).toBe(449);
+    expect(s.matchCount).toBe(460);
     expect(s.pins).toBe(1);                             // Reset clears the filters, not the pins
   });
 

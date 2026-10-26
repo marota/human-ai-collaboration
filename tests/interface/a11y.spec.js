@@ -466,7 +466,7 @@ test.describe('§14 the period handles are sliders', () => {
     // without running refresh() would announce a map nobody is looking at. The
     // expected count comes from the payload by §10's rule, not from the page.
     const expected = await payloadPeriodMatches(page, min, max - 30);
-    expect(expected).toBe(87);
+    expect(expected).toBe(89);
     await nudgePeriod(page, 'b', 'PageDown', 6);          // b = max - 30
     await settleCounts(page);
     const s = await snapshot(page);
@@ -555,7 +555,7 @@ test.describe('§14 the stats block is a live region', () => {
       const D = window.HAI_DATA;
       return { project: D.PROJECTS.length, team: D.TEAMS.length, commons: D.COMMONS.length, framework: D.FRAMEWORKS.length };
     });
-    expect(totals).toEqual({ project: 111, team: 268, commons: 25, framework: 45 });
+    expect(totals).toEqual({ project: 115, team: 274, commons: 26, framework: 45 });
     const t = await tiles(page);
     for (const tile of t) {
       const host = page.locator(`#st-${tile.kind}`).locator('..');
@@ -573,7 +573,7 @@ test.describe('§14 the stats block is a live region', () => {
   test('§14 a tile with nothing matching says "0 match", a tile with one says "1 matches"', async ({ page }) => {
     await openMap(page);
     // Two boundaries in one scenario, both taken from the payload: no project
-    // carries the nuclear domain, and exactly one commons does maritime.
+    // carries the nuclear domain, and exactly one commons does human factors.
     const nuclear = await payloadByDomain(page, 'nuclear');
     expect(nuclear.project).toBe(0);
     await onlyDomain(page, 'nuclear');
@@ -582,23 +582,23 @@ test.describe('§14 the stats block is a live region', () => {
     await expect(page.locator('#st-team').locator('..'))
       .toHaveAccessibleName(new RegExp(`· ${nuclear.team} match the filters$`));
 
-    const maritime = await payloadByDomain(page, 'maritime');
-    expect(maritime.commons).toBe(1);
-    await onlyDomain(page, 'maritime');
+    const hf = await payloadByDomain(page, 'hf');
+    expect(hf.commons).toBe(1);
+    await onlyDomain(page, 'hf');
     await expect(page.locator('#st-commons').locator('..'))
       .toHaveAccessibleName(new RegExp(`· 1 matches the filters$`));
   });
 
   test('§14 the French labels agree with their own number', async ({ page }) => {
     await openMap(page, { lang: 'fr' });
-    const maritime = await payloadByDomain(page, 'maritime');
-    await onlyDomain(page, 'maritime');
+    const hf = await payloadByDomain(page, 'hf');
+    await onlyDomain(page, 'hf');
     // "1 correspond" / "21 correspondent" — the verb is part of the announced
     // name, so it has to be right in both languages.
     await expect(page.locator('#st-commons').locator('..'))
       .toHaveAccessibleName(new RegExp(`· 1 correspond aux filtres$`));
     await expect(page.locator('#st-team').locator('..'))
-      .toHaveAccessibleName(new RegExp(`· ${maritime.team} correspondent aux filtres$`));
+      .toHaveAccessibleName(new RegExp(`· ${hf.team} correspondent aux filtres$`));
   });
 
   test('§14 the announced names are recomputed when the view moves, not only when filters do', async ({ page }) => {

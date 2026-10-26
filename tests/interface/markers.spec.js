@@ -1138,8 +1138,8 @@ test.describe('§4.3 edges', () => {
     const expectDash = RELATIONS.drawn.map((e) => (e.rel === 'usedBy' ? '4 4' : null));
     expect(rows.map((r) => r.dash)).toEqual(expectDash);
     const dashed = expectDash.filter(Boolean).length;
-    expect(dashed).toBe(26);
-    expect(expectDash.length - dashed).toBe(326);
+    expect(dashed).toBe(27);
+    expect(expectDash.length - dashed).toBe(331);
   });
 
   test('§4.3 an edge takes its colour from the lead domain of the entity it belongs to', async ({ page }) => {

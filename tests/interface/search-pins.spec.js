@@ -441,7 +441,7 @@ test.describe('§11 search — ranking carries the affiliation widening', () => 
     // The bug the spec describes only exists when affiliation matches outnumber
     // own-name matches and together overflow the eight slots.
     expect(teams.own.length).toBe(9);
-    expect(teams.aff.length).toBe(23);
+    expect(teams.aff.length).toBe(24);
 
     const shown = (await groups(page)).find((g) => g.label === 'Teams').ids;
     expect(shown).toEqual(teams.own.slice(0, 8));          // exact order: stable sort

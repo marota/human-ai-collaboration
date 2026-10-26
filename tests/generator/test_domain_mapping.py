@@ -324,7 +324,7 @@ class DigitalTwinsIsNeverSimulation(TempCheckout):
     would wrongly appear under the research-infrastructure filters."
 
     Digital twins are near-universal in this field — as of the committed
-    payload 46 of the 449 entities declare the focus area — so mapping it to
+    payload 47 of the 460 entities declare the focus area — so mapping it to
     `simulation` would flood the "Research infrastructures" group with teams
     that run no facility at all, and the group would stop meaning anything."""
 

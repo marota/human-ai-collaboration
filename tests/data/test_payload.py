@@ -1081,8 +1081,8 @@ class PerLayerFields(unittest.TestCase):
         # caveat as §3.2's table, and the floor that keeps the loop non-vacuous.
         conf = Counter(o["dateConf"] for o in all_entities() if "dateConf" in o)
         self.assertEqual(sorted(conf), ["high", "low", "medium"])
-        self.assertEqual(sum(conf.values()), 200)
-        self.assertEqual(sum(1 for o in all_entities() if o.get("dateHost")), 23)
+        self.assertEqual(sum(conf.values()), 204)
+        self.assertEqual(sum(1 for o in all_entities() if o.get("dateHost")), 25)
 
 
 if __name__ == "__main__":

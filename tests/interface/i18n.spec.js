@@ -132,13 +132,13 @@ const spaces = (s) => s.replace(/[\u00a0\u202f\u2009]/g, ' ');
 const textOf = (page, sel) => page.locator(sel).first().textContent();
 
 // Payload facts the assertions below are derived from, rather than read back out
-// of the code under test. 449 entities in four layers; 11 of them carry no
-// coordinates; 27 countries; the data's freshness date is 2026-09-03.
-const CORPUS = 449, NOGEO_TOTAL = 11, COUNTRIES = 27;
+// of the code under test. 460 entities in four layers; 11 of them carry no
+// coordinates; 27 countries; the data's freshness date is 2026-10-23.
+const CORPUS = 460, NOGEO_TOTAL = 11, COUNTRIES = 27;
 // The same, per layer, in KINDS order — the figure a layer row shows with no
 // filter narrowing it. Spelled out here so an assertion about a *narrowed*
 // count has something to be narrower than.
-const LAYER_TOTALS = [111, 268, 25, 45];
+const LAYER_TOTALS = [115, 274, 26, 45];
 
 // ------------------------------------------------- invariant 8: key parity
 
@@ -342,7 +342,7 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     await settleCounts(page);
     const want = await page.evaluate(() =>
       KINDS.map((k) => items.filter((it) => it.kind === k && it.domains.includes('aviation')).length));
-    expect(want).toEqual([24, 46, 6, 10]);
+    expect(want).toEqual([26, 47, 6, 10]);
     expect(want.filter((n, i) => n > 0 && n < LAYER_TOTALS[i])).toHaveLength(4);
     expect((await layerRows(page)).map((r) => r.count)).toEqual(want);
     await switchLang(page, 'fr');
@@ -366,22 +366,22 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     await settleCounts(page);
     const titles = async () => (await layerRows(page)).map((r) => r.title);
     expect(await titles()).toEqual([
-      '24 of 111 under the current filters',
-      '46 of 268 under the current filters',
-      '6 of 25 under the current filters',
+      '26 of 115 under the current filters',
+      '47 of 274 under the current filters',
+      '6 of 26 under the current filters',
       '10 of 45 under the current filters',
     ]);
     await switchLang(page, 'fr');
     expect(await titles()).toEqual([
-      '24 sur 111 avec les filtres actuels',
-      '46 sur 268 avec les filtres actuels',
-      '6 sur 25 avec les filtres actuels',
+      '26 sur 115 avec les filtres actuels',
+      '47 sur 274 avec les filtres actuels',
+      '6 sur 26 avec les filtres actuels',
       '10 sur 45 avec les filtres actuels',
     ]);
     // §14: the same string reaches a screen reader as the accessible name, so
     // it has to be translated there too and not only in the tooltip.
     expect(await page.locator('.layer-row[data-layer="team"] .cnt').getAttribute('aria-label'))
-      .toBe('46 sur 268 avec les filtres actuels');
+      .toBe('47 sur 274 avec les filtres actuels');
   });
 
   test('§12 header tiles and their reconciliation titles', async ({ page }) => {
@@ -581,7 +581,7 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // directly rather than through t(); the figures are corpus totals, which is
     // allowed here because the panel describes the map, not the view (§9.1).
     const links = await page.evaluate(() => edges.length);
-    expect(links).toBe(352);            // 299 consortium edges plus created/used
+    expect(links).toBe(358);            // 303 consortium edges plus created/used
     await expect(page.locator('#wl-figs')).toHaveText(new RegExp(`^${COUNTRIES} countries · ${links} documented links ·`));
     // The overlay is modal and covers the switch, so the click has to be
     // dispatched: applyLang()'s `if (welcome is open) renderWelcome()` guard is
@@ -1063,13 +1063,13 @@ test.describe('§12 verb agreement in both languages', () => {
   });
 
   test('§9.1 the caption reads the singular end to end, in both languages', async ({ page }) => {
-    // Commons + maritime is exactly one entity in the payload (OpenCLSim, NL),
+    // Commons + human factors is exactly one entity in the payload (OpenBridge, NO),
     // so this is the n = 1 boundary through the real controls rather than
     // through the string function.
     await openMap(page, { lang: 'en' });
     await zoomBy(page, 0.5);                       // everything placed is on screen
     await setLayers(page, ['commons']);
-    await onlyDomain(page, 'maritime');
+    await onlyDomain(page, 'hf');
     await settleCounts(page);
     const s = await snapshot(page);
     expect(s.matchCount).toBe(1);
@@ -1083,7 +1083,7 @@ test.describe('§12 verb agreement in both languages', () => {
     await switchLang(page, 'fr');
     await expect(page.locator('#st-note')).toHaveText('1 pays · dans la vue · 1 correspond aux filtres');
     expect((await tiles(page))[2].title).toBe('1 dans la vue · 1 correspond aux filtres');
-    await expectCountersReconcile(page, 'one commons, one maritime domain');
+    await expectCountersReconcile(page, 'one commons, one human-factors domain');
   });
 
   test('§9.1 zero results: English pluralises, French does not', async ({ page }) => {
@@ -1243,12 +1243,12 @@ test.describe('§12 locale-aware collation and number formatting', () => {
   test('§10 the freshness date is spelled out in the reader\'s locale', async ({ page }) => {
     await openMap(page, { lang: 'en' });
     const label = () => page.locator('#tf-asof').getAttribute('aria-label');
-    expect(await label()).toBe('Data current as of 3 September 2026 — the period slider stops at that year.');
+    expect(await label()).toBe('Data current as of 23 October 2026 — the period slider stops at that year.');
     await switchLang(page, 'fr');
-    expect(await label()).toBe('Données à jour au 3 septembre 2026 — le curseur de période s’arrête à cette année.');
+    expect(await label()).toBe('Données à jour au 23 octobre 2026 — le curseur de période s’arrête à cette année.');
     // The same sentence reaches touch devices as a toast.
     await page.click('#tf-asof');
-    await expect(page.locator('#toast')).toHaveText(/3 septembre 2026/);
+    await expect(page.locator('#toast')).toHaveText(/23 octobre 2026/);
   });
 });
 

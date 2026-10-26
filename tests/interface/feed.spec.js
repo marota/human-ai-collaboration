@@ -109,9 +109,9 @@ test.describe('§9.3 the feed lists what is in view', () => {
     const inView = await page.evaluate(() => [...state.inView]);
     expect(rows).toHaveLength(inView.length);
     expect(new Set(rows.map((r) => r.id))).toEqual(new Set(inView));
-    // 438 of the 449 entities: 11 have no coordinates, and at the default fit
+    // 449 of the 460 entities: 11 have no coordinates, and at the default fit
     // every placed marker is on screen.
-    expect(rows).toHaveLength(438);
+    expect(rows).toHaveLength(449);
   });
 
   test('§9.3 sorted by layer first, in the four layers\' own order', async ({ page }) => {
@@ -143,7 +143,7 @@ test.describe('§9.3 the feed lists what is in view', () => {
       };
     });
     expect(r.ids).toEqual(r.byLocale);
-    // The load-bearing half: a plain `<` sort over the same 438 names gives a
+    // The load-bearing half: a plain `<` sort over the same 449 names gives a
     // different column, so "locale-aware" is a claim the data can falsify.
     expect(r.sameAsCodePoint).toBe(false);
     // The cheapest witness of the difference: lowercase-initial "agrifoodTEF"
@@ -451,7 +451,7 @@ test.describe('§9.3 marker → feed', () => {
   // happen under reduced motion.
   test('§9.3 marker → feed scrolls the card to centre', async ({ page }) => {
     await openMap(page);
-    // Half-way down a 438-row column: the card cannot be visible by accident.
+    // Half-way down a 449-row column: the card cannot be visible by accident.
     const mid = await page.evaluate(() => {
       const ids = [...document.querySelectorAll('#fd-list .fd-item')].map((e) => e.dataset.id);
       return ids[Math.floor(ids.length / 2)];
@@ -544,8 +544,8 @@ test.describe('§9.3 entities with no coordinates', () => {
     // stays the number the four tiles sum to.
     expect(h.count).toBe(s.inView);
     expect(rows).toHaveLength(s.inView + 1);
-    expect(h.countText).toBe('438');
-    expect(rows).toHaveLength(439);
+    expect(h.countText).toBe('449');
+    expect(rows).toHaveLength(450);
     await expectHeaderReconciles(page, 'an off-map card open');
   });
 
@@ -603,10 +603,10 @@ test.describe('§9.3 the header and its remedies', () => {
     expect(parts[3]).toMatchObject({ tag: 'BUTTON', type: 'button' });
   });
 
-  test('§9.3 at the default fit the header reads "438 + 11 off the map"', async ({ page }) => {
+  test('§9.3 at the default fit the header reads "449 + 11 off the map"', async ({ page }) => {
     await openMap(page);
     const h = await feedHeader(page);
-    expect(h.countText).toBe('438');
+    expect(h.countText).toBe('449');
     // Every placed marker is on screen at the fit, so there is no off-screen
     // term — and naming only the off-map part is safe *here*, which is exactly
     // why the earlier version's omission survived so long.
@@ -624,11 +624,11 @@ test.describe('§9.3 the header and its remedies', () => {
     expect(h.offScreen.hidden).toBe(false);
     expect(h.offScreen.text).toBe(`+ ${s.offScreen} off screen`);
     expect(h.offMap.text).toBe('+ 11 off the map');
-    // The reader who zooms in is the one the caption was failing: 438 becomes a
+    // The reader who zooms in is the one the caption was failing: 449 becomes a
     // much smaller number while "11 off the map" does not move, and without the
     // off-screen term that is an arithmetic problem with a missing term.
-    expect(h.count).toBeLessThan(438);
-    expect(h.count + h.offScreen.n + h.offMap.n).toBe(449);
+    expect(h.count).toBeLessThan(449);
+    expect(h.count + h.offScreen.n + h.offMap.n).toBe(460);
     await expectHeaderReconciles(page, 'zoomed in 3×');
   });
 
@@ -693,13 +693,13 @@ test.describe('§9.3 the header and its remedies', () => {
   // One marker on screen, then Frameworks off: the column still lists exactly
   // kios-cyprus (a team), so nothing is rewritten, while the off-map term drops
   // from 11 to 1 as the ten off-map frameworks leave the filters, and the
-  // off-screen term from 437 to 402 as the thirty-five placed ones do.
+  // off-screen term from 448 to 413 as the thirty-five placed ones do.
   test('§9.3 the header\'s numbers are not behind the render key', async ({ page }) => {
     await openMap(page);
     await isolateOne(page);
     const before = await feedHeader(page);
     expect(before.countText).toBe('1');
-    expect(before.offScreen.n).toBe(437);
+    expect(before.offScreen.n).toBe(448);
     expect(before.offMap.n).toBe(11);
     await page.evaluate(() => { document.querySelector('#fd-list .fd-item').dataset.stamp = '1'; });
 
@@ -714,8 +714,8 @@ test.describe('§9.3 the header and its remedies', () => {
     const after = await feedHeader(page);
     expect(after.countText).toBe('1');
     expect(after.offMap.text).toBe('+ 1 off the map');
-    expect(after.offScreen.text).toBe('+ 402 off screen');
-    expect(1 + after.offScreen.n + after.offMap.n).toBe(404);   // 449 less the 45 frameworks
+    expect(after.offScreen.text).toBe('+ 413 off screen');
+    expect(1 + after.offScreen.n + after.offMap.n).toBe(415);   // 460 less the 45 frameworks
     // Not a deviation, just worth naming while the string is pinned: unlike its
     // French counterpart the English title carries no verb agreement, so n = 1
     // reads "1 more match the filters". The spec only ever quotes the plural.
@@ -815,12 +815,12 @@ test.describe('§9.3 the remedies land', () => {
     const s = await snapshot(page);
     // The remedy has to actually close the gap it names, not merely zoom a bit.
     expect(s.offScreen).toBe(0);
-    expect(s.inView).toBe(438);
+    expect(s.inView).toBe(449);
     expect(await page.evaluate(() => view.k / k0)).toBeCloseTo(1.22, 5);
     const after = await feedHeader(page);
     expect(after.offScreen.hidden).toBe(true);
-    expect(after.countText).toBe('438');
-    expect((await feedRows(page))).toHaveLength(438);
+    expect(after.countText).toBe('449');
+    expect((await feedRows(page))).toHaveLength(449);
   });
 
   test('§9.3 #fd-offmap reveals the sidebar and scrolls Off the map into view', async ({ page }) => {
@@ -990,7 +990,7 @@ test.describe('§9.3 rendering is keyed on ids + focus + language + pins', () =>
   test('§9.3 an identical key skips the DOM write — a bare refresh() costs nothing', async ({ page }) => {
     await openMap(page);
     const n = await stamp(page);
-    expect(n).toBe(438);
+    expect(n).toBe(449);
     await page.evaluate(() => { refresh(); refresh(); });
     expect(await survivors(page)).toBe(2);
   });
@@ -999,7 +999,7 @@ test.describe('§9.3 rendering is keyed on ids + focus + language + pins', () =>
     await openMap(page);
     await stamp(page);
     // The links toggle redraws every edge and calls refresh(); the feed's key is
-    // untouched by it, so the 438 rows must not be rebuilt to find that out.
+    // untouched by it, so the 449 rows must not be rebuilt to find that out.
     await page.click('#links-row');
     await settleCounts(page);
     expect(await page.evaluate(() => state.links)).toBe(true);

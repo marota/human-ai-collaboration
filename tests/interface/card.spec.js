@@ -301,7 +301,7 @@ test.describe('§8 section order, and omission when empty', () => {
   });
 
   test('§8 no card in the payload renders its sections out of order', async ({ page }) => {
-    // The order is the claim, for all 449 cards and not just the two above: a
+    // The order is the claim, for all 460 cards and not just the two above: a
     // new `dtSec()` call dropped in at the wrong line is exactly the mistake
     // §17 warns about, and it shows up nowhere else.
     await openMap(page);
@@ -456,7 +456,7 @@ test.describe('§8 section order, and omission when empty', () => {
   });
 
   test('§8 no card in the payload drops or reorders an identity field', async ({ page }) => {
-    // §8 item 6 lists ten fields in one order, for 449 cards. The prediction is
+    // §8 item 6 lists ten fields in one order, for 460 cards. The prediction is
     // built here from the payload and from FACT_ORDER, so a row deleted from
     // `identity` — or two of them swapped — fails against the spec's list
     // rather than against whatever `cardHtml()` currently emits.
@@ -1252,7 +1252,7 @@ test.describe('§8 the provenance footer', () => {
       return bad;
     });
     expect(missing).toEqual([]);
-    expect(await page.evaluate(() => items.length)).toBe(449);
+    expect(await page.evaluate(() => items.length)).toBe(460);
   });
 
   test('§8/§12 provenance is in French in French, confidence label included', async ({ page }) => {
