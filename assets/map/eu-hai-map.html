@@ -61,6 +61,11 @@
   .brand svg{flex:none;color:var(--accent);margin-top:2px}
   .sb-title{font-family:var(--serif);font-size:17px;font-weight:600;line-height:1.25;margin:0;letter-spacing:-.01em}
   .sb-lede{color:var(--ink-soft);font-size:11.5px;line-height:1.5;margin:6px 0 0}
+  /* The map is collaborative, and says so where every reader looks first —
+     not only on first visit, and not only in the footer. */
+  .sb-collab{color:var(--ink-soft);font-size:11.5px;line-height:1.5;margin:8px 0 0}
+  .link-btn{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+  .link-btn:hover{color:var(--accent-deep)}
   .sb-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:14px 18px 26px}
   .sb-section{margin:0 0 22px}
   .sb-h{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:var(--ink-faint);
@@ -368,6 +373,10 @@
   .wl-row .n{flex:none;font-family:var(--serif);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent-deep)}
   .wl-figs{font-size:11.5px;color:var(--ink-faint);margin:0 0 18px}
   .wl-presets{margin:0 0 20px}
+  .wl-collab{margin:0 0 20px;padding:12px 14px;border:1px solid var(--rule);
+    border-left:3px solid var(--accent);border-radius:10px}
+  .wl-collab .sb-h{margin-bottom:6px}
+  .wl-collab p{font-size:12px;line-height:1.55;color:var(--ink-soft);margin:0 0 10px}
   .wl-presets .sb-h{margin-bottom:8px}
   .modal .btn-row{justify-content:flex-end;border-top:1px solid var(--rule);padding-top:16px}
   .modal .btn{font-size:12.5px;padding:9px 16px}
@@ -470,6 +479,7 @@
         <div>
           <h1 class="sb-title" data-i18n="title">Collaboration humain–IA en Europe</h1>
           <p class="sb-lede" data-i18n="lede">Qui travaille sur la décision humain–IA dans les systèmes critiques — équipes, projets, communs et cadres, et les liens entre eux.</p>
+          <p class="sb-collab"><span data-i18n="collab">Une carte collaborative : il manque quelque chose ?</span> <button type="button" class="link-btn" id="sb-contribute" data-i18n="contribute">Proposez-le avec le chat</button></p>
         </div>
       </div>
       <div class="stats" aria-live="polite">
@@ -642,6 +652,11 @@
       <h3 class="sb-h" data-i18n="wStart">Commencer par…</h3>
       <div class="chips" id="w-presets"></div>
     </div>
+    <div class="wl-collab">
+      <h3 class="sb-h" data-i18n="wCollabH">Une carte collaborative</h3>
+      <p data-i18n="wCollab">Il manque une équipe, un projet, une norme — ou une fiche est fausse ? Dites-le au chat de la carte : il vérifie votre source, rédige la fiche avec vous, puis l’envoie sur GitHub, où elle est relue avant d’entrer dans la carte.</p>
+      <button type="button" class="btn" id="w-contribute" data-i18n="wContribute">Proposer un ajout ou une correction</button>
+    </div>
     <div class="btn-row">
       <button class="btn" id="w-tour" data-i18n="wTour">Visite guidée · 1 min</button>
       <button class="btn primary" id="w-explore" data-i18n="wExplore">Explorer librement</button>
@@ -738,6 +753,10 @@ const I18N = {
     dateApprox:'Date approchée, reconstituée à partir d\u2019indices indirects.',
     timeFrom:'Première année', timeTo:'Dernière année', timeFloor:'les fondations antérieures restent incluses',
     feedPill:'Fil', chatPill:'Chat', feedTitle:'Dans la vue', feedHide:'Masquer le fil',
+    collab:'Une carte collaborative : il manque quelque chose ?', contribute:'Proposez-le avec le chat',
+    wCollabH:'Une carte collaborative',
+    wCollab:'Il manque une équipe, un projet, une norme — ou une fiche est fausse ? Dites-le au chat de la carte : il vérifie votre source, rédige la fiche avec vous, puis l\u2019envoie sur GitHub, où elle est relue avant d\u2019entrer dans la carte.',
+    wContribute:'Proposer un ajout ou une correction',
     feedEmpty:'Aucune fiche dans la vue — dézoomez ou élargissez les filtres.',
     // Accord du verbe : « 0 / 1 correspond », « 25 correspondent ».
     stNote:n=>`dans la vue · ${n} ${n>1?'correspondent':'correspond'} aux filtres`,
@@ -765,7 +784,7 @@ const I18N = {
     'tour.4t':'Votre cartographie', 'tour.4b':'Épinglez (★) ce qui vous intéresse : « Ma carte » n\u2019affiche plus que vos épingles et leurs liens, à copier en lien partageable ou à imprimer.',
     hintClick:'Cliquez un marqueur pour ouvrir sa fiche — molette pour zoomer.',
     hintPinned:'Épinglé ★ — retrouvez votre sélection dans « Ma carte ».',
-    footer:'Fond de carte : Natural Earth (domaine public), projection Lambert azimutale. Données : dépôt <a href="https://github.com/marota/eu-hai-collab-map" target="_blank" rel="noopener">eu-hai-collab-map</a>, CC BY 4.0 — corrections bienvenues par pull request.',
+    footer:'Fond de carte : Natural Earth (domaine public), projection Lambert azimutale. Données : dépôt <a href="https://github.com/marota/eu-hai-collab-map" target="_blank" rel="noopener">eu-hai-collab-map</a>, CC BY 4.0 — contributions bienvenues, par le chat de la carte ou par pull request.',
     badge:{energy:'énergie',aviation:'aviation',rail:'ferroviaire',transport:'transport sol',telecom:'télécoms',utility:'eau/gaz',health:'santé',manufacturing:'manufacturing',compute:'compute',cluster:'réseau IA',simulation:'sim. socio-tech',hf:'human factors',xai:'XAI',multi:'multi/autres',maritime:'maritime',nuclear:'nucléaire',defense:'défense'},
     dom:{energy:'Énergie / réseau électrique',aviation:'Aviation / ATC',rail:'Ferroviaire',transport:'Routes / transport sol',telecom:'Télécoms / réseaux',utility:'Eau / gaz',health:'Santé / clinique',manufacturing:'Manufacturing / process',maritime:'Maritime / ports',nuclear:'Nucléaire',defense:'Défense',hf:'Human factors / cognitif',xai:'XAI / confiance / sûreté',multi:'Multi-agents / autres',compute:'Data centers / AI Factories',cluster:'Réseaux & plateformes IA',simulation:'Simulation socio-technique'},
   },
@@ -821,6 +840,10 @@ const I18N = {
     dateApprox:'Approximate date, reconstructed from indirect evidence.',
     timeFrom:'First year', timeTo:'Last year', timeFloor:'earlier foundings stay included',
     feedPill:'Feed', chatPill:'Chat', feedTitle:'In view', feedHide:'Hide feed',
+    collab:'A collaborative map: is something missing?', contribute:'Propose it with the chat',
+    wCollabH:'A collaborative map',
+    wCollab:'Is a team, a project or a standard missing — or is a card wrong? Tell the map\u2019s chat: it checks your source, drafts the card with you, and sends it to GitHub, where it is reviewed before it joins the map.',
+    wContribute:'Propose an addition or a correction',
     feedEmpty:'Nothing in view — zoom out or widen the filters.',
     stNote:n=>`in view · ${n} ${n===1?'matches':'match'} the filters`,
     stNoteWhy:(n,why)=>`in view · ${n} ${n===1?'matches':'match'} the filters (${why})`,
@@ -847,7 +870,7 @@ const I18N = {
     'tour.4t':'Your cartography', 'tour.4b':'Pin (★) what matters to you: “My map” shows only your pins and their links, ready to share as a link or print.',
     hintClick:'Click a marker to open its card — scroll to zoom.',
     hintPinned:'Pinned ★ — find your selection under “My map”.',
-    footer:'Basemap: Natural Earth (public domain), Lambert azimuthal projection. Data: <a href="https://github.com/marota/eu-hai-collab-map" target="_blank" rel="noopener">eu-hai-collab-map</a> repository, CC BY 4.0 — corrections welcome by pull request.',
+    footer:'Basemap: Natural Earth (public domain), Lambert azimuthal projection. Data: <a href="https://github.com/marota/eu-hai-collab-map" target="_blank" rel="noopener">eu-hai-collab-map</a> repository, CC BY 4.0 — contributions welcome, through the map\u2019s chat or by pull request.',
     badge:{energy:'energy',aviation:'aviation',rail:'rail',transport:'surface transport',telecom:'telecom',utility:'water/gas',health:'health',manufacturing:'manufacturing',compute:'compute',cluster:'AI network',simulation:'socio-tech sim.',hf:'human factors',xai:'XAI',multi:'multi/other',maritime:'maritime',nuclear:'nuclear',defense:'defence'},
     dom:{energy:'Energy / power grid',aviation:'Aviation / ATC',rail:'Rail',transport:'Road / surface transport',telecom:'Telecom / networks',utility:'Water / gas',health:'Health / clinical',manufacturing:'Manufacturing / process',maritime:'Maritime / ports',nuclear:'Nuclear',defense:'Defence',hf:'Human factors / cognitive',xai:'XAI / trust / safety',multi:'Multi-agent / other',compute:'Data centres / AI factories',cluster:'AI networks & platforms',simulation:'Socio-technical simulation'},
   },
@@ -2268,6 +2291,15 @@ function loadChat(){
 }
 chatPill.addEventListener('click', loadChat, { once: true });
 if (new URLSearchParams(location.search).get('chat') === '1') loadChat();
+// Every "propose" on the page leads to the same place — the chat, open, its
+// input focused — so the welcome and the mobile drawer close on the way. It is
+// a press of the pill, and fetches nothing the pill would not.
+function contribute(){
+  closeWelcome(); setPanel(false);
+  if (!document.body.classList.contains('chat-open')) chatPill.click();
+}
+document.getElementById('sb-contribute').addEventListener('click', contribute);
+document.getElementById('w-contribute').addEventListener('click', contribute);
 </script>
 </body>
 </html>

@@ -800,6 +800,9 @@ sensible view instead of an empty map.
 - The period handles are `role="slider"` with min, max and current value.
 - Counters are in an `aria-live="polite"` region.
 - Visible focus ring on all interactive elements.
+- Focus follows reading order, with no `tabindex` and no visual reordering: the
+  first tab stop is the invitation to contribute in the title block (§18.7),
+  the second the search box.
 - `prefers-reduced-motion` disables view animation and feed auto-scroll.
 - Full dark mode via `prefers-color-scheme`, on CSS custom properties.
 - The map is pannable and zoomable from the keyboard through the zoom buttons;
@@ -1131,3 +1134,24 @@ A visitor's issue lands under the account `gh` is logged in as, labelled
 `via-public-chat` where the repository has that label. Nothing reaches the map
 until a maintainer turns it into a pull request (invariant 16) — the same
 review the curator's own proposals get.
+
+### 18.7 The map says it is collaborative
+
+A chat that can turn a reader's knowledge into a reviewed proposal is only
+useful if readers know they are invited to. So the map says so wherever a
+reader looks, and every invitation leads to the same place — the chat, open,
+its input focused — through a press of the pill that fetches nothing the pill
+would not (invariant 10):
+
+| Where | What it says |
+|---|---|
+| Title block, under the lede | *A collaborative map: is something missing? Propose it with the chat* — on every visit, and the first tab stop (§14) |
+| Welcome panel | what is missing or wrong, how the chat checks the source and drafts the card, that GitHub review comes before the map; a *Propose an addition or a correction* button |
+| The chat's own opening | contributing as plainly as asking, with an example that opens a proposal (*A team is missing from the map*) |
+| The chat, when its server is down | the visitor-facing message, and the issue tracker as the way to propose meanwhile |
+| Footer | contributions welcome, through the map's chat or by pull request |
+
+The site page around the map (`map.md`) says it at the top and explains the
+whole route — the source, the card, the issue, the review — together with what
+stays private: the server keeps no conversation, and a proposal's issue, which
+is public, shows its conversation to the contributor before it is sent.

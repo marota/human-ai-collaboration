@@ -35,8 +35,11 @@
       ex1: 'Qui travaille sur la conduite de réseau électrique en France ?',
       ex2: 'Quelles équipes sont dans le consortium AI4REALNET ?',
       ex3: 'Que contient la carte sur l’aviation ?',
-      introAdd: 'Vous pouvez aussi signaler un manque ou une erreur : je prépare une '
-        + 'fiche à relire, et j’ouvre une issue GitHub qu’un mainteneur valide.',
+      collabH: 'Une carte collaborative',
+      introAdd: 'Il manque une équipe, un projet, une norme — ou une fiche est fausse ? '
+        + 'Dites-le-moi : je vérifie votre source, je rédige la fiche avec vous, et j’ouvre '
+        + 'une issue GitHub qu’un mainteneur relit avant que rien n’entre dans la carte.',
+      exAdd: 'Il manque une équipe sur la carte',
       sources: 'Fiches consultées',
       offline: 'Le serveur de chat local ne répond pas.',
       offlineHow: 'Lancez-le depuis le dépôt, puis rechargez :',
@@ -50,6 +53,7 @@
       tooMany: 'Beaucoup de demandes depuis cette adresse — réessayez un peu plus tard.',
       busyServer: 'Le chat répond à d’autres visiteurs — réessayez dans une minute.',
       tooLong: 'Ce message est trop long pour le chat.',
+      offlineIssue: 'Une proposition peut aussi se faire directement par une issue :',
       ready: 'prêt', model: 'modèle',
       // proposal
       propAdd: 'Proposer un ajout', propFix: 'Proposer une correction',
@@ -93,8 +97,11 @@
       ex1: 'Who works on power-grid operations in France?',
       ex2: 'Which teams are in the AI4REALNET consortium?',
       ex3: 'What does the map hold on aviation?',
-      introAdd: 'You can also report something missing or wrong: I draft a card for '
-        + 'you to check, and open a GitHub issue for a maintainer to review.',
+      collabH: 'A collaborative map',
+      introAdd: 'Is a team, a project or a standard missing — or is a card wrong? Tell me: '
+        + 'I check your source, draft the card with you, and open a GitHub issue that a '
+        + 'maintainer reviews before anything joins the map.',
+      exAdd: 'A team is missing from the map',
       sources: 'Cards consulted',
       offline: 'The local chat server is not answering.',
       offlineHow: 'Start it from the repository, then reload:',
@@ -106,6 +113,7 @@
       tooMany: 'Many requests from this address — try again a little later.',
       busyServer: 'The chat is answering other visitors — try again in a minute.',
       tooLong: 'That message is too long for the chat.',
+      offlineIssue: 'A proposal can also be made directly as an issue:',
       ready: 'ready', model: 'model',
       propAdd: 'Propose an addition', propFix: 'Propose a correction',
       stepRef: '1 · The reference', stepDraft: '2 · The card', stepIssue: '3 · The issue',
@@ -151,6 +159,8 @@
   // server itself, so its API is same-origin; that is the documented way to
   // run it locally.
   const PUBLIC_SERVER = 'https://mac.tail9919aa.ts.net:8443';
+  // Where the chat's own proposals land, and so where one goes without it.
+  const ISSUES = 'https://github.com/marota/human-ai-collaboration/issues/new';
   const LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/;
   const PUBLIC = !(LOOPBACK.test(location.hostname) || location.protocol === 'file:');
   const BASES = (() => {
@@ -268,6 +278,7 @@
     color:var(--ink-soft);background:none;border:0;border-left:2px solid var(--rule);
     padding:2px 0 2px 9px;margin:0 0 6px;cursor:pointer}
   .ch-ex:hover{color:var(--accent);border-left-color:var(--accent)}
+  .ch-collab{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule);font-size:12.5px}
   /* the proposal card */
   .ch-prop{border:1px solid var(--rule-strong);border-radius:10px;background:var(--paper);
     padding:11px 12px 12px;margin:0 0 14px;box-shadow:var(--shadow-sm)}
@@ -426,9 +437,12 @@
   function intro() {
     const ex = ['ex1', 'ex2', 'ex3'].map((k) =>
       `<button class="ch-ex" type="button" data-ask="${esc(w(k))}">${esc(w(k))}</button>`).join('');
+    // The contribution is offered as plainly as the questions, with an example
+    // of its own that opens a proposal: the map grows by what readers bring.
     return `<div class="ch-msg bot"><p>${esc(w('intro'))}</p>
       <p style="color:var(--ink-faint);font-size:12px">${esc(w('introAsk'))}</p>${ex}
-      <p style="color:var(--ink-faint);font-size:12px">${esc(w('introAdd'))}</p></div>`;
+      <p class="ch-collab"><strong>${esc(w('collabH'))}.</strong> ${esc(w('introAdd'))}</p>
+      <button class="ch-ex" type="button" data-ask="${esc(w('exAdd'))}">${esc(w('exAdd'))}</button></div>`;
   }
 
   function sources(ids) {
@@ -549,7 +563,11 @@
   function offlineHtml(err) {
     const refused = REFUSED[err && err.status];
     if (refused) return esc(w(refused));
-    if (PUBLIC) return `<strong>${esc(w('offlinePublic'))}</strong>`;
+    // A visitor who came to contribute still has a way when the chat is down.
+    if (PUBLIC) {
+      return `<strong>${esc(w('offlinePublic'))}</strong><br>${esc(w('offlineIssue'))}
+        <a href="${ISSUES}" target="_blank" rel="noopener">${esc(ISSUES.replace(/^https:\/\//, ''))}</a>`;
+    }
     return `<strong>${esc(w('offline'))}</strong><br>${esc(w('offlineHow'))}
       <code>python3 chat/server.py</code>
       <span style="color:var(--ink-faint)">${esc(String(err && err.message || err))}</span>`;
