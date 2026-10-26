@@ -1,10 +1,14 @@
 // Chat column — spec §18, invariants 10 and 16.
 //
-// Two halves. The first is the opt-in, and it is the one that protects every
-// other reader: without `?chat=1` there must be no pill, no panel, no host
-// object, and above all no request for hai-chat.js. invariant 10 is asserted
-// over the whole surface in integrity.spec.js; this file asserts the gate
-// itself, from both sides.
+// Three parts. The first is the gate, and it is the one that protects every
+// reader who never asks for the chat: the pill is there, and nothing behind it
+// — no panel, no host object, and above all no request for hai-chat.js — until
+// it is pressed. invariant 10 is asserted over the whole surface in
+// integrity.spec.js; this file asserts the gate itself, from both sides.
+//
+// The last is the published map (§18.6), served here from its real origin so
+// that what is under test is where the chat sends a visitor's words: to the
+// tunnel, never to their own machine, and never where a link says.
 //
 // The second is the column, driven against a stubbed server. The point is not
 // to test the model — nothing here runs one — but the contract between the
@@ -119,33 +123,57 @@ async function stubServer(page, overrides = {}) {
 
 // ================================================================ the opt-in ==
 
-test.describe('§18.1 the opt-in', () => {
-  test('without ?chat=1 there is no chat, and hai-chat.js is never asked for', async ({ page }) => {
+test.describe('§18.1 the gate', () => {
+  test('every reader has the pill, and nothing behind it is fetched until it is pressed', async ({ page }) => {
     const seen = [];
     page.on('request', (r) => seen.push(new URL(r.url()).pathname));
     await openMap(page);
-    expect(seen.filter((p) => p.includes('hai-chat'))).toEqual([]);
-    await expect(page.locator('#chat-pill')).toHaveCount(0);
+    await expect(page.locator('#chat-pill')).toHaveCount(1);
+    await expect(page.locator('#chat-pill')).toHaveAttribute('aria-pressed', 'false');
+    expect(seen.filter((p) => p.includes('hai-chat') || p.startsWith('/api/'))).toEqual([]);
     await expect(page.locator('#chat')).toHaveCount(0);
     expect(await page.evaluate(() => typeof window.HAI_CHAT_HOST)).toBe('undefined');
     expect(await page.evaluate(() => document.body.classList.contains('chat-open'))).toBe(false);
   });
 
+  test('the first press fetches the chat once, opens it, and the pill stays one pill', async ({ page }) => {
+    const calls = await stubServer(page);
+    const scripts = [];
+    page.on('request', (r) => { if (r.url().includes('hai-chat')) scripts.push(r.url()); });
+    await openMap(page);
+    await page.click('#chat-pill');
+    await expect(page.locator('#chat')).toBeVisible();
+    await expect(page.locator('#chat-pill')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => calls.filter((c) => c.path === '/api/health').length).toBe(1);
+    // Adopted, not duplicated: the map's own pill is the chat's toggle now.
+    await expect(page.locator('#chat-pill')).toHaveCount(1);
+    await page.click('#chat-pill');
+    await expect(page.locator('#chat')).toBeHidden();
+    await page.click('#chat-pill');
+    await expect(page.locator('#chat')).toBeVisible();
+    expect(scripts.length, 'hai-chat.js is fetched once, on the first press').toBe(1);
+  });
+
+  test('the pill is labelled through the dictionary, like the pills beside it', async ({ page }) => {
+    await openMap(page, { lang: 'fr' });
+    await expect(page.locator('#chat-pill [data-i18n="chatPill"]')).toHaveText('Chat');
+    expect(await page.evaluate(() => [I18N.fr.chatPill, I18N.en.chatPill])).toEqual(['Chat', 'Chat']);
+  });
+
   test('§18.1 the page itself names no network API and keeps three script tags', async ({}, testInfo) => {
-    // The guard is twenty lines of the page; everything that touches the
+    // The gate is a dozen lines of the page; everything that touches the
     // network lives in the file it appends. integrity.spec.js asserts the
     // absence of fetch( over the whole script — this is the other half: the
-    // opt-in is the only mention of the chat, and it is behind the parameter.
+    // file is named once, by the function the pill and `?chat=1` both call.
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
     const html = await fs.readFile(
       path.resolve(testInfo.project.testDir, '../..', 'assets/map/eu-hai-map.html'), 'utf8');
-    // One assignment, and it is inside the guard. (The prose above it names
-    // the file too, which is the point of the prose.)
     expect((html.match(/src = 'hai-chat\.js'/g) || []).length).toBe(1);
-    expect(html).toContain("get('chat') === '1'");
-    const guard = html.slice(html.indexOf("get('chat') === '1'"));
-    expect(guard).toContain("src = 'hai-chat.js'");
+    const loader = html.slice(html.indexOf('function loadChat'));
+    expect(loader.slice(0, loader.indexOf('\n}\n'))).toContain("src = 'hai-chat.js'");
+    expect(html).toContain("chatPill.addEventListener('click', loadChat, { once: true })");
+    expect(html).toContain("get('chat') === '1') loadChat()");
     expect((html.match(/<script\b[^>]*>/g) || []).length).toBe(3);
   });
 
@@ -535,5 +563,102 @@ test.describe('§18 invariant 9 — the chat escapes what it renders', () => {
     expect(await bot.locator('a').count()).toBe(1);
     await expect(bot.locator('a')).toHaveAttribute('href', 'https://example.org/x');
     await expect(bot.locator('a')).toHaveAttribute('target', '_blank');
+  });
+});
+
+// ========================================================= the published map ==
+
+const PAGES = 'https://marota.github.io/human-ai-collaboration';
+const TUNNEL = 'https://mac.tail9919aa.ts.net:8443';
+
+/** Serve the map from its published origin, so the page decides where its
+ *  server is exactly as it does for a visitor. */
+async function openPublished(page, testInfo, query = '', lang = 'en') {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const root = path.resolve(testInfo.project.testDir, '../..');
+  await page.route(`${PAGES}/**`, async (route) => {
+    const rel = new URL(route.request().url()).pathname.replace('/human-ai-collaboration/', '');
+    const type = rel.endsWith('.js') ? 'application/javascript' : 'text/html';
+    await route.fulfill({ status: 200, contentType: `${type}; charset=utf-8`,
+      body: await fs.readFile(path.join(root, rel)) });
+  });
+  await page.addInitScript(() => {
+    try { localStorage.clear(); localStorage.setItem('hai-map-v2-seen', '1'); } catch { /* */ }
+  });
+  await page.goto(`${PAGES}/assets/map/eu-hai-map.html?lang=${lang}${query}`);
+  await expect(page.locator('#st-note')).not.toBeEmpty();
+}
+
+test.describe('§18.6 the published map', () => {
+  test('a press talks to the tunnel, and never to the visitor\'s own machine', async ({ page }, testInfo) => {
+    const calls = await stubServer(page);
+    const hosts = [];
+    page.on('request', (r) => hosts.push(new URL(r.url()).origin));
+    await openPublished(page, testInfo);
+    await page.click('#chat-pill');
+    await expect(page.locator('#ch-state .ch-dot.on')).toBeVisible();
+    expect(calls.filter((c) => c.path === '/api/health').length).toBe(1);
+    expect([...new Set(hosts)].sort()).toEqual(['https://mac.tail9919aa.ts.net:8443',
+      'https://marota.github.io']);
+  });
+
+  test('?chatapi= is not obeyed on the published map', async ({ page }, testInfo) => {
+    // Otherwise a link could send a visitor's conversation, and the proposal
+    // they type into it, to whatever server it named.
+    await stubServer(page);
+    const hosts = [];
+    page.on('request', (r) => hosts.push(new URL(r.url()).origin));
+    await openPublished(page, testInfo, '&chatapi=https://collector.example');
+    await page.click('#chat-pill');
+    await expect(page.locator('#ch-state .ch-dot.on')).toBeVisible();
+    expect(hosts).not.toContain('https://collector.example');
+    expect(hosts).toContain(TUNNEL);
+  });
+
+  test('a server that does not answer is explained, with no command to run', async ({ page }, testInfo) => {
+    await page.route(`${TUNNEL}/**`, (route) => route.abort('connectionrefused'));
+    await openPublished(page, testInfo);
+    await page.click('#chat-pill');
+    const said = page.locator('#chat');
+    await expect(said).toContainText('The chat is not available right now');
+    await expect(said).toContainText('The map itself works as usual');
+    await expect(said).not.toContainText('python3');
+    await expect(page.locator('#ch-input')).toBeDisabled();
+  });
+
+  test('a visitor over the ceiling is told so in their own language', async ({ page }, testInfo) => {
+    await stubServer(page, {
+      '/api/chat': (route) => route.fulfill({ status: 429, contentType: 'application/json',
+        headers: { 'Retry-After': '600' }, body: JSON.stringify({ error: 'too many requests' }) }),
+    });
+    await openPublished(page, testInfo, '', 'fr');
+    await page.click('#chat-pill');
+    await expect(page.locator('#ch-state .ch-dot.on')).toBeVisible();
+    await page.fill('#ch-input', 'Qui travaille sur le réseau électrique ?');
+    await page.click('#ch-send');
+    await expect(page.locator('#chat')).toContainText('Beaucoup de demandes depuis cette adresse');
+    await expect(page.locator('#chat')).not.toContainText('too many requests');
+  });
+
+  test('a local page keeps a loopback ?chatapi=, and only a loopback one', async ({ page }) => {
+    const hosts = [];
+    page.on('request', (r) => hosts.push(new URL(r.url()).origin));
+    await page.route('http://127.0.0.1:4999/**', (route) => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify(HEALTH) }));
+    await openMap(page, { hash: '&chatapi=http://127.0.0.1:4999' });
+    await page.click('#chat-pill');
+    await expect(page.locator('#ch-state .ch-dot.on')).toBeVisible();
+    expect(hosts).toContain('http://127.0.0.1:4999');
+
+    const elsewhere = [];
+    await page.route('https://collector.example/**', (route) => {
+      elsewhere.push(route.request().url());
+      return route.abort();
+    });
+    await openMap(page, { hash: '&chatapi=https://collector.example' });
+    await page.click('#chat-pill');
+    await expect(page.locator('#chat')).toBeVisible();
+    expect(elsewhere).toEqual([]);
   });
 });

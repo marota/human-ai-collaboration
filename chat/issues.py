@@ -5,7 +5,9 @@ entity would have, the reference it rests on, what the contributor was asked
 and answered, and a checklist against the review bar in the data repository's
 CONTRIBUTING.md. A maintainer reads it and turns it into a pull request, or
 closes it. That is the whole authority model, and it is why the chat can be
-left running for someone else to use.
+left running for someone else to use — including, since the map was published
+with it (§18.6), a visitor nobody has met. Their issues say so, keep their words
+in a code block, and cannot ping anyone.
 
 Posting goes through the `gh` CLI rather than a token of our own: it is already
 authenticated on this machine, it keeps credentials out of this repository, and
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from typing import Any
@@ -29,6 +32,15 @@ REPO = os.environ.get("HAI_CHAT_REPO", "marota/human-ai-collaboration")
 DATA_REPO = os.environ.get("HAI_CHAT_DATA_REPO", "marota/eu-hai-collab-map")
 LABELS = tuple(l.strip() for l in os.environ.get("HAI_CHAT_LABELS", "").split(",") if l.strip())
 DRY_RUN = os.environ.get("HAI_CHAT_DRY_RUN") == "1"
+# Added to an issue a visitor opened, when the repository has the label: the
+# curator's own proposals and a stranger's are triaged differently.
+PUBLIC_LABEL = os.environ.get("HAI_CHAT_PUBLIC_LABEL", "via-public-chat")
+
+# GitHub turns `@name` into a notification and `owner/repo#12` into an event on
+# somebody else's issue. A zero-width space after the sigil keeps the text
+# readable and the link inert.
+_MENTION_RE = re.compile(r"@(?=[A-Za-z0-9])")
+_ISSUE_REF_RE = re.compile(r"#(?=\d)")
 
 
 class IssueError(RuntimeError):
@@ -56,6 +68,18 @@ def available_labels() -> set[str]:
         return set()
 
 
+def defang(text: str) -> str:
+    """A visitor's words, unable to mention anyone or cross-reference any issue."""
+    return _ISSUE_REF_RE.sub("#\u200b", _MENTION_RE.sub("@\u200b", str(text)))
+
+
+def _fenced(text: str) -> list[str]:
+    """Text in a code block no content can close: the fence outruns its backticks."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return [fence + "text", text, fence]
+
+
 def title_for(mode: str, layer: str, card: dict[str, Any],
               changed: list[dict[str, Any]] | None = None) -> str:
     name = card.get("name") or card.get("id") or "?"
@@ -78,16 +102,25 @@ def _value(v: Any) -> str:
 def body_for(mode: str, layer: str, card: dict[str, Any], *,
              reference: dict[str, Any] | None, report: dict[str, Any] | None,
              changed: list[dict[str, Any]] | None, transcript: str,
-             lang: str, as_of: str) -> str:
+             lang: str, as_of: str, public: bool = False) -> str:
+    """The issue a maintainer reads.
+
+    `public` is a proposal from the published map: someone outside this machine
+    wrote every free-text field in it, so outside code blocks those fields are
+    defanged, and the conversation goes in a code block whole.
+    """
     path = f"{LAYER_DIR[layer]}/{card.get('id', '<slug>')}.yml"
     rows: list[str] = []
+    said = defang if public else str
+    via = ("the published map's chat, by a visitor who is not identified"
+           if public else "the map's chat")
 
     if mode == "add":
-        rows.append(f"A new **{layer}** card, proposed through the map's chat. It would "
+        rows.append(f"A new **{layer}** card, proposed through {via}. It would "
                     f"become `{path}` in [{DATA_REPO}](https://github.com/{DATA_REPO}).")
     else:
-        rows.append(f"A correction to **{card.get('name')}** (`{card.get('id')}`), proposed "
-                    f"through the map's chat. The file is `{path}` in "
+        rows.append(f"A correction to **{said(card.get('name'))}** (`{card.get('id')}`), "
+                    f"proposed through {via}. The file is `{path}` in "
                     f"[{DATA_REPO}](https://github.com/{DATA_REPO}).")
 
     ref = reference or {}
@@ -97,11 +130,11 @@ def body_for(mode: str, layer: str, card: dict[str, Any], *,
                    else "**the page does not name the entity** — worth a second look")
         rows.append(f"- {ref['url']}")
         if ref.get("title"):
-            rows.append(f"- Title: {ref['title']}")
+            rows.append(f"- Title: {said(ref['title'])}")
         rows.append(f"- Fetched {ref.get('fetched_at', '?')}, "
                     f"HTTP {ref.get('status', '?')} — {verdict}.")
         if ref.get("error"):
-            rows.append(f"- Fetch note: {ref['error']}")
+            rows.append(f"- Fetch note: {said(ref['error'])}")
     else:
         rows.append("- **None supplied.** The claim rests on the conversation alone.")
 
@@ -110,7 +143,7 @@ def body_for(mode: str, layer: str, card: dict[str, Any], *,
                  "|---|---|---|"]
         for row in changed:
             rows.append(f"| `{row['path']}` | {_value(row.get('before'))} | "
-                        f"{_value(row.get('after'))} |")
+                        f"{said(_value(row.get('after')))} |")
         rows.append("")
         rows.append(f"The map's snapshot is dated {as_of}; a field that changed upstream "
                     "since then may already be fixed.")
@@ -132,9 +165,9 @@ def body_for(mode: str, layer: str, card: dict[str, Any], *,
     rows.append("- Schema fields and controlled vocabulary: "
                 + ("pass" if rep.get("ok") else "**fail**"))
     for err in rep.get("errors") or []:
-        rows.append(f"  - `{err['path']}` — {err['message']}")
+        rows.append(f"  - `{err['path']}` — {said(err['message'])}")
     for warn in rep.get("warnings") or []:
-        rows.append(f"- Note: {warn['message']}")
+        rows.append(f"- Note: {said(warn['message'])}")
     rows += ["",
              "Review bar, from the data repository's CONTRIBUTING.md:", "",
              "- [ ] **Scope fit** — European, industrial or critical decision-making, "
@@ -144,13 +177,16 @@ def body_for(mode: str, layer: str, card: dict[str, Any], *,
              "- [ ] **Coordinates** — the latitude and longitude point at the right place."]
 
     if transcript:
+        said_whole = _fenced(transcript.strip()) if public else [transcript.strip()]
         rows += ["", "<details><summary>The conversation this came from</summary>", "",
-                 transcript.strip(), "", "</details>"]
+                 *said_whole, "", "</details>"]
 
+    where = "public" if public else "local"
+    who = "the visitor" if public else "the contributor"
     rows += ["", "---", "",
-             f"Drafted by the map's local chat ({'French' if lang == 'fr' else 'English'}) "
-             f"against the snapshot dated {as_of}, and reviewed on screen by the "
-             "contributor before it was opened. Nothing has been changed on the map."]
+             f"Drafted by the map's {where} chat ({'French' if lang == 'fr' else 'English'}) "
+             f"against the snapshot dated {as_of}, and reviewed on screen by {who} "
+             "before it was opened. Nothing has been changed on the map."]
     return "\n".join(rows)
 
 

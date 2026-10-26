@@ -7,7 +7,8 @@ while they are still here to answer.
 
 The model runs on this machine, through [Ollama](https://ollama.com). Nothing
 is sent anywhere else except the reference page the contributor asks us to read,
-and the issue they explicitly choose to open.
+and the issue they explicitly choose to open. The published map reaches it
+through a tunnel — see [Publishing it](#publishing-it).
 
 The design and the reasoning behind it are §18 of
 [`docs/map-interface-spec.md`](../docs/map-interface-spec.md). This file is how
@@ -25,12 +26,14 @@ Then open the URL it prints:
 http://127.0.0.1:8765/assets/map/eu-hai-map.html?chat=1
 ```
 
-The server serves the repository as well as the API, so that one command is the
-whole setup. There is nothing to install: it is the Python standard library,
-`ollama` for the model, and `gh` for the issue.
+The server serves the map as well as the API, so that one command is the whole
+setup. There is nothing to install: it is the Python standard library, `ollama`
+for the model, and `gh` for the issue. It serves `assets/map/` and nothing else
+from the repository, and that only to this machine.
 
-Without `?chat=1` the map is exactly the page it always was — no chat, and no
-network request of any kind. That is the point of the parameter.
+`?chat=1` opens the column on arrival. Without it the map shows a Chat pill and
+nothing else: no chat, and no network request of any kind, until the pill is
+pressed.
 
 ### Already running Jekyll?
 
@@ -40,7 +43,7 @@ Keep your dev server and point the chat at this one:
 http://127.0.0.1:4000/assets/map/eu-hai-map.html?chat=1&chatapi=http://127.0.0.1:8765
 ```
 
-Only loopback origins are accepted.
+Only a loopback address is taken, and only from a page on this machine.
 
 ## What it needs
 
@@ -87,7 +90,7 @@ All optional; the defaults are what this machine runs.
 | Variable | Default | What it does |
 |---|---|---|
 | `HAI_CHAT_PORT` | `8765` | port |
-| `HAI_CHAT_HOST` | `127.0.0.1` | interface. Leave it alone: this server can open issues as you. |
+| `HAI_CHAT_HOST` | `127.0.0.1` | interface. Leave it alone: this server can open issues as you. To publish it, put the tunnel in front instead. |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | where Ollama listens |
 | `HAI_CHAT_MODEL` | `gemma4-a4b-qat-32k:latest` | the conversation |
 | `HAI_DRAFT_MODEL` | `qwen3.8:27b` | drafting a card |
@@ -101,8 +104,46 @@ All optional; the defaults are what this machine runs.
 | `HAI_CHAT_LABELS` | — | comma-separated; labels that do not exist are skipped |
 | `HAI_CHAT_DRY_RUN` | off | run the whole flow and post nothing |
 | `HAI_CHAT_KEEP_ALIVE` | `30m` | how long Ollama keeps a model loaded |
+| `HAI_CHAT_ORIGINS` | `https://marota.github.io` | comma-separated; the published origins a visitor's browser may call from |
+| `HAI_CHAT_ISSUES_PER_DAY` | `20` | issues all visitors together may open in a day |
+| `HAI_CHAT_PUBLIC_CHATS` | `2` | visitor conversations answered at once; past that, "busy" |
+| `HAI_CHAT_PUBLIC_LABEL` | `via-public-chat` | added to a visitor's issue, when the repository has the label |
 
 `--warm` loads both models before serving, so the first turn is not the slow one.
+
+## Publishing it
+
+The map on GitHub Pages has the same pill, and its chat calls
+`https://mac.tail9919aa.ts.net:8443` — this machine, through
+[Tailscale Funnel](https://tailscale.com/kb/1223/funnel). The server stays on
+loopback; Funnel is what faces the internet.
+
+```bash
+python3 chat/server.py                                   # as above, on 127.0.0.1:8765
+tailscale funnel --bg --https=8443 http://127.0.0.1:8765
+tailscale funnel status                                  # should list :8443, "Funnel on"
+```
+
+Port 8443 keeps this apart from anything already served on 443. The first
+`tailscale funnel` on a tailnet asks an admin to allow Funnel for the node,
+with a link; that is a one-time switch in the Tailscale admin console.
+
+Then check from outside that a visitor gets the API and nothing else:
+
+```bash
+curl -s https://mac.tail9919aa.ts.net:8443/api/health | python3 -m json.tool   # trimmed
+curl -s -o /dev/null -w '%{http_code}\n' https://mac.tail9919aa.ts.net:8443/assets/map/eu-hai-map.html  # 404
+```
+
+To stop publishing: `tailscale funnel --https=8443 off`. The published map then
+says the chat is unavailable, and keeps working.
+
+**What a visitor can and cannot do** is §18.6 of the spec, and
+`tests/chat/test_public.py` holds it: no file from the repository, ceilings per
+address and per day, a cap on concurrent generations, references fetched only
+from the public internet, and issues that say a visitor opened them and cannot
+mention anyone. Every request through the tunnel is logged with its address.
+If the chat is abused, stopping Funnel is the switch.
 
 ## What it will and will not do
 

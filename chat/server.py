@@ -4,34 +4,46 @@
 One process, the standard library, and a model already running on this machine.
 It does three things:
 
-1. **Serves the repository**, so the map and the chat live at the same origin
-   and `python3 chat/server.py` is the whole setup. Point a browser at
+1. **Serves the map**, so the map and the chat live at the same origin and
+   `python3 chat/server.py` is the whole setup. Point a browser at
    http://127.0.0.1:8765/assets/map/eu-hai-map.html?chat=1 and the chat column
-   appears beside the map.
+   appears beside the map. Only `assets/map/` is served, and only to this
+   machine: the repository holds things that were never meant to be.
 2. **Answers questions about the map**, grounded in `assets/map/hai-data.js` —
    the same payload the page draws — and in nothing else.
 3. **Takes a proposal**: an addition or a correction, with a reference it
    checks, a draft card the contributor edits on the spot, and a GitHub issue
    at the end for a maintainer to review.
 
-It binds to the loopback interface. It can open issues on the repository as
-whoever `gh` is logged in as, so it is not something to expose to a network.
+It binds to the loopback interface, and it can open issues as whoever `gh` is
+logged in as. The published map reaches it anyway — through a tunnel in front
+of it (Tailscale Funnel, spec §18.6), never by binding wider. A request that
+arrives through the tunnel is a visitor's, and gets the API and nothing else:
+no file from the repository, the published map as the only cross-origin
+caller, ceilings per visitor and per day, a cap on concurrent generations, and
+issues that say who opened them. The curator's own requests are not limited.
 
     python3 chat/server.py [--port 8765] [--host 127.0.0.1]
 
 Environment: OLLAMA_URL, HAI_CHAT_MODEL, HAI_DRAFT_MODEL, HAI_CHAT_NUM_CTX,
-HAI_CHAT_REPO, HAI_CHAT_DATA_REPO, HAI_CHAT_LABELS, HAI_CHAT_DRY_RUN.
+HAI_CHAT_REPO, HAI_CHAT_DATA_REPO, HAI_CHAT_LABELS, HAI_CHAT_DRY_RUN,
+HAI_CHAT_ORIGINS, HAI_CHAT_ISSUES_PER_DAY, HAI_CHAT_PUBLIC_LABEL.
 """
 from __future__ import annotations
 
 import argparse
+import collections
+import contextlib
 import datetime as dt
 import json
 import os
+import posixpath
 import re
 import sys
 import threading
+import time
 import traceback
+import urllib.parse
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -51,10 +63,29 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_JS = REPO_ROOT / "assets" / "map" / "hai-data.js"
 
 MAX_BODY = 1_000_000
-# Only loopback origins may call the API. The common case is same-origin (this
-# server serves the page too); the exception is a Jekyll dev server on another
-# port, which is still this machine.
+# What a visitor's request may carry, and how much of a conversation is read: a
+# proposal with its whole exchange is a few kilobytes, and no turn is a document.
+MAX_PUBLIC_BODY = 64_000
+PUBLIC_TURNS = 12
+PUBLIC_TURN_CHARS = 4_000
+PUBLIC_TITLE_CHARS = 120
+
+# For the curator, only loopback origins may call the API. The common case is
+# same-origin (this server serves the page too); the exception is a Jekyll dev
+# server on another port, which is still this machine.
 _LOCAL_ORIGIN_RE = re.compile(r"^https?://(127\.0\.0\.1|\[::1\]|localhost)(:\d+)?$")
+# For a visitor, only the published map. Comma-separated, so a fork can name
+# its own Pages origin.
+PUBLIC_ORIGINS = frozenset(
+    o.strip().rstrip("/")
+    for o in os.environ.get("HAI_CHAT_ORIGINS", "https://marota.github.io").split(",")
+    if o.strip())
+_LOOPBACK_HOST_RE = re.compile(r"^(127\.0\.0\.1|\[::1\]|localhost)(:\d+)?$")
+# Headers a reverse proxy adds. The tunnel connects from loopback, so the
+# socket cannot tell a visitor from the curator; these can.
+_FORWARDED = ("X-Forwarded-For", "X-Forwarded-Host", "Forwarded", "Tailscale-Funnel-Request")
+# The one directory a browser on this machine is served from.
+STATIC_DIR = "/assets/map/"
 
 
 class Corpus:
@@ -83,6 +114,87 @@ class Corpus:
 CORPUS = Corpus(DATA_JS)
 
 
+class Limits:
+    """Ceilings on what visitors can ask of this machine.
+
+    Every visitor turn spends this machine's GPU, and every issue lands in the
+    maintainers' queue under the account `gh` is logged in as — so both are
+    bounded per visitor, and issues across all of them too. The curator's own
+    requests never come through here.
+    """
+
+    # bucket -> (requests, window in seconds), per visitor
+    PER_VISITOR = {
+        "/api/chat": (20, 600),
+        "/api/draft": (6, 3600),
+        "/api/reference": (12, 600),
+        "/api/issue": (30, 600),        # previews; what is opened is "issue-opened"
+        "/api/validate": (60, 600),
+        "/api/spec": (60, 600),
+        "/api/health": (60, 600),
+        "issue-opened": (3, 86_400),
+    }
+    # bucket -> (requests, window in seconds), all visitors together
+    ACROSS = {"issue-opened": (int(os.environ.get("HAI_CHAT_ISSUES_PER_DAY", "20")), 86_400)}
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._hits: dict[tuple[str, str], collections.deque[float]] = {}
+
+    def take(self, bucket: str, visitor: str) -> int:
+        """Count one request and return 0, or count nothing and return the wait."""
+        now = time.monotonic()
+        rules = [(k, r) for k, r in ((visitor, self.PER_VISITOR.get(bucket)),
+                                     ("*", self.ACROSS.get(bucket))) if r]
+        with self._lock:
+            if len(self._hits) > 10_000:
+                self._prune(now)
+            wait = 0
+            for who, (n, window) in rules:
+                q = self._hits.setdefault((who, bucket), collections.deque())
+                while q and now - q[0] > window:
+                    q.popleft()
+                if len(q) >= n:
+                    wait = max(wait, int(window - (now - q[0])) + 1)
+            if not wait:
+                for who, _ in rules:
+                    self._hits[(who, bucket)].append(now)
+            return wait
+
+    def _prune(self, now: float) -> None:
+        longest = max(w for _, w in [*self.PER_VISITOR.values(), *self.ACROSS.values()])
+        for key in [k for k, q in self._hits.items() if not q or now - q[-1] > longest]:
+            del self._hits[key]
+
+
+LIMITS = Limits()
+
+
+class _Busy(Exception):
+    pass
+
+
+# A visitor's turn runs on the model the curator uses, and two at once is
+# already slow on one machine. Past the cap the answer is "busy", not a queue.
+_PUBLIC_GATES = {
+    "/api/chat": threading.BoundedSemaphore(int(os.environ.get("HAI_CHAT_PUBLIC_CHATS", "2"))),
+    "/api/draft": threading.BoundedSemaphore(1),
+}
+
+
+@contextlib.contextmanager
+def _slot(gate: threading.BoundedSemaphore | None):
+    if gate is None:
+        yield
+        return
+    if not gate.acquire(blocking=False):
+        raise _Busy
+    try:
+        yield
+    finally:
+        gate.release()
+
+
 class Handler(SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "hai-map-chat"
@@ -91,30 +203,97 @@ class Handler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: A003
         if self.path.startswith("/api/"):
-            sys.stderr.write(f"  {self.command} {self.path} — {fmt % args}\n")
+            who = f" [visitor {self._visitor()}]" if self._is_public() else ""
+            sys.stderr.write(f"  {self.command} {self.path}{who} — {fmt % args}\n")
+
+    def _is_public(self) -> bool:
+        """Whether this request came from outside this machine.
+
+        Local means plainly local: a loopback Host and no proxy header. Anything
+        else, including anything ambiguous, gets a visitor's treatment — this
+        fails closed, never open.
+        """
+        headers = getattr(self, "headers", None)
+        if headers is None:
+            return True
+        if not _LOOPBACK_HOST_RE.match(headers.get("Host", "")):
+            return True
+        return any(headers.get(h) for h in _FORWARDED)
+
+    def _visitor(self) -> str:
+        """Who to count a visitor's requests against.
+
+        The last X-Forwarded-For entry, because that is the one the tunnel
+        wrote; anything before it the visitor can write themselves.
+        """
+        headers = getattr(self, "headers", None)
+        hops = [h.strip() for h in (headers.get("X-Forwarded-For", "") if headers else "").split(",")]
+        return next((h for h in reversed(hops) if h), self.client_address[0])
 
     def _cors(self) -> None:
         origin = self.headers.get("Origin")
-        if origin and (_LOCAL_ORIGIN_RE.match(origin) or origin == "null"):
+        if not origin:
+            return
+        allowed = (origin in PUBLIC_ORIGINS if self._is_public()
+                   else bool(_LOCAL_ORIGIN_RE.match(origin)) or origin == "null")
+        if allowed:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
 
-    def _json(self, payload: Any, status: int = 200) -> None:
+    def _json(self, payload: Any, status: int = 200, *, close: bool = False,
+              headers: dict[str, str] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
+        if close:
+            # Answered before the body was read: on a kept-alive connection its
+            # bytes would be parsed as the next request.
+            self.send_header("Connection", "close")
+            self.close_connection = True
         self._cors()
         self.end_headers()
         self.wfile.write(body)
 
-    def _fail(self, message: str, status: int = 400) -> None:
-        self._json({"error": message}, status)
+    def _fail(self, message: str, status: int = 400, *, close: bool = False) -> None:
+        self._json({"error": message}, status, close=close)
 
-    def _read_json(self) -> dict[str, Any]:
+    def _limited(self, bucket: str) -> bool:
+        """Answer 429 when a visitor is over a ceiling, and say whether it did."""
+        wait = LIMITS.take(bucket, self._visitor())
+        if not wait:
+            return False
+        self._json({"error": "too many requests from this address — try again later",
+                    "retry_after": wait}, 429, close=True,
+                   headers={"Retry-After": str(wait)})
+        return True
+
+    def _static_ok(self, route: str) -> bool:
+        """The map's own directory, to this machine, with nothing hidden in it."""
+        if self._is_public():
+            return False
+        path = posixpath.normpath(urllib.parse.unquote(route))
+        return (path.startswith(STATIC_DIR)
+                and not any(part.startswith(".") for part in path.split("/")))
+
+    def _trimmed(self, history: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        """A visitor's conversation as the server will read it, or None if a turn is too long."""
+        if not self._is_public():
+            return history
+        if any(len(str(t.get("content") or "")) > PUBLIC_TURN_CHARS
+               for t in history if t.get("role") == "user"):
+            return None
+        history = history[-PUBLIC_TURNS:]
+        while history and history[0].get("role") != "user":
+            history = history[1:]
+        return history
+
+    def _read_json(self, limit: int = MAX_BODY) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or 0)
-        if length > MAX_BODY:
+        if length > limit:
             raise ValueError("request too large")
         raw = self.rfile.read(length) if length else b"{}"
         try:
@@ -153,36 +332,57 @@ class Handler(SimpleHTTPRequestHandler):
         self._cors()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        # The published map is cross-origin, so every POST would otherwise
+        # cost a preflight round trip through the tunnel first.
+        self.send_header("Access-Control-Max-Age", "600")
         self.send_header("Content-Length", "0")
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path.startswith("/api/"):
-            route = self.path.split("?")[0]
+        route = self.path.split("?")[0]
+        if route.startswith("/api/"):
+            if self._is_public() and self._limited(route):
+                return
             if route == "/api/health":
                 return self._health()
             if route == "/api/spec":
                 return self._spec()
             return self._fail("no such endpoint", 404)
+        if not self._static_ok(route):
+            return self.send_error(HTTPStatus.NOT_FOUND)
         return super().do_GET()
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        # HEAD answers with a file's size and date; the same gate as GET.
+        if not self._static_ok(self.path.split("?")[0]):
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        return super().do_HEAD()
 
     def do_POST(self) -> None:  # noqa: N802
         route = self.path.split("?")[0]
+        public = self._is_public()
+        if public and self._limited(route):
+            return
         try:
-            body = self._read_json()
+            body = self._read_json(MAX_PUBLIC_BODY if public else MAX_BODY)
         except ValueError as e:
-            return self._fail(str(e))
+            return self._fail(str(e), close=True)
         try:
-            if route == "/api/chat":
-                return self._chat(body)
-            if route == "/api/reference":
-                return self._reference(body)
-            if route == "/api/draft":
-                return self._draft(body)
-            if route == "/api/validate":
-                return self._validate(body)
-            if route == "/api/issue":
-                return self._issue(body)
+            with _slot(_PUBLIC_GATES.get(route) if public else None):
+                if route == "/api/chat":
+                    return self._chat(body)
+                if route == "/api/reference":
+                    return self._reference(body)
+                if route == "/api/draft":
+                    return self._draft(body)
+                if route == "/api/validate":
+                    return self._validate(body)
+                if route == "/api/issue":
+                    return self._issue(body)
+        except _Busy:
+            return self._json({"error": "the chat is busy with other visitors — try again "
+                               "in a minute", "retry_after": 30}, 503,
+                              headers={"Retry-After": "30"})
         except (refmod.ReferenceError, issues.IssueError, llm.OllamaError) as e:
             return self._fail(str(e), 502)
         except Exception:  # noqa: BLE001 — a local tool should say what broke
@@ -194,14 +394,18 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _health(self) -> None:
         corpus = CORPUS.get()
-        self._json({
-            "ok": True,
-            "data": {"as_of": corpus.as_of, "counts": corpus.counts(),
-                     "source": str(DATA_JS.relative_to(REPO_ROOT))},
-            "model": llm.health(),
-            "github": issues.health(),
-            "layers": list(hai_data.LAYERS),
-        })
+        data = {"as_of": corpus.as_of, "counts": corpus.counts(),
+                "source": str(DATA_JS.relative_to(REPO_ROOT))}
+        model, gh = llm.health(), issues.health()
+        if self._is_public():
+            # A visitor needs to know whether the chat can answer and whether a
+            # proposal can be sent — not this machine's model inventory, the
+            # address of its model server, or which account posts the issues.
+            data.pop("source")
+            model = {k: model.get(k) for k in ("reachable", "ok", "missing", "chat_model")}
+            gh = {k: gh.get(k) for k in ("ok", "dry_run")}
+        self._json({"ok": True, "data": data, "model": model, "github": gh,
+                    "layers": list(hai_data.LAYERS)})
 
     def _spec(self) -> None:
         query = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
@@ -217,6 +421,9 @@ class Handler(SimpleHTTPRequestHandler):
         history = [t for t in body.get("messages") or []
                    if isinstance(t, dict) and t.get("role") in ("user", "assistant")
                    and isinstance(t.get("content"), str)]
+        history = self._trimmed(history)
+        if history is None:
+            return self._fail("that message is too long", 413)
         if not history:
             return self._fail("no messages")
         lang = "fr" if str(body.get("lang", "en")).startswith("fr") else "en"
@@ -305,7 +512,9 @@ class Handler(SimpleHTTPRequestHandler):
         corpus = CORPUS.get()
         mode = "fix" if body.get("mode") == "fix" else "add"
         lang = "fr" if str(body.get("lang", "en")).startswith("fr") else "en"
-        history = [t for t in body.get("messages") or [] if isinstance(t, dict)]
+        history = self._trimmed([t for t in body.get("messages") or [] if isinstance(t, dict)])
+        if history is None:
+            return self._fail("that message is too long", 413)
         transcript = prompts.transcript_of(history)
 
         target = str(body.get("target") or "")
@@ -384,22 +593,30 @@ class Handler(SimpleHTTPRequestHandler):
         changed = cards.diff(current, card, layer) if current else []
         report = cards.validate(layer, card, corpus, mode, lang).as_json()
 
+        public = self._is_public()
         title = str(body.get("title") or "").strip() or \
             issues.title_for(mode, layer, card, changed)
+        if public:
+            title = issues.defang(" ".join(title.split()))[:PUBLIC_TITLE_CHARS]
         text = issues.body_for(
             mode, layer, card,
             reference=body.get("reference") or None,
             report=report,
             changed=changed,
             transcript=str(body.get("transcript") or ""),
-            lang=lang, as_of=corpus.as_of)
+            lang=lang, as_of=corpus.as_of, public=public)
 
         if body.get("preview"):
             return self._json({"preview": True, "title": title, "body": text,
                                "repo": issues.REPO, "report": report})
-        if not report["ok"] and not body.get("force"):
+        # `force` is the curator overriding a check they have read. A visitor
+        # cannot: their proposal passes its checks or it is not opened.
+        if not report["ok"] and (public or not body.get("force")):
             return self._fail("the proposal does not pass its checks yet", 422)
-        result = issues.create(title, text)
+        if public and self._limited("issue-opened"):
+            return
+        labels = issues.LABELS + ((issues.PUBLIC_LABEL,) if public else ())
+        result = issues.create(title, text, labels=labels)
         result["report"] = report
         self._json(result)
 
@@ -429,6 +646,8 @@ def main() -> None:
     print(f"  issues   {gh['repo']}"
           + (f" as {gh['account']}" if gh.get("account") else f" — {gh.get('error', '')}"))
     print(f"  open     http://{args.host}:{args.port}/assets/map/eu-hai-map.html?chat=1")
+    print(f"  public   API only, for {', '.join(sorted(PUBLIC_ORIGINS))}, through the "
+          "tunnel — see chat/README.md")
 
     if args.warm:
         for tag in {llm.CHAT_MODEL, llm.DRAFT_MODEL}:

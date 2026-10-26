@@ -687,8 +687,9 @@ test.describe('§1 no dependencies — what the file itself says', () => {
     // The `<img src=x>` inside the escaping tests' own payload is not in the
     // page, so the only srcs left are the local scripts of ownFiles() — and
     // `hai-chat.js`, which no markup references and the browser never fetches
-    // at load time: it is assigned in the §18 opt-in, behind `?chat=1`, and
-    // chat.spec.js asserts that it is not requested without it.
+    // at load time: it is assigned in the §18 gate, on the first press of the
+    // Chat pill or with `?chat=1`, and chat.spec.js asserts that it is not
+    // requested before either.
     expect([...new Set(srcs)].sort()).toEqual(
       [...ownFiles().slice(1).map((f) => f.replace(/^.*\//, '')), 'hai-chat.js'].sort());
 
