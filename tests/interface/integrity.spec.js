@@ -28,13 +28,31 @@ import { openMap, settleCounts, snapshot, setLayers, setPeriod, applyPreset, nud
 
 // ---------------------------------------------------------------- fixtures ---
 
-/** The three files the published page is allowed to load (§2), as paths,
- *  derived from MAP_PATH so a mutation run pointed at a doctored copy still
- *  compares against that copy's own directory. */
+/** Every file the published page is allowed to load (§2), as paths, in the
+ *  order the document declares them — derived from MAP_PATH so a mutation run
+ *  pointed at a doctored copy still compares against that copy's own directory.
+ *
+ *  SPEC-DEVIATION: §2's architecture table lists three files (the page,
+ *  hai-data.js, europe-geo.js) and §16.10's wording — "the page loads three
+ *  local files" — follows it. The shipped page loads four: `hai-data-additions.js`
+ *  now sits between the payload and the geometry. That file says of itself that
+ *  it is temporary — it merges a handful of entries into `window.HAI_DATA` by id
+ *  and "once hai-data.js has been regenerated this file becomes a harmless
+ *  no-op and can be deleted" — so the deviation closes by itself at the next
+ *  regeneration, with no change to the page. The substance of invariant 10 is
+ *  untouched: no network, no CDN, no analytics, no tiles, no fonts. So this list
+ *  asserts the set of requests as it actually is, and nothing else may join it.
+ */
 function ownFiles() {
   const dir = MAP_PATH.replace(/[^/]*$/, '');
-  return [MAP_PATH, `${dir}hai-data.js`, `${dir}europe-geo.js`];
+  return [MAP_PATH, `${dir}hai-data.js`, `${dir}hai-data-additions.js`, `${dir}europe-geo.js`];
 }
+
+/** How many <script> nodes a clean document has: one per local script in
+ *  ownFiles(), plus the single inline script §2 requires. Derived from the file
+ *  list rather than written out, so the two cannot drift apart — and the §2 test
+ *  below pins the page's own declarations against that same list. */
+const scriptNodes = () => ownFiles().filter((p) => p.endsWith('.js')).length + 1;
 
 const srcCache = new Map();
 /** Read a committed file from the repository, for the static assertions. */
@@ -158,8 +176,8 @@ function injectionEvidence(page) {
     // The page ships no <img> and no framed content at all, so any appearance
     // is an injected one.
     media: document.querySelectorAll('img, iframe, object, embed, source, track').length,
-    // Two <script src> plus the one inline script. A parsed `</script>` from
-    // the payload would add a fourth.
+    // One <script src> per local script, plus the one inline script — see
+    // scriptNodes(). A parsed `</script>` from the payload would add another.
     scripts: document.querySelectorAll('script').length,
     handlers: document.querySelectorAll('[onerror], [onload], [onclick], [onmouseover], [onfocus]').length,
   }));
@@ -168,7 +186,7 @@ function injectionEvidence(page) {
 async function expectNoInjection(page, where) {
   const e = await injectionEvidence(page);
   expect(e, `nothing may be built from the payload — ${where}`)
-    .toEqual({ pwned: 0, media: 0, scripts: 3, handlers: 0 });
+    .toEqual({ pwned: 0, media: 0, scripts: scriptNodes(), handlers: 0 });
 }
 
 /** Wrap the page's own functions with call counters (see the header note). */
@@ -186,7 +204,7 @@ const counters = (page) => page.evaluate(() => ({ ...window.__n }));
 // ============================================================== invariant 10 ==
 
 test.describe('invariant 10 — the page never makes a network request', () => {
-  test('§16.10 first paint asks for exactly the page and its two local files', async ({ page }) => {
+  test('§16.10 first paint asks for exactly the page and its three local files', async ({ page }) => {
     const seen = recordRequests(page);
     await openMap(page);
     await settleCounts(page);
@@ -421,44 +439,68 @@ test.describe('invariant 10 — the page never makes a network request', () => {
     // (`@ELLISforEurope`, `dfki`) or a full citation string, the anchor's href
     // is that raw text — a relative path that resolves against the page's own
     // directory. The link is dead, and clicking it navigates the map away
-    // instead of opening anything. Five values in the committed payload are
-    // affected; the test pins the current behaviour so the fix is visible when
-    // it lands.
+    // instead of opening anything.
+    //
+    // The affected values are found by property, not by id: every links{} or
+    // url field the card hands to extUrl() *without* a label, whose value is
+    // not an absolute url. An entity renamed, re-ided or dropped by an upstream
+    // regeneration therefore cannot quietly empty this test, and it now pins
+    // every affected value rather than a hand-picked three.
     await openMap(page);
     const out = await page.evaluate(() => {
-      const pick = (id, label) => {
-        openEntity(id, { fly: false });
-        const dd = [...document.querySelectorAll('#dt-body .dt-facts div')]
-          .find((el) => el.querySelector('dt').textContent === label);
-        const a = dd && dd.querySelector('a');
-        return a && { raw: a.getAttribute('href'), resolved: a.href, text: a.textContent };
-      };
-      const paper = (id) => {
-        openEntity(id, { fly: false });
-        const a = document.querySelector('#dt-body .dt-list a');
-        return a && { raw: a.getAttribute('href'), resolved: a.href, text: a.textContent };
-      };
-      return {
-        twitter: pick('ellis-society', 'X / Twitter'),
-        linkedin: pick('lf-energy', 'LinkedIn'),
-        paper: paper('meaningful-human-control'),
-        origin: location.origin,
-        dir: location.pathname.replace(/[^/]*$/, ''),
-      };
+      const relative = (u) => u != null && u !== '' && !/^https?:\/\//.test(String(u));
+      // The unlabelled extUrl() call sites, where the raw value reaches all
+      // three interpolations — href, title and the visible text.
+      const affected = [];
+      items.forEach(({ id, d }) => {
+        const lk = d.links || {};
+        const add = (field, v) => { if (relative(v)) affected.push({ id, field, raw: String(v) }); };
+        ['official', 'docs', 'linkedin', 'twitter'].forEach((k) => add(k, lk[k]));
+        (lk.papers || []).forEach((u) => add('papers', u));
+        if (d.repo !== d.url) add('repo', d.repo);
+        if (d.funding) add('funding', d.funding.url);
+      });
+      // Open each affected entity's card and read the anchor back out of it.
+      const rendered = affected.map((a) => {
+        openEntity(a.id, { fly: false });
+        const el = [...document.querySelectorAll('#dt-body a[href]')]
+          .find((x) => x.getAttribute('href') === a.raw);
+        return el ? { ...a, resolved: el.href, text: el.textContent, title: el.getAttribute('title') } : null;
+      });
+      return { affected, rendered, origin: location.origin, dir: location.pathname.replace(/[^/]*$/, '') };
     });
-    expect(out.twitter.raw).toBe('@ELLISforEurope');
-    expect(out.twitter.resolved).toBe(`${out.origin}${out.dir}@ELLISforEurope`);
-    expect(out.linkedin.raw).toBe('lf-energy');
-    expect(out.linkedin.resolved).toBe(`${out.origin}${out.dir}lf-energy`);
-    // A citation is not a url either; extUrl() truncates its *text* at 36
-    // characters and puts the whole string in the href.
-    expect(out.paper.raw.startsWith('Santoni de Sio')).toBe(true);
-    expect(out.paper.text).toBe(out.paper.raw.slice(0, 36) + '…');
-    expect(out.paper.resolved.startsWith(out.origin)).toBe(true);
+    // The day the payload holds nothing but absolute urls is the day this
+    // deviation is gone and there is nothing left to pin — so it fails here,
+    // visibly, rather than passing on an empty set.
+    expect(out.affected.length, 'the payload still holds non-absolute url values')
+      .toBeGreaterThan(0);
+    expect(out.rendered.filter((r) => r == null).length,
+      'every affected value reaches an anchor the card actually renders').toBe(0);
+    // extUrl()'s own rule, restated here rather than read back out of the page:
+    // strip the scheme and a trailing slash, then cut anything over 38
+    // characters at 36 and add an ellipsis.
+    const label = (raw) => {
+      const txt = raw.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+      return txt.length > 38 ? txt.slice(0, 36) + '…' : txt;
+    };
+    for (const r of out.rendered) {
+      const where = `${r.id}.${r.field} = ${JSON.stringify(r.raw)}`;
+      // title is extUrl()'s second interpolation of the same value, and unlike
+      // the href it is not how the anchor was found: it carries the payload
+      // value verbatim, escaped on the way in and decoded on the way out.
+      expect(r.title, where).toBe(r.raw);
+      // Which is why the browser resolves the href against the page itself.
+      // That is the deviation, stated exactly: same origin, same directory.
+      expect(new URL(r.resolved).origin, where).toBe(out.origin);
+      expect(r.resolved.startsWith(out.origin + out.dir), `${where} → ${r.resolved}`).toBe(true);
+      // A citation is not a url either, so its *text* is truncated while the
+      // whole string sits in the href.
+      expect(r.text, where).toBe(label(r.raw));
+    }
   });
 
-  test('§1 the page boots with every request but its own three files blocked', async ({ page }) => {
-    // The offline claim, enforced: anything that is not one of the three files
+  test('§1 the page boots with every request but its own four files blocked', async ({ page }) => {
+    // The offline claim, enforced: anything that is not one of its own files
     // fails outright. If the page depended on a CDN, a font or a tile server,
     // it would not reach first paint here.
     const blocked = [];
@@ -476,7 +518,7 @@ test.describe('invariant 10 — the page never makes a network request', () => {
     // openMap() already waited for a non-empty caption, so "not empty" could
     // not fail here. What is worth asserting is that the caption carries the
     // live figure: the page computed and wrote a count with every request but
-    // its own three files refused.
+    // its own files refused.
     expect(await page.locator('#st-note').textContent()).toContain(String(s.matchCount));
   });
 
@@ -501,7 +543,7 @@ test.describe('invariant 10 — the page never makes a network request', () => {
     expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
   });
 
-  test('§16.10 a deep link that opens a card and restores pins still loads three files', async ({ page }) => {
+  test('§16.10 a deep link that opens a card and restores pins loads nothing more', async ({ page }) => {
     const seen = recordRequests(page);
     const id = 'lf-energy';   // in the committed payload, and it carries links
     await openMap(page, { lang: 'fr', hash: `#e=${id}&pins=${id}&links=1&yr=2018,2024&nd=0` });
@@ -562,7 +604,7 @@ test.describe('invariant 10 — the page never makes a network request', () => {
     expect(paths(seen)).toEqual(ownFiles());
   });
 
-  test('§16.10 at phone width, with the drawer and the floating card, still three files', async ({ page }) => {
+  test('§16.10 at phone width, with the drawer and the floating card, still nothing more', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -605,19 +647,36 @@ test.describe('invariant 10 — the page never makes a network request', () => {
 // =================================================== §1 — static: the file ====
 
 test.describe('§1 no dependencies — what the file itself says', () => {
-  test('§2 exactly three scripts: two relative srcs, then one inline classic script', async ({}, testInfo) => {
+  test('§2 one relative src per local file, then exactly one inline classic script', async ({}, testInfo) => {
+    // SPEC-DEVIATION: §2's architecture table lists three files and §16.10's
+    // wording says the page loads three; the shipped page declares four
+    // <script> tags — three relative srcs and the inline script — because
+    // hai-data-additions.js sits between the payload and the geometry. That
+    // file declares itself temporary (it merges entries into window.HAI_DATA by
+    // id and becomes a harmless no-op once hai-data.js is regenerated), so the
+    // deviation closes by itself. The expected tags are derived from ownFiles(),
+    // so the request tests and this one cannot come to disagree about what the
+    // page is allowed to load.
     const html = pageSource(testInfo);
+    const srcTags = ownFiles().slice(1).map((f) => `<script src="${f.replace(/^.*\//, '')}">`);
     const tags = html.match(/<script\b[^>]*>/g) || [];
-    expect(tags.length).toBe(3);
-    expect(tags[0]).toBe('<script src="hai-data.js">');
-    expect(tags[1]).toBe('<script src="europe-geo.js">');
-    // The third is bare: no type="module", no defer, no src. The whole test
+    expect(tags.length).toBe(srcTags.length + 1);
+    // In order, and each one a bare relative src: nothing the browser would
+    // resolve against another origin, no crossorigin, no integrity, no type.
+    // The order is load-bearing twice over — the geometry and the additions
+    // both depend on hai-data.js having run, and the additions file has to
+    // merge into the payload before the inline script reads it.
+    expect(tags.slice(0, -1)).toEqual(srcTags);
+    // The last is bare: no type="module", no defer, no src. The whole test
     // suite depends on it staying a classic script (its top-level bindings are
     // what page.evaluate() reaches), and so does §2's "single document".
-    expect(tags[2]).toBe('<script>');
+    expect(tags[tags.length - 1]).toBe('<script>');
     expect(html).not.toMatch(/type\s*=\s*["']module["']/);
-    // Data before logic: the inline script reads window.HAI_DATA at top level.
-    expect(html.indexOf('<script src="hai-data.js">')).toBeLessThan(html.lastIndexOf('<script>'));
+    // Data before logic: the inline script reads window.HAI_DATA at top level,
+    // so every src is declared ahead of it.
+    for (const tag of srcTags) {
+      expect(html.indexOf(tag), tag).toBeLessThan(html.lastIndexOf('<script>'));
+    }
   });
 
   test('§1 the markup declares no <link>, <base>, <img>, <iframe> or subresource hint', async ({}, testInfo) => {
@@ -636,8 +695,9 @@ test.describe('§1 no dependencies — what the file itself says', () => {
     expect(srcs.filter((s) => /^[a-z]+:|^\/\//i.test(s))).toEqual([]);
     expect(srcs.filter((s) => s.startsWith('/') || s.includes('..'))).toEqual([]);
     // The `<img src=x>` inside the escaping tests' own payload is not in the
-    // page, so the only srcs left are the two data files.
-    expect([...new Set(srcs)].sort()).toEqual(['europe-geo.js', 'hai-data.js']);
+    // page, so the only srcs left are the local scripts of ownFiles().
+    expect([...new Set(srcs)].sort())
+      .toEqual(ownFiles().slice(1).map((f) => f.replace(/^.*\//, '')).sort());
 
     // hrefs: the only absolute ones are prose links in the two footer strings,
     // which a reader clicks — the browser never fetches them.
@@ -693,6 +753,31 @@ test.describe('§1 no dependencies — what the file itself says', () => {
       expect(src).not.toMatch(/<script/i);
       expect(src).not.toMatch(/<\/script/i);
     }
+  });
+
+  test('§16.10 the third local script only merges into window.HAI_DATA, and reaches for nothing', async ({}, testInfo) => {
+    // hai-data-additions.js is the file behind this suite's one spec deviation
+    // (see ownFiles()): a hand-written stop-gap rather than a generated
+    // payload, so it assigns no global of its own and the test above — which
+    // asks each file for its `window.X = ` — cannot cover it. What invariant 10
+    // needs of it is the same as of the other two: it is the fourth thing the
+    // page loads, and nothing in it may reach for anything.
+    const rel = ownFiles()[2].replace(/^\/+/, '');
+    const src = repoFile(testInfo, rel);
+    for (const api of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon',
+      'importScripts', 'document.', 'window.location', 'eval(', 'new Function']) {
+      expect(src.includes(api), `${rel} must not name ${api}`).toBe(false);
+    }
+    expect(src).not.toMatch(/<script/i);
+    expect(src).not.toMatch(/<\/script/i);
+    // The one global it names is the payload it merges into.
+    expect([...new Set(src.match(/window\.[A-Za-z_$][\w$]*/g) || [])]).toEqual(['window.HAI_DATA']);
+    // And it merges rather than replaces. That is not a stylistic point: a
+    // reassignment would fire this suite's HAI_DATA setter a second time
+    // (openHostile), which is how the hostile entities reach the payload at
+    // all — and it would also hand the inline script a different object than
+    // the one hai-data.js built.
+    expect(src).not.toMatch(/window\.HAI_DATA\s*=[^=]/);
   });
 });
 
@@ -1226,7 +1311,7 @@ test.describe('§15 performance', () => {
     await instrument(page);
     await page.evaluate(() => setView({ k: view.k * 2.5, x: view.x - 220, y: view.y - 140 }, true));
     // Each frame repaints the transform and arms the debounce; none of them may
-    // redo the filter pass over 449 entities and 352 edges.
+    // redo the filter pass over every entity and every edge in the payload.
     await page.waitForFunction(() => window.__n.frame >= 5);
     expect((await counters(page)).refresh, 'mid-animation').toBe(0);
     await settleCounts(page);
@@ -1249,7 +1334,7 @@ test.describe('§15 performance', () => {
       setView({ k: view.k, x: view.x + 40, y: view.y + 20 }, false);   // pure pan
       return { t: mkEls[id].getAttribute('transform'), lastKHeld: lastK === k, world: worldG.getAttribute('transform') };
     });
-    expect(panned.t, 'a pan must not touch 438 markers').toBe('SENTINEL');
+    expect(panned.t, 'a pan must not touch a single marker').toBe('SENTINEL');
     expect(panned.lastKHeld).toBe(true);
     // The pan itself did happen — it is one attribute on the world group.
     expect(panned.world).toMatch(/^translate\(/);
@@ -1277,8 +1362,8 @@ test.describe('§15 performance', () => {
     // The test above pins one end of the guard: a pan and a 0.05% nudge are
     // skipped, a 40% zoom runs. That leaves the tolerance itself free, and the
     // tolerance is the whole claim — markers are drawn at 1/k and corrected by
-    // this pass, so a scale change the guard ignores is 438 markers left at the
-    // wrong screen size until the next big zoom. The wheel handler multiplies
+    // this pass, so a scale change the guard ignores leaves every marker on the
+    // map at the wrong screen size until the next big zoom. The wheel handler multiplies
     // by 1.0016^-deltaY, so one notch of a trackpad is a few tenths of a
     // percent: exactly the range a loosened bound would swallow. 0.1% is the
     // documented figure, so this holds the other end of it.
@@ -1374,7 +1459,7 @@ test.describe('§15 performance', () => {
       count: gEdges.querySelectorAll('path.edge').length,
       on: window.__ed.filter((el) => el.classList.contains('on')).length,
     }));
-    expect(after.same, 'toggling the graph must not rebuild 352 paths').toBe(true);
+    expect(after.same, 'toggling the graph must not rebuild every path').toBe(true);
     expect(after.count).toBe(expected);
     expect(after.on, 'the graph is on, so some are drawn').toBeGreaterThan(0);
   });
