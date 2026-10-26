@@ -1001,7 +1001,13 @@ while the period filter of §10 is built on them. A question about when things
 began therefore also carries the ends of the timeline, computed under §10.1's
 rule: an entity whose recorded year is only its host institution's founding is
 left out of "earliest" and counted separately, so a university's 1923 can never
-be reported as its lab's. Those rows are written as `[Name](#id)` links,
+be reported as its lab's. A question about what is **off the map** is the
+same kind: "map", "carte", "sans" and "pas" are stopwords, so *which frameworks
+are off the map?* was searched as "off", returned offshore vessels, and was
+answered *it is not on the map*. Such a question now carries every entity with
+`geo: false`, by layer and each with who issued it, an explicit *none* for a
+layer that has none, and the jurisdictions their cards record — which is what
+answers *why*. Those rows are written as `[Name](#id)` links,
 because a model copies the shape it is given. Those records are the only ids it may link, which is what makes
 `[Name](#id)` a card-opener rather than a guess; the renderer drops any link
 whose id is not in `byId`, so an invented one degrades to plain text.

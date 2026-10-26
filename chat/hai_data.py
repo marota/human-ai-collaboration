@@ -344,6 +344,20 @@ _WHEN_RE = re.compile(
     r"ann[ée]e\w*|dates?|dat[ée]\w*|p[ée]riode|depuis|remonte|d[ée]but\w*|"
     r"fond[ée]\w*|cr[ée][ée]\w*|oldest|earliest|newest|latest|recent|first|"
     r"last|year|date[ds]?|founded|started|since|how old)\b", re.I)
+# Questions about the entities with no marker, which retrieval cannot answer
+# either: "map", "carte", "sans" and "pas" are stopwords, so "which frameworks
+# are off the map?" is searched as "off" and returns offshore vessels, and the
+# model, held to its cards, replies that the thing "is not on the map". Matched
+# on the folded question, so accents do not matter; apostrophes may be curly.
+_OFFMAP_RE = re.compile(
+    r"off[- ]?(the[- ])?map|(\bnot|n['’]t)\s+(shown\s+|pinned\s+|placed\s+)?(on|in)\s+the\s+map|"
+    r"(missing|absent)\s+from\s+the\s+map|\b(placeless|unplaced|unpinned|unlocated)\b|"
+    r"\b(no|without(\s+an?)?)\s+(coordinates?|location|position|pin|marker)\b|"
+    r"hors[- ](de\s+la\s+)?carte|pas\s+(sur|dans)\s+la\s+carte|absente?s?\s+de\s+la\s+carte|"
+    r"invisibles?\s+sur\s+la\s+carte|"
+    r"sans\s+(coordonnees|localisation|lieu|position|epingle|marqueur|emplacement)|"
+    r"\b(pas|aucune?)\s+(de\s+|d['’]\s*)?(coordonnees|localisation|marqueur|epingle|emplacement)|"
+    r"\b(non|pas)\s+(localise|positionne|epingle)e?s?\b")
 
 
 def _layer_named(text: str) -> str | None:
@@ -352,6 +366,12 @@ def _layer_named(text: str) -> str | None:
         if re.search(pattern, folded, re.I):
             return layer
     return None
+
+
+def _layers_named(text: str) -> list[str]:
+    """Every layer a question names — "frameworks and commons" is two."""
+    folded = fold(text)
+    return [layer for layer, pattern in _LAYER_WORDS if re.search(pattern, folded, re.I)]
 
 
 def _start_year(entity: dict[str, Any]) -> int | None:
@@ -395,6 +415,62 @@ def _when_figures(corpus: Corpus, query: str) -> list[str]:
     return rows
 
 
+def _who(e: dict[str, Any]) -> str:
+    for key in ("issuer", "maintainer", "affiliation"):
+        org = (e.get(key) or {}).get("org") if isinstance(e.get(key), dict) else None
+        if org:
+            return org if len(org) <= 64 else org[:63].rstrip() + "…"
+    return ""
+
+
+def _offmap_figures(corpus: Corpus, query: str) -> list[str]:
+    """The entities with no marker, listed rather than searched.
+
+    §3.1: an entity with no coordinates keeps its card, its search result and
+    its links, and is listed under "Off the map" rather than pinned somewhere it
+    is not. Nothing in a card says so in words a reader would type, so they are
+    handed over by layer — with an explicit "none" for a layer that has none, so
+    "which teams are off the map?" is not answered by guessing — and each with
+    whoever issued or maintains it, which is what says why it has no place.
+    """
+    off = [e for e in corpus.entities if e.get("geo") is False]
+    per = {layer: sorted((e for e in off if e["kind"] == layer), key=lambda e: fold(e["name"]))
+           for layer in LAYERS}
+    detail = ", ".join(f"{len(per[k])} {_LAYER_PLURAL[k]}" for k in LAYERS if per[k])
+    rows = [f"Off the map: {len(off)} entities have no coordinates"
+            + (f" — {detail}" if detail else "") + ". Each keeps its card, its search "
+            "result and its links, and is listed under \"Off the map\" in the sidebar "
+            "instead of having a marker. After each name below, who issued or maintains it."]
+    # Why, from the data rather than from a sentence written here: a recorded
+    # jurisdiction is what says a framework has no one European place.
+    juris: dict[str, int] = {}
+    for e in off:
+        if e.get("jurisdiction"):
+            juris[e["jurisdiction"]] = juris.get(e["jurisdiction"], 0) + 1
+    if juris:
+        rows.append("Why they have no marker, from what their cards record — jurisdiction: "
+                    + ", ".join(f"{n} {j}" for j, n in sorted(
+                        juris.items(), key=lambda kv: (-kv[1], kv[0])))
+                    + ". An international one belongs to no one European place, so the map "
+                    "does not pin it; for the rest, the issuer after each name says where "
+                    "the work comes from.")
+
+    def row(e: dict[str, Any]) -> str:
+        who = _who(e)
+        return f"[{e['name']}](#{e['id']})" + (f" — {who}" if who else "")
+
+    for layer in [k for k in LAYERS if k in _layers_named(query)] or \
+            [k for k in LAYERS if per[k]]:
+        these = per[layer]
+        if not these:
+            rows.append(f"No {_LAYER_PLURAL[layer]} are off the map: every one has a marker.")
+            continue
+        more = f"; and {len(these) - 25} more" if len(these) > 25 else ""
+        rows.append(f"{_LAYER_PLURAL[layer].capitalize()} off the map ({len(these)}): "
+                    + "; ".join(row(e) for e in these[:25]) + more + ".")
+    return rows
+
+
 def figures(corpus: Corpus, query: str) -> str:
     """Counts for the question, computed rather than estimated.
 
@@ -430,6 +506,8 @@ def figures(corpus: Corpus, query: str) -> str:
 
     if _WHEN_RE.search(query):
         rows += _when_figures(corpus, query)
+    if _OFFMAP_RE.search(fold(query)):
+        rows += _offmap_figures(corpus, query)
     return "\n".join(rows)
 
 
@@ -459,7 +537,10 @@ def render_entity(corpus: Corpus, e: dict[str, Any], lang: str = "en") -> str:
     if where:
         rows.append(f"location: {where}")
     elif e.get("geo") is False:
-        rows.append("location: off the map (no coordinates)")
+        # In the reader's language: the model copies it into the answer, and a
+        # French reply read "hors de la carte (no coordinates)".
+        rows.append("location: " + ("hors carte (sans coordonnées)" if lang == "fr"
+                                    else "off the map (no coordinates)"))
     for key, heading in (("status", "status"), ("kind", "kind"), ("tier", "tier"),
                          ("when", "period"), ("url", "homepage")):
         if e.get(key) and key != "kind":
