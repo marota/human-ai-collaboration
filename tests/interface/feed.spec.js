@@ -23,6 +23,98 @@ import {
 // instead of silently redefining what "sorted by layer" means.
 const LAYER_ORDER = ['project', 'team', 'commons', 'framework'];
 
+/** The corpus as the page actually loaded it.
+ *
+ *  `window.HAI_DATA` is the merged payload — hai-data.js plus whatever
+ *  hai-data-additions.js folds into it by id before the interface boots — so
+ *  every figure derived here moves with an upstream regeneration, which §3.2
+ *  says it must: "Counts are a snapshot and move with every upstream
+ *  regeneration; the shape of the table is what is normative, not the figures."
+ *  A literal 438 in an assertion below would be pinning one afternoon's
+ *  snapshot rather than testing the interface.
+ *
+ *  Read off the payload and nothing else — not `items`, not `TOTALS`, not
+ *  `NOGEO`, and above all not `state`: an expectation taken from the page's own
+ *  derived figures cannot catch the page deriving them wrongly. Two rules are
+ *  reimplemented here rather than borrowed, both stated in the spec: an entity
+ *  is placed when it has both coordinates (§3.1.4), and the four layers are
+ *  registered projects, commons, teams, frameworks — which is also the order
+ *  renderNoGeo() lists the off-map ones in. */
+function corpus(page) {
+  return page.evaluate(() => {
+    const D = window.HAI_DATA;
+    const LAYERS = [['PROJECTS', 'project'], ['COMMONS', 'commons'], ['TEAMS', 'team'], ['FRAMEWORKS', 'framework']];
+    const all = [];
+    for (const [key, kind] of LAYERS) {
+      for (const d of D[key]) all.push({ id: d.id, kind, name: d.name, placed: d.lat != null && d.lon != null });
+    }
+    const tally = (list) => {
+      const n = { project: 0, team: 0, commons: 0, framework: 0 };
+      for (const e of list) n[e.kind]++;
+      return n;
+    };
+    const placed = all.filter((e) => e.placed), offMap = all.filter((e) => !e.placed);
+    return {
+      total: all.length,
+      placed: placed.length,
+      placedIds: placed.map((e) => e.id),
+      offMap: offMap.length,
+      offMapEntries: offMap,
+      byKind: tally(all),
+      placedByKind: tally(placed),
+      offMapByKind: tally(offMap),
+    };
+  });
+}
+
+/** How many off-map entities a layer selection matches. Layers are the only
+ *  filter these entities are subject to in the tests below, so the sum over the
+ *  chosen layers is what §9.1 calls "matches the filters but has no marker". */
+const offMapFor = (c, layers) => layers.reduce((n, k) => n + c.offMapByKind[k], 0);
+
+/** The English agreement the badge's title carries, reimplemented here so a
+ *  derived n can still be compared as one exact string rather than a regex. */
+const nogeoTitle = (n, total) => `${n} of ${total} ${n === 1 ? 'matches' : 'match'} the current filters`;
+
+/** One entry of the payload. The tests whose subject is a particular entity
+ *  keep its id, and assert here what they are relying on about it — so a
+ *  regeneration that moves the entity fails them loudly instead of quietly
+ *  leaving them testing nothing. */
+function payloadEntry(page, id) {
+  return page.evaluate((x) => {
+    const KIND = { PROJECTS: 'project', COMMONS: 'commons', TEAMS: 'team', FRAMEWORKS: 'framework' };
+    for (const key of Object.keys(KIND)) {
+      const d = window.HAI_DATA[key].find((e) => e.id === x);
+      if (d) return { id: x, kind: KIND[key], name: d.name, placed: d.lat != null && d.lon != null };
+    }
+    return null;
+  }, id);
+}
+
+/** The placed entity whose nearest neighbour is furthest away in the default
+ *  view, and that gap in px. Nothing keeps a particular entity the loneliest
+ *  one — kios-cyprus held the title at 87 px in the September snapshot, and one
+ *  new entry beside it would end that — so the tests that need a single marker
+ *  alone on screen ask the payload's own geometry instead of naming it.
+ *  `items[].X/Y` is the projection of the payload's lat/lon, computed once at
+ *  boot and nothing to do with the feed. */
+function mostIsolated(page) {
+  return page.evaluate(() => {
+    const placed = items.filter((it) => it.geo);
+    let best = null;
+    for (const a of placed) {
+      let gap = Infinity;
+      for (const b of placed) {
+        if (b === a) continue;
+        const d = Math.hypot((a.X - b.X) * view.k, (a.Y - b.Y) * view.k);
+        if (d < gap) gap = d;
+      }
+      if (!best || gap > best.gap) best = { id: a.id, gap };
+    }
+    return best;
+  });
+}
+
 /** The column as the reader sees it: one entry per card, in document order. */
 function feedRows(page) {
   return page.evaluate(() =>
@@ -76,10 +168,10 @@ async function expectHeaderReconciles(page, because) {
     .toBe(s.matchCount + s.keptOpen);
 }
 
-/** Put exactly one marker on screen: centre the most isolated entity in the
- *  default view (kios-cyprus, 87 px from its nearest neighbour there) and zoom
- *  far enough in that the neighbour is ~1700 px away. */
-async function isolateOne(page, id = 'kios-cyprus') {
+/** Put exactly one marker on screen: centre the entity mostIsolated() picked
+ *  and zoom ~20× past the default fit, which turns its default-view gap into
+ *  more than a stage's width of empty space. */
+async function isolateOne(page, id) {
   await page.evaluate((x) => {
     const it = byId[x];
     const [w, h] = stageSize();
@@ -109,9 +201,15 @@ test.describe('§9.3 the feed lists what is in view', () => {
     const inView = await page.evaluate(() => [...state.inView]);
     expect(rows).toHaveLength(inView.length);
     expect(new Set(rows.map((r) => r.id))).toEqual(new Set(inView));
-    // 438 of the 449 entities: 11 have no coordinates, and at the default fit
-    // every placed marker is on screen.
-    expect(rows).toHaveLength(438);
+    // …and state.inView is the right set to be listing, which the assertions
+    // above cannot tell on their own: at the default fit every placed marker is
+    // on screen, so the column is the whole corpus less the entities that have
+    // no coordinates to be placed at (§3.1.4). Both figures come from the
+    // payload, so a regeneration moves them together.
+    const c = await corpus(page);
+    expect(c.placed).toBe(c.total - c.offMap);
+    expect(rows).toHaveLength(c.placed);
+    expect(new Set(rows.map((r) => r.id))).toEqual(new Set(c.placedIds));
   });
 
   test('§9.3 sorted by layer first, in the four layers\' own order', async ({ page }) => {
@@ -133,24 +231,43 @@ test.describe('§9.3 the feed lists what is in view', () => {
         (ORDER[a.kind] - ORDER[b.kind]) || a.d.name.localeCompare(b.d.name, LANG)).map((it) => it.id);
       const byCodePoint = [...set].sort((a, b) =>
         (ORDER[a.kind] - ORDER[b.kind]) || (a.d.name < b.d.name ? -1 : a.d.name > b.d.name ? 1 : 0)).map((it) => it.id);
+      // The witness is derived from the payload rather than named: the placed
+      // project whose name starts with a lowercase letter and sorts earliest
+      // for a reader, together with the project a reader expects right after
+      // it. A code-point sort puts every uppercase initial ahead of that pair,
+      // so the two orders disagree about exactly these two rows.
+      const projects = window.HAI_DATA.PROJECTS.filter((d) => d.lat != null && d.lon != null);
+      const lower = projects
+        .filter((d) => d.name[0] !== d.name[0].toUpperCase() && d.name[0] === d.name[0].toLowerCase())
+        .sort((a, b) => a.name.localeCompare(b.name, LANG))[0];
+      const after = projects
+        .filter((d) => d.name.localeCompare(lower.name, LANG) > 0)
+        .sort((a, b) => a.name.localeCompare(b.name, LANG))[0];
       return {
         ids,
         byLocale,
         sameAsCodePoint: ids.join() === byCodePoint.join(),
-        agri: ids.indexOf('agrifoodtef'),
-        eth: ids.indexOf('ch-ai-center'),
-        codePointSaysAgriLast: byId['agrifoodtef'].d.name > byId['ch-ai-center'].d.name,
+        lowerId: lower.id,
+        afterId: after.id,
+        lowerAt: ids.indexOf(lower.id),
+        afterAt: ids.indexOf(after.id),
+        codePointSaysLowerLast: lower.name > after.name,
+        // Where that row belongs, counted off the payload: the projects come
+        // first (§9.3's layer order), so its index is the number of placed
+        // projects whose name a reader would file before it.
+        lowerBelongsAt: projects.filter((d) => d.name.localeCompare(lower.name, LANG) < 0).length,
       };
     });
     expect(r.ids).toEqual(r.byLocale);
-    // The load-bearing half: a plain `<` sort over the same 438 names gives a
+    // The load-bearing half: a plain `<` sort over the very same names gives a
     // different column, so "locale-aware" is a claim the data can falsify.
     expect(r.sameAsCodePoint).toBe(false);
-    // The cheapest witness of the difference: lowercase-initial "agrifoodTEF"
-    // sorts before "AI Center ETH+EPFL" for a reader, and after it for a byte.
-    expect(r.codePointSaysAgriLast).toBe(true);
-    expect(r.agri).toBeLessThan(r.eth);
-    expect(r.agri).toBe(3);
+    // …and the cheapest witness of the difference, named by the payload: a
+    // lowercase-initial project sorts before its uppercase successor for a
+    // reader, and after it for a byte.
+    expect(r.codePointSaysLowerLast).toBe(true);
+    expect(r.lowerAt).toBeLessThan(r.afterAt);
+    expect(r.lowerAt).toBe(r.lowerBelongsAt);
   });
 
   test('§9.3 the column follows the viewport: zooming in drops the rows whose markers left', async ({ page }) => {
@@ -167,9 +284,10 @@ test.describe('§9.3 the feed lists what is in view', () => {
 
   test('§9.3 one row: a single marker on screen gives a list of one and a header of 1', async ({ page }) => {
     await openMap(page);
-    await isolateOne(page);
+    const alone = await mostIsolated(page);
+    await isolateOne(page, alone.id);
     const rows = await feedRows(page);
-    expect(rows.map((r) => r.id)).toEqual(['kios-cyprus']);
+    expect(rows.map((r) => r.id)).toEqual([alone.id]);
     const h = await feedHeader(page);
     expect(h.countText).toBe('1');
     // Nothing is open, so the one row carries no card.
@@ -219,15 +337,36 @@ test.describe('§9.3 the feed lists what is in view', () => {
     check = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('#fd-list .fd-item')];
       const maybe = rows.filter((r) => r.querySelector('.mt').textContent === 'possibly');
+      // How many rows *should* read "possibly", counted off the payload with
+      // §10.1's rule rather than taken from periodState(): an entity whose own
+      // start is unknown — no year at all, or only its host's founding year —
+      // is merely possible in a window stopping before PRESENT_FROM (2020),
+      // unless that host year is later than the window, which makes it
+      // impossible and drops it from view altogether.
+      const softByRule = (() => {
+        const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
+        const KEYS = ['PROJECTS', 'COMMONS', 'TEAMS', 'FRAMEWORKS'];
+        let n = 0;
+        for (const key of KEYS) for (const d of window.HAI_DATA[key]) {
+          if (d.lat == null || d.lon == null) continue;          // no marker, never in view
+          const tl = d.timeline || {}, y0 = yr(tl.start), y1 = yr(tl.end);
+          if (!((y0 == null && y1 == null) || d.dateHost)) continue;
+          if (y0 != null && y0 > 2005) continue;                 // impossible, not possible
+          n++;
+        }
+        return n;
+      })();
       return {
         n: rows.length,
         maybeN: maybe.length,
+        softByRule,
         allSoft: maybe.every((r) => periodState(byId[r.dataset.id]) === 'soft'),
         softShownAsPlace: rows.filter((r) => r.querySelector('.mt').textContent !== 'possibly')
           .filter((r) => periodState(byId[r.dataset.id]) === 'soft').length,
       };
     });
-    expect(check.maybeN).toBe(29);
+    expect(check.softByRule, 'the window must actually make some entity merely possible').toBeGreaterThan(0);
+    expect(check.maybeN).toBe(check.softByRule);
     expect(check.allSoft).toBe(true);          // nothing solid is labelled possible
     expect(check.softShownAsPlace).toBe(0);    // and nothing possible is left unlabelled
   });
@@ -246,7 +385,11 @@ test.describe('§9.3 the feed lists what is in view', () => {
       const nm = document.querySelector('.fd-row[data-open="haiku"] .nm');
       return { text: nm.textContent, html: nm.innerHTML, name: byId['haiku'].d.name };
     });
-    expect(r.text).toBe('HAIKU — Human-AI teaming Knowledge & Understanding for aviation safety');
+    // The expected name is read out of the payload, not pinned as a literal —
+    // and the ampersand in it is the whole reason this entity is the witness.
+    const subject = await payloadEntry(page, 'haiku');
+    expect(subject.name).toContain('&');
+    expect(r.text).toBe(subject.name);
     expect(r.text).toBe(r.name);
     expect(r.html).toContain('&amp;');
 
@@ -409,30 +552,34 @@ test.describe('§9.3 marker → feed', () => {
 
   test('§9.3 marker → feed: selecting on the map expands that card in the column', async ({ page }) => {
     await openMap(page);
-    // kios-cyprus is the entity whose nearest neighbour is furthest away at the
-    // default view (87 px), so a tap on its centre cannot land on another marker.
-    const pt = await page.evaluate(() => {
-      const it = byId['kios-cyprus'];
+    // Whichever entity's nearest neighbour is furthest away at the default view
+    // — the payload decides, see mostIsolated() — so a tap on its centre cannot
+    // land on another marker. The gap is asserted, not assumed.
+    const alone = await mostIsolated(page);
+    expect(alone.gap, 'the loneliest marker needs room for a tap of its own').toBeGreaterThan(20);
+    const pt = await page.evaluate((id) => {
+      const it = byId[id];
       const r = document.getElementById('map').getBoundingClientRect();
       return { x: r.left + view.x + it.X * view.k, y: r.top + view.y + it.Y * view.k };
-    });
+    }, alone.id);
     await tapAt(page, pt);
     await settleCounts(page);
     const rows = await feedRows(page);
     const open = rows.filter((r) => r.open);
-    expect(await page.evaluate(() => state.focusId)).toBe('kios-cyprus');
-    expect(open.map((r) => r.id)).toEqual(['kios-cyprus']);
+    expect(await page.evaluate(() => state.focusId)).toBe(alone.id);
+    expect(open.map((r) => r.id)).toEqual([alone.id]);
     expect(open[0].hasCard).toBe(true);
     expect(open[0].expanded).toBe('true');
   });
 
   test('§9.3 selecting on the map flies (§7) — the contrast the feed\'s fly:false buys', async ({ page }) => {
     await openMap(page);
-    const pt = await page.evaluate(() => {
-      const it = byId['kios-cyprus'];
+    const alone = await mostIsolated(page);
+    const pt = await page.evaluate((id) => {
+      const it = byId[id];
       const r = document.getElementById('map').getBoundingClientRect();
       return { x: r.left + view.x + it.X * view.k, y: r.top + view.y + it.Y * view.k };
-    });
+    }, alone.id);
     const beforeRatio = await page.evaluate(() => view.k / k0);
     expect(beforeRatio).toBeCloseTo(1.22, 5);
     await tapAt(page, pt);
@@ -451,7 +598,8 @@ test.describe('§9.3 marker → feed', () => {
   // happen under reduced motion.
   test('§9.3 marker → feed scrolls the card to centre', async ({ page }) => {
     await openMap(page);
-    // Half-way down a 438-row column: the card cannot be visible by accident.
+    // Half-way down a column of every placed entity: the card cannot be
+    // visible by accident.
     const mid = await page.evaluate(() => {
       const ids = [...document.querySelectorAll('#fd-list .fd-item')].map((e) => e.dataset.id);
       return ids[Math.floor(ids.length / 2)];
@@ -526,8 +674,12 @@ test.describe('§9.3 entities with no coordinates', () => {
     expect(rows[0].id).toBe('iso-9241-210');
     expect(rows[0].open).toBe(true);
     expect(rows[0].hasCard).toBe(true);
-    // It is a framework, so were it merely sorted it would land last, not first.
-    expect(await page.evaluate(() => byId['iso-9241-210'].kind)).toBe('framework');
+    // Why this entity: the payload says it is a framework with no coordinates —
+    // one of §3.1.4's marker-less international standards. Were it merely
+    // sorted it would land last, not first. The property is asserted rather
+    // than assumed, so a regeneration that gives it a position fails the test
+    // instead of voiding it.
+    expect(await payloadEntry(page, 'iso-9241-210')).toMatchObject({ kind: 'framework', placed: false });
     expect(rows[rows.length - 1].id).not.toBe('iso-9241-210');
     // No coordinates means no city either: the meta column is simply empty.
     expect(rows[0].meta).toBe('');
@@ -544,14 +696,19 @@ test.describe('§9.3 entities with no coordinates', () => {
     // stays the number the four tiles sum to.
     expect(h.count).toBe(s.inView);
     expect(rows).toHaveLength(s.inView + 1);
-    expect(h.countText).toBe('438');
-    expect(rows).toHaveLength(439);
+    // Which in-view reading that is, derived from the payload rather than taken
+    // from state: every placed entity, with the one prepended off-map card on
+    // top of it.
+    const c = await corpus(page);
+    expect(h.countText).toBe(String(c.placed));
+    expect(rows).toHaveLength(c.placed + 1);
     await expectHeaderReconciles(page, 'an off-map card open');
   });
 
   test('§9.3 an entity already in view is listed once, at its sorted place', async ({ page }) => {
     await openMap(page);
-    const id = await page.evaluate(() => [...state.inView][200]);
+    // A row from the middle of the column, wherever the middle happens to fall.
+    const id = await page.evaluate(() => [...state.inView][Math.floor(state.inView.size / 2)]);
     await page.evaluate((x) => openEntity(x, { fly: false }), id);
     const ids = (await feedRows(page)).map((r) => r.id);
     // The prepend is for the unreachable case only; duplicating a row that is
@@ -565,26 +722,31 @@ test.describe('§9.3 entities with no coordinates', () => {
     await openMap(page, { hash: '#e=iso-9241-210' });
     await settleCounts(page);
     expect(await page.evaluate(() => !!mkEls['iso-9241-210'])).toBe(false);
+    const subject = await payloadEntry(page, 'iso-9241-210');
+    expect(subject.placed).toBe(false);
     const card = await page.evaluate(() =>
       document.querySelector('#fd-list .fd-item.open .fd-card').textContent);
-    expect(card).toContain('ISO 9241-210');
+    expect(card).toContain(subject.name);
     expect(card.length).toBeGreaterThan(200);
   });
 
   test('§9.3 a dimmed off-map row is still clickable, and lands in the feed', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     await setLayers(page, ['commons']);
     await settleCounts(page);
-    // Frameworks are off, so every framework row in the section is dimmed.
-    const row = page.locator('#nogeo-list .pin-item[data-id="iso-9241-210"]');
+    // Frameworks are off, so every framework row in the section is dimmed —
+    // which one of them the payload offers is immaterial, so it is not named.
+    const dimmed = c.offMapEntries.find((e) => e.kind === 'framework');
+    const row = page.locator(`#nogeo-list .pin-item[data-id="${dimmed.id}"]`);
     await expect(row).toHaveClass(/\bout\b/);
     await row.click();
     await settleCounts(page);
     // "The entities that do not match stay listed and stay clickable, because
     // reaching them is what the section is for."
-    expect(await page.evaluate(() => state.focusId)).toBe('iso-9241-210');
+    expect(await page.evaluate(() => state.focusId)).toBe(dimmed.id);
     const rows = await feedRows(page);
-    expect(rows[0].id).toBe('iso-9241-210');
+    expect(rows[0].id).toBe(dimmed.id);
     expect(rows[0].open).toBe(true);
   });
 });
@@ -603,32 +765,35 @@ test.describe('§9.3 the header and its remedies', () => {
     expect(parts[3]).toMatchObject({ tag: 'BUTTON', type: 'button' });
   });
 
-  test('§9.3 at the default fit the header reads "438 + 11 off the map"', async ({ page }) => {
+  test('§9.3 at the default fit the header reads the placed count, then the off-map gap', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     const h = await feedHeader(page);
-    expect(h.countText).toBe('438');
+    expect(h.countText).toBe(String(c.placed));
     // Every placed marker is on screen at the fit, so there is no off-screen
     // term — and naming only the off-map part is safe *here*, which is exactly
     // why the earlier version's omission survived so long.
     expect(h.offScreen.hidden).toBe(true);
     expect(h.offMap.hidden).toBe(false);
-    expect(h.offMap.text).toBe('+ 11 off the map');
+    expect(h.offMap.text).toBe(`+ ${c.offMap} off the map`);
     await expectHeaderReconciles(page, 'default fit');
   });
 
   test('§9.3 zoomed in, the off-screen term appears and the sum still holds', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     await zoomBy(page, 3);
     const h = await feedHeader(page);
     const s = await snapshot(page);
     expect(h.offScreen.hidden).toBe(false);
     expect(h.offScreen.text).toBe(`+ ${s.offScreen} off screen`);
-    expect(h.offMap.text).toBe('+ 11 off the map');
-    // The reader who zooms in is the one the caption was failing: 438 becomes a
-    // much smaller number while "11 off the map" does not move, and without the
-    // off-screen term that is an arithmetic problem with a missing term.
-    expect(h.count).toBeLessThan(438);
-    expect(h.count + h.offScreen.n + h.offMap.n).toBe(449);
+    expect(h.offMap.text).toBe(`+ ${c.offMap} off the map`);
+    // The reader who zooms in is the one the caption was failing: the in-view
+    // count drops well below the placed total while the off-map term does not
+    // move at all, and without the off-screen term that is an arithmetic
+    // problem with a missing term. The three must still add up to the corpus.
+    expect(h.count).toBeLessThan(c.placed);
+    expect(h.count + h.offScreen.n + h.offMap.n).toBe(c.total);
     await expectHeaderReconciles(page, 'zoomed in 3×');
   });
 
@@ -678,7 +843,12 @@ test.describe('§9.3 the header and its remedies', () => {
     await expect(page.locator('#fd-offscreen')).toBeVisible();
     await fitAll(page);
     await expect(page.locator('#fd-offscreen')).toBeHidden();
-    await setLayers(page, ['project']);          // no project lacks coordinates
+    // A layer with no off-map population at all is what leaves the off-map
+    // hint with nothing to report; the payload says which layer that is.
+    const c = await corpus(page);
+    const fullyPlaced = LAYER_ORDER.find((k) => c.offMapByKind[k] === 0);
+    expect(fullyPlaced, 'some layer must be fully placed for this case to exist').toBeTruthy();
+    await setLayers(page, [fullyPlaced]);
     await settleCounts(page);
     expect(await page.evaluate(() => state.offMapMatch)).toBe(0);
     await expect(page.locator('#fd-offmap')).toBeHidden();
@@ -691,41 +861,54 @@ test.describe('§9.3 the header and its remedies', () => {
   // leaves all three figures showing the previous filter state.
   //
   // One marker on screen, then Frameworks off: the column still lists exactly
-  // kios-cyprus (a team), so nothing is rewritten, while the off-map term drops
-  // from 11 to 1 as the ten off-map frameworks leave the filters, and the
-  // off-screen term from 437 to 402 as the thirty-five placed ones do.
+  // that one entity, so nothing is rewritten, while both hints move — the
+  // off-map term loses every off-map framework, and the off-screen term loses
+  // the placed frameworks as well.
   test('§9.3 the header\'s numbers are not behind the render key', async ({ page }) => {
     await openMap(page);
-    await isolateOne(page);
+    const c = await corpus(page);
+    const alone = await mostIsolated(page);
+    // The entity left on screen must survive the filter change, or the premise
+    // of the test ("nothing is rewritten") goes with it.
+    expect((await payloadEntry(page, alone.id)).kind,
+      'the loneliest marker must not be in the layer this test switches off').not.toBe('framework');
+    await isolateOne(page, alone.id);
     const before = await feedHeader(page);
     expect(before.countText).toBe('1');
-    expect(before.offScreen.n).toBe(437);
-    expect(before.offMap.n).toBe(11);
+    expect(before.offScreen.n).toBe(c.placed - 1);
+    expect(before.offMap.n).toBe(c.offMap);
     await page.evaluate(() => { document.querySelector('#fd-list .fd-item').dataset.stamp = '1'; });
 
-    await setLayers(page, ['project', 'team', 'commons']);
+    const kept = LAYER_ORDER.filter((k) => k !== 'framework');
+    await setLayers(page, kept);
     await settleCounts(page);
 
-    expect((await feedRows(page)).map((r) => r.id)).toEqual(['kios-cyprus']);
+    expect((await feedRows(page)).map((r) => r.id)).toEqual([alone.id]);
     // The DOM write was skipped — this is the case the key exists for…
     expect(await page.evaluate(() =>
       document.querySelectorAll('#fd-list .fd-item[data-stamp]').length)).toBe(1);
-    // …and the header moved anyway.
+    // …and the header moved anyway. Every figure below is the corpus narrowed
+    // by the one filter this test touched: the three layers still on, less the
+    // single marker that stayed on screen.
+    const matching = c.total - c.byKind.framework;
+    const offMap = offMapFor(c, kept);
     const after = await feedHeader(page);
     expect(after.countText).toBe('1');
-    expect(after.offMap.text).toBe('+ 1 off the map');
-    expect(after.offScreen.text).toBe('+ 402 off screen');
-    expect(1 + after.offScreen.n + after.offMap.n).toBe(404);   // 449 less the 45 frameworks
-    // Not a deviation, just worth naming while the string is pinned: unlike its
-    // French counterpart the English title carries no verb agreement, so n = 1
-    // reads "1 more match the filters". The spec only ever quotes the plural.
+    expect(after.offMap.text).toBe(`+ ${offMap} off the map`);
+    expect(after.offScreen.text).toBe(`+ ${matching - offMap - 1} off screen`);
+    expect(1 + after.offScreen.n + after.offMap.n).toBe(matching);
+    // Not a deviation, just worth naming while the string is compared whole:
+    // unlike its French counterpart the English title carries no verb
+    // agreement, so with a single off-map entity it reads "1 more match the
+    // filters". The spec only ever quotes the plural.
     expect(after.offMap.title)
-      .toBe('1 more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.');
+      .toBe(`${offMap} more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.`);
     await expectHeaderReconciles(page, 'one marker on screen, Frameworks off');
   });
 
   test('§9.3 both hints carry their remedy in prose, on the tooltip and the accessible name', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     await zoomBy(page, 3);
     const h = await feedHeader(page);
     const s = await snapshot(page);
@@ -733,13 +916,18 @@ test.describe('§9.3 the header and its remedies', () => {
       .toBe(`${s.offScreen} more match the filters but sit outside the current view — zoom out to bring them in.`);
     expect(h.offScreen.aria).toBe(h.offScreen.title);
     expect(h.offMap.title)
-      .toBe('11 more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.');
+      .toBe(`${c.offMap} more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.`);
     expect(h.offMap.aria).toBe(h.offMap.title);
   });
 
   test('§9.3 in French the hints agree with n = 1', async ({ page }) => {
     await openMap(page, { lang: 'fr' });
-    await setLayers(page, ['commons']);
+    // The singular is the point, so the filter state is derived for it: the
+    // layer whose off-map population is exactly one entity.
+    const c = await corpus(page);
+    const solo = LAYER_ORDER.find((k) => c.offMapByKind[k] === 1);
+    expect(solo, 'some layer must have exactly one off-map entity for n = 1 to be reachable').toBeTruthy();
+    await setLayers(page, [solo]);
     await settleCounts(page);
     expect(await page.evaluate(() => state.offMapMatch)).toBe(1);
     const h = await feedHeader(page);
@@ -807,20 +995,23 @@ test.describe('§9.3 the remedies land', () => {
 
   test('§9.3 #fd-offscreen fits the view, so the off-screen markers come in', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     await zoomBy(page, 4);
     const before = await feedHeader(page);
     expect(before.offScreen.n).toBeGreaterThan(0);
     await page.click('#fd-offscreen');
     await settleCounts(page);
     const s = await snapshot(page);
-    // The remedy has to actually close the gap it names, not merely zoom a bit.
+    // The remedy has to actually close the gap it names, not merely zoom a bit:
+    // every placed entity is back on screen, and the view is at the documented
+    // fit (k0 × 1.22, a constant of fitView() rather than of the data).
     expect(s.offScreen).toBe(0);
-    expect(s.inView).toBe(438);
+    expect(s.inView).toBe(c.placed);
     expect(await page.evaluate(() => view.k / k0)).toBeCloseTo(1.22, 5);
     const after = await feedHeader(page);
     expect(after.offScreen.hidden).toBe(true);
-    expect(after.countText).toBe('438');
-    expect((await feedRows(page))).toHaveLength(438);
+    expect(after.countText).toBe(String(c.placed));
+    expect((await feedRows(page))).toHaveLength(c.placed);
   });
 
   test('§9.3 #fd-offmap reveals the sidebar and scrolls Off the map into view', async ({ page }) => {
@@ -853,9 +1044,33 @@ test.describe('§9.3 the remedies land', () => {
     expect(r.panelOpen).toBe(false);              // the drawer is the narrow-screen path
   });
 
+  // SPEC-DEVIATION: §5 turns both the sidebar and the feed into overlay drawers
+  // below 840 px, and §9.3 insists each header hint carries "its own remedy" —
+  // #fd-offmap "reveals the sidebar and scrolls the Off the map section into
+  // view". On a phone it reveals the sidebar *and leaves the column it was
+  // pressed from open*, and the two drawers do not fit side by side: at 420 px
+  // the sidebar takes x 0–330 (min(88vw,330)) and the feed x 80–420
+  // (min(88vw,340) off the right edge), both at z-index 90, with #feed later in
+  // #app — so the feed wins all 250 px of the overlap. The section is scrolled
+  // into place *behind* the column: its rows are rendered, badged and counted,
+  // and a 293 px row is reachable only in the 62 px sliver left of the feed's
+  // edge, never on its name and never at its centre. The remedy lands on
+  // nothing a thumb can hit.
+  //
+  // It is not a corner case either. #fd-offmap lives inside #feed, and below
+  // 840 px the column boots closed, so every press of the button on a phone is
+  // a press from inside the open column — the collision is the whole of the
+  // narrow path, not one route through it. The fix would be one more call in
+  // the handler (close the column, or make the drawers mutually exclusive);
+  // until then, asserting the behaviour as it stands.
   test('§9.3 on a narrow screen #fd-offmap opens the sidebar drawer instead', async ({ page }) => {
     await page.setViewportSize({ width: 420, height: 820 });
     await openMap(page);
+    const c = await corpus(page);
+    // The button is part of the feed's own header, so there is no way to press
+    // it with the column shut — which is what makes the overlap below universal.
+    expect(await page.evaluate(() =>
+      !!document.getElementById('fd-offmap').closest('#feed'))).toBe(true);
     await page.click('#feed-pill');               // below 840 px the feed starts closed
     await settleCounts(page);
     await page.click('#fd-offmap');
@@ -866,40 +1081,128 @@ test.describe('§9.3 the remedies land', () => {
       secVisible: !document.getElementById('f-nogeo').hidden,
     }));
     expect(r).toEqual({ panelOpen: true, sbHidden: false, secVisible: true });
+
+    // The drawer slides in over .25s and that CSS transition is not guarded by
+    // prefers-reduced-motion, so geometry read too early is a frame of an
+    // animation rather than where the drawer came to rest.
+    await page.waitForFunction(() =>
+      Math.abs(document.getElementById('sidebar').getBoundingClientRect().left) < 0.5);
+
+    const geo = await page.evaluate(() => {
+      const z = (id) => getComputedStyle(document.getElementById(id)).zIndex;
+      const sb = document.getElementById('sidebar').getBoundingClientRect();
+      const fd = document.getElementById('feed').getBoundingClientRect();
+      const rows = [...document.querySelectorAll('#nogeo-list [data-open]')];
+      const row = rows[0], rb = row.getBoundingClientRect();
+      const nb = row.querySelector('.nm').getBoundingClientRect();
+      // Who owns a point, as the browser resolves a tap there. A point outside
+      // the viewport belongs to nobody, which is worth reporting rather than
+      // throwing: it would mean the scroll never landed.
+      const at = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        return el
+          ? { feed: !!el.closest('#feed'), sidebar: !!el.closest('#sidebar') }
+          : { feed: false, sidebar: false, offViewport: true };
+      };
+      const mid = (b) => at(b.left + b.width / 2, b.top + b.height / 2);
+      return {
+        // The column the remedy was pressed from is still there.
+        feedOpen: state.feed,
+        feedDisplay: getComputedStyle(document.getElementById('feed')).display,
+        sb: { left: sb.left, right: sb.right, z: z('sidebar') },
+        fd: { left: fd.left, right: fd.right, z: z('feed') },
+        // Same stacking context, same z-index: document order decides, and the
+        // feed is the later sibling.
+        feedIsLaterSibling:
+          document.getElementById('sidebar').compareDocumentPosition(document.getElementById('feed'))
+            === Node.DOCUMENT_POSITION_FOLLOWING,
+        // The scroll really did land — the section is on screen, it is simply
+        // not the thing on top of itself.
+        rowId: row.dataset.id,
+        rowOnScreen: rb.top >= 0 && rb.bottom <= innerHeight,
+        row: { left: rb.left, right: rb.right },
+        atRowCentre: mid(rb),
+        atRowName: mid(nb),
+        atRowLeftEdge: at(rb.left + 2, rb.top + rb.height / 2),
+        // Not one unlucky row: every row in the section, and the badge whose
+        // number the button quoted.
+        rowsCoveredAtCentre: rows.filter((b) => mid(b.getBoundingClientRect()).feed).length,
+        rowCount: rows.length,
+        atBadge: mid(document.getElementById('nogeo-count').getBoundingClientRect()),
+      };
+    });
+
+    expect(geo.feedOpen).toBe(true);
+    expect(geo.feedDisplay).toBe('flex');
+    expect(geo.sb).toEqual({ left: 0, right: 330, z: '90' });
+    expect(geo.fd).toEqual({ left: 80, right: 420, z: '90' });
+    expect(geo.feedIsLaterSibling).toBe(true);
+    expect(geo.sb.right).toBeGreaterThan(geo.fd.left);   // 250 px of overlap
+
+    // renderNoGeo() lists the off-map entities in registration order, so the
+    // row the scroll lands on is the first one the payload offers — the single
+    // commons with no coordinates, ahead of the ten standards.
+    expect(geo.rowId).toBe(c.offMapEntries[0].id);
+    expect(c.offMapEntries[0].kind).toBe('commons');
+    expect(geo.rowOnScreen).toBe(true);
+    // The row starts left of the feed's edge and ends well inside it, so the
+    // sliver is real but the useful part of the row is not.
+    expect(geo.row.left).toBeLessThan(geo.fd.left);
+    expect(geo.row.right).toBeGreaterThan(geo.fd.left);
+    expect(geo.atRowLeftEdge).toEqual({ feed: false, sidebar: true });
+    expect(geo.atRowCentre).toEqual({ feed: true, sidebar: false });
+    expect(geo.atRowName).toEqual({ feed: true, sidebar: false });
+    expect(geo.atBadge).toEqual({ feed: true, sidebar: false });
+    expect(geo.rowCount).toBe(c.offMap);
+    expect(geo.rowsCoveredAtCentre).toBe(c.offMap);
+
+    // And the hit test is not a DOM curiosity: a real tap on the row the button
+    // just scrolled to is refused, because something else is in front of it.
+    await expect(page.locator('#nogeo-list [data-open]').first().click({ timeout: 1500 }))
+      .rejects.toThrow(/intercepts pointer events/);
   });
 
   test('§9.3 the button\'s number is the badge of the section it scrolls to', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     // The bug this replaces: the button said "+ 1 off the map" and the section
-    // it scrolled to was badged 11 — the count of every off-map entity, filters
-    // ignored — with eleven rows to match.
-    const cases = [
-      { layers: ['project', 'team', 'commons', 'framework'], n: 11 },
-      { layers: ['framework'], n: 10 },     // the ten off-map frameworks
-      { layers: ['commons'], n: 1 },        // CityLearn alone
-      { layers: ['project'], n: 0 },        // every project is placed
-    ];
-    for (const c of cases) {
-      await setLayers(page, c.layers);
+    // it scrolled to was badged with the count of every off-map entity, filters
+    // ignored — and had that many rows to match.
+    //
+    // One case per layer plus the all-on case, with the expected figure summed
+    // off the payload rather than written down: layers are the only filter
+    // these entities are subject to here.
+    const cases = [[...LAYER_ORDER], ...LAYER_ORDER.map((k) => [k])];
+    for (const layers of cases) {
+      const n = offMapFor(c, layers);
+      await setLayers(page, layers);
       await settleCounts(page);
       const h = await feedHeader(page);
       const sec = await offMapSection(page);
-      expect(h.offMap.n, `button vs ${c.layers.join('+')}`).toBe(c.n);
-      expect(Number(sec.badge), `badge vs ${c.layers.join('+')}`).toBe(c.n);
-      expect(sec.rows.filter((r) => !r.out), `undimmed rows vs ${c.layers.join('+')}`).toHaveLength(c.n);
-      // The section keeps all eleven listed whatever the filters say.
-      expect(sec.rows).toHaveLength(11);
+      expect(h.offMap.n, `button vs ${layers.join('+')}`).toBe(n);
+      expect(Number(sec.badge), `badge vs ${layers.join('+')}`).toBe(n);
+      expect(sec.rows.filter((r) => !r.out), `undimmed rows vs ${layers.join('+')}`).toHaveLength(n);
+      // The section keeps every off-map entity listed whatever the filters say.
+      expect(sec.rows, `listed rows vs ${layers.join('+')}`).toHaveLength(c.offMap);
       expect(sec.hidden).toBe(false);
     }
+    // The cases are only worth running if they are not all the same number —
+    // at least one layer with an off-map population and one without.
+    const spread = LAYER_ORDER.map((k) => c.offMapByKind[k]);
+    expect(Math.max(...spread)).toBeGreaterThan(Math.min(...spread));
   });
 
   test('§9.3 the non-matching off-map rows are dimmed, and exactly those', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     await setLayers(page, ['commons']);
     await settleCounts(page);
     const sec = await offMapSection(page);
-    expect(sec.rows.filter((r) => !r.out).map((r) => r.id)).toEqual(['citylearn']);
-    expect(sec.rows.filter((r) => r.out)).toHaveLength(10);
+    // With only Commons on, the off-map commons are exactly the undimmed rows —
+    // which ones those are comes from the payload, in its own order.
+    const commons = c.offMapEntries.filter((e) => e.kind === 'commons').map((e) => e.id);
+    expect(sec.rows.filter((r) => !r.out).map((r) => r.id)).toEqual(commons);
+    expect(sec.rows.filter((r) => r.out)).toHaveLength(c.offMap - commons.length);
     // Derived from the filter state rather than from the classes themselves:
     // `.out` must be the complement of "matches the filters".
     const mismatch = await page.evaluate(() =>
@@ -911,26 +1214,34 @@ test.describe('§9.3 the remedies land', () => {
 
   test('§9.3 the badge names the corpus total it narrowed from, and agrees with n = 1', async ({ page }) => {
     await openMap(page);
-    // Nothing has narrowed: no title, because 11 of 11 needs no explaining and
-    // a corpus constant sitting unlabelled next to live numbers is the §9.1 bug.
+    const c = await corpus(page);
+    // Nothing has narrowed: no title, because N of N needs no explaining and a
+    // corpus constant sitting unlabelled next to live numbers is the §9.1 bug.
     expect((await offMapSection(page)).badgeTitle).toBe('');
-    await setLayers(page, ['commons']);
+    // Both halves of the English agreement, on filter states the payload picks:
+    // a layer holding exactly one off-map entity, and one holding several.
+    const solo = LAYER_ORDER.find((k) => c.offMapByKind[k] === 1);
+    const many = LAYER_ORDER.find((k) => c.offMapByKind[k] > 1);
+    expect({ solo: !!solo, many: !!many },
+      'the agreement needs one layer with a single off-map entity and one with more').toEqual({ solo: true, many: true });
+    await setLayers(page, [solo]);
     await settleCounts(page);
-    expect((await offMapSection(page)).badgeTitle).toBe('1 of 11 matches the current filters');
-    await setLayers(page, ['framework']);
+    expect((await offMapSection(page)).badgeTitle).toBe(nogeoTitle(1, c.offMap));
+    await setLayers(page, [many]);
     await settleCounts(page);
-    expect((await offMapSection(page)).badgeTitle).toBe('10 of 11 match the current filters');
+    expect((await offMapSection(page)).badgeTitle).toBe(nogeoTitle(c.offMapByKind[many], c.offMap));
   });
 
   test('§9.3 with every layer off the badge reads 0 and every row is dimmed', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     await setLayers(page, []);
     await settleCounts(page);
     const sec = await offMapSection(page);
     expect(sec.badge).toBe('0');
-    expect(sec.rows.filter((r) => r.out)).toHaveLength(11);
-    // The section stays on screen: it is the only route to these eleven cards,
-    // and hiding it would strand them.
+    expect(sec.rows.filter((r) => r.out)).toHaveLength(c.offMap);
+    // The section stays on screen: it is the only route to these cards, and
+    // hiding it would strand them.
     expect(sec.hidden).toBe(false);
     expect(await feedHeader(page)).toMatchObject({ countText: '0' });
   });
@@ -949,23 +1260,30 @@ test.describe('§9.3 the remedies land', () => {
   // Asserting the behaviour as it stands.
   test('§9.3 a kept-open off-map card is counted by the badge but dimmed in the list', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     await setLayers(page, ['commons']);
     await settleCounts(page);
-    await page.evaluate(() => openEntity('iso-9241-210'));   // a framework, layer off
+    // An off-map entity from a layer that is off: the filters exclude it, and
+    // §6's focus override keeps it open regardless. Any of them would do, so
+    // the payload picks rather than the test naming one.
+    const kept = c.offMapEntries.find((e) => e.kind === 'framework');
+    await page.evaluate((id) => openEntity(id), kept.id);
     await settleCounts(page);
 
+    const matching = c.offMapByKind.commons;        // what really matches: the off-map commons
     const s = await snapshot(page);
     expect(s.keptOpen).toBe(1);
     const reallyMatching = await page.evaluate(() =>
       [...state.inFilter].filter((id) => !byId[id].geo).length);
-    expect(reallyMatching).toBe(1);                 // only CityLearn matches
-    expect(s.offMapMatch).toBe(2);                  // but the badge's figure is 2
+    expect(reallyMatching).toBe(matching);
+    expect(s.offMapMatch).toBe(matching + 1);       // but the badge's figure counts the open card
 
     const sec = await offMapSection(page);
-    expect(sec.badge).toBe('2');
-    expect(sec.rows.filter((r) => !r.out).map((r) => r.id)).toEqual(['citylearn']);
-    expect(sec.badgeTitle).toBe('2 of 11 match the current filters');
-    expect((await feedHeader(page)).offMap.text).toBe('+ 2 off the map');
+    expect(sec.badge).toBe(String(matching + 1));
+    expect(sec.rows.filter((r) => !r.out).map((r) => r.id))
+      .toEqual(c.offMapEntries.filter((e) => e.kind === 'commons').map((e) => e.id));
+    expect(sec.badgeTitle).toBe(nogeoTitle(matching + 1, c.offMap));
+    expect((await feedHeader(page)).offMap.text).toBe(`+ ${matching + 1} off the map`);
     // Invariant 12 still holds — the surplus is accounted for, just not where
     // the badge and its list can be compared by eye.
     await expectHeaderReconciles(page, 'a kept-open off-map card');
@@ -989,8 +1307,9 @@ test.describe('§9.3 rendering is keyed on ids + focus + language + pins', () =>
 
   test('§9.3 an identical key skips the DOM write — a bare refresh() costs nothing', async ({ page }) => {
     await openMap(page);
+    const c = await corpus(page);
     const n = await stamp(page);
-    expect(n).toBe(438);
+    expect(n).toBe(c.placed);
     await page.evaluate(() => { refresh(); refresh(); });
     expect(await survivors(page)).toBe(2);
   });
@@ -999,7 +1318,7 @@ test.describe('§9.3 rendering is keyed on ids + focus + language + pins', () =>
     await openMap(page);
     await stamp(page);
     // The links toggle redraws every edge and calls refresh(); the feed's key is
-    // untouched by it, so the 438 rows must not be rebuilt to find that out.
+    // untouched by it, so not one of the rows may be rebuilt to find that out.
     await page.click('#links-row');
     await settleCounts(page);
     expect(await page.evaluate(() => state.links)).toBe(true);
@@ -1092,7 +1411,7 @@ test.describe('§9.3 hiding the feed', () => {
     }));
     expect(r).toMatchObject({ feed: false, feedOpen: false, focusId: 'haiku', detailOpen: true, feedColumn: 'none' });
     expect(r.detailDisplay).not.toBe('none');
-    expect(r.name).toBe('HAIKU — Human-AI teaming Knowledge & Understanding for aviation safety');
+    expect(r.name).toBe((await payloadEntry(page, 'haiku')).name);
   });
 
   test('§9.3 the choice is written down as it is made', async ({ page }) => {
