@@ -204,6 +204,92 @@ class CountsRatherThanEstimates(unittest.TestCase):
         for entity_id in re.findall(r"\(#([a-z0-9-]+)\)", line):
             self.assertEqual(self.corpus.by_id[entity_id]["kind"], "team")
 
+    def placeless(self, layer=None):
+        return {e["id"] for e in self.corpus.entities if e.get("geo") is False
+                and (layer is None or e["kind"] == layer)}
+
+    def offmap_lines(self, question):
+        text = CHAT.hai_data.figures(self.corpus, question)
+        return [l for l in text.splitlines() if "off the map" in l.lower()]
+
+    def test_a_question_about_the_entities_off_the_map_gets_them_listed(self):
+        # "map", "carte", "sans" and "pas" are stopwords, so retrieval searched
+        # "which frameworks are off the map?" as "off" and found offshore
+        # vessels; the model then said the thing "is not on the map".
+        for question in ("Which frameworks are off the map?",
+                         "Quels cadres sont hors carte ?",
+                         "quels référentiels n’ont pas de coordonnées ?",
+                         "which entities have no coordinates",
+                         "Lesquels ne sont pas sur la carte ?",
+                         "frameworks that aren’t on the map",
+                         "les fiches sans localisation"):
+            with self.subTest(question):
+                self.assertTrue(self.offmap_lines(question), question)
+
+    def test_every_placeless_entity_is_listed_and_no_other(self):
+        lines = self.offmap_lines("which entities are off the map?")
+        listed = set(re.findall(r"\]\(#([a-z0-9-]+)\)", "\n".join(lines)))
+        self.assertTrue(self.placeless(), "the corpus has entities with no coordinates")
+        self.assertEqual(listed, self.placeless())
+
+    def test_the_count_is_the_one_the_interface_shows(self):
+        # The sidebar caption says "N off the map"; the chat must give the same N.
+        head = self.offmap_lines("how many are off the map?")[0]
+        self.assertIn(f"{len(self.placeless())} entities have no coordinates", head)
+
+    def test_a_layer_named_in_the_question_narrows_the_list(self):
+        lines = self.offmap_lines("Quels cadres sont hors carte ?")
+        listed = set(re.findall(r"\]\(#([a-z0-9-]+)\)", "\n".join(lines[1:])))
+        self.assertEqual(listed, self.placeless("framework"))
+
+    def test_a_layer_with_none_off_the_map_says_so_rather_than_nothing(self):
+        # Silence would leave the model to guess, and guessing is how a chat
+        # names a team that has a marker as one that does not.
+        empty = [k for k in CHAT.hai_data.LAYERS if not self.placeless(k)]
+        self.assertTrue(empty)
+        plural = {"project": "projects", "team": "teams", "commons": "commons",
+                  "framework": "frameworks"}
+        for layer in empty:
+            lines = self.offmap_lines(f"which {plural[layer]} are off the map?")
+            self.assertIn(f"No {plural[layer]} are off the map", "\n".join(lines))
+
+    def test_each_is_a_card_link_with_who_issued_it(self):
+        lines = self.offmap_lines("which frameworks are off the map?")
+        rows = lines[1].split(": ", 1)[1].split("; ")
+        for row in rows:
+            m = re.match(r"\[[^\]]+\]\(#([a-z0-9-]+)\)( — .+)?", row)
+            self.assertTrue(m, row)
+            self.assertIn(m.group(1), self.corpus.by_id)
+        issuers = sum(1 for row in rows if " — " in row)
+        self.assertEqual(issuers, len(rows), "every framework has an issuing body")
+
+    def test_why_comes_from_the_recorded_jurisdictions(self):
+        # "No coordinates" answers "why" with the question. The jurisdictions
+        # the cards record are the reason, counted rather than asserted.
+        lines = self.offmap_lines("pourquoi ces fiches sont hors carte ?")
+        text = CHAT.hai_data.figures(self.corpus, "pourquoi ces fiches sont hors carte ?")
+        expect: dict[str, int] = {}
+        for e in self.corpus.entities:
+            if e.get("geo") is False and e.get("jurisdiction"):
+                expect[e["jurisdiction"]] = expect.get(e["jurisdiction"], 0) + 1
+        self.assertTrue(lines)
+        for jurisdiction, n in expect.items():
+            self.assertIn(f"{n} {jurisdiction}", text)
+
+    def test_a_question_about_places_on_the_map_carries_no_list(self):
+        for question in ("who works on grids in France?", "what is on the map in Delft",
+                         "quelles équipes sont sur la carte en Suède ?",
+                         "a project with a good position on safety"):
+            with self.subTest(question):
+                self.assertEqual(self.offmap_lines(question), [], question)
+
+    def test_a_retrieved_card_with_no_place_says_so_in_the_reader_s_language(self):
+        e = self.corpus.by_id[next(iter(sorted(self.placeless())))]
+        self.assertIn("location: hors carte (sans coordonnées)",
+                      CHAT.hai_data.render_entity(self.corpus, e, "fr"))
+        self.assertIn("location: off the map (no coordinates)",
+                      CHAT.hai_data.render_entity(self.corpus, e, "en"))
+
     def test_a_question_with_no_dates_in_it_carries_no_timeline(self):
         text = CHAT.hai_data.figures(self.corpus, "who works on grids in France?")
         self.assertNotIn("Earliest", text)
