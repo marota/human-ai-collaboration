@@ -722,13 +722,24 @@ test.describe('§18.7 the map says it is collaborative', () => {
     expect(await page.evaluate(() => document.body.classList.contains('panel-open'))).toBe(false);
   });
 
-  test('a visitor who came to contribute while the chat is down is shown the issue tracker', async ({ page }, testInfo) => {
+  test('a visitor who came to contribute while the chat is down is shown the issue form', async ({ page }, testInfo) => {
     await page.route(`${TUNNEL}/**`, (route) => route.abort('connectionrefused'));
     await openPublished(page, testInfo);
     await page.click('#sb-contribute');
-    await expect(page.locator('#chat')).toContainText('A proposal can also be made directly as an issue');
-    await expect(page.locator('#chat a[href="https://github.com/marota/human-ai-collaboration/issues/new"]'))
-      .toHaveAttribute('target', '_blank');
+    await expect(page.locator('#chat')).toContainText('A proposal can also be made directly as a GitHub issue');
+    const form = page.locator('#chat a[href="https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry.yml"]');
+    await expect(form).toHaveAttribute('target', '_blank');
+    await expect(form).toHaveText('Add or correct a map entry');
+  });
+
+  test('a French visitor is sent to the French form', async ({ page }, testInfo) => {
+    await page.route(`${TUNNEL}/**`, (route) => route.abort('connectionrefused'));
+    await openPublished(page, testInfo, '', 'fr');
+    await page.click('#sb-contribute');
+    await expect(page.locator('#chat')).toContainText('directement par une issue GitHub');
+    const form = page.locator('#chat a[href="https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry-fr.yml"]');
+    await expect(form).toHaveAttribute('target', '_blank');
+    await expect(form).toHaveText('Ajouter ou corriger une fiche de la carte');
   });
 
   test('both languages carry every word of it, and the footer names the chat', async ({ page }) => {

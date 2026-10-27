@@ -9,15 +9,13 @@ deck: >-
   collaboration for decision-making in industrial and critical systems.
 ---
 
+[Open the map full screen →]({{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }})
+
 <div class="map-frame">
   <iframe src="{{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }}"
           title="Map of European human–AI collaboration teams and initiatives"
           loading="lazy"></iframe>
 </div>
-
-[Open the map full screen →]({{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }})
-· [Version française]({{ '/assets/map/eu-hai-map.html?lang=fr' | relative_url }})
-· [Source and data on GitHub](https://github.com/marota/eu-hai-collab-map)
 
 **A collaborative map.** Anyone can add to it or correct it. Press **Chat** on
 the map, say what is missing or wrong, and the chat helps you turn it into a
@@ -169,9 +167,22 @@ see it in full before you send it.
 
 ### Directly on GitHub
 
-Open [an issue](https://github.com/marota/human-ai-collaboration/issues/new) on
-this site's repository, in your own words, with the page that documents it —
-the route the chat automates.
+When the chat is unavailable, or if you would rather write it yourself, open an
+issue with the map's form —
+[in English](https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry.yml)
+or [en français](https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry-fr.yml).
+It asks first for the minimum a maintainer needs to check a proposal:
+
+- whether it is a new entry or a correction, and which layer it belongs to;
+- its name — for a correction, the card's name as the map shows it;
+- a public page that documents it;
+- in two or three sentences, what it is and how people and AI decide together
+  in it — or, for a correction, what the card says and what it should say.
+
+Then, if you know them, the details that save the maintainer from looking them
+up: the organisation behind it, where it is, when it started and ended, its
+domains and research axes in the map's own terms, the entries on the map it is
+linked to, and other sources. Opening an issue needs a GitHub account.
 
 ### How a change reaches the map
 

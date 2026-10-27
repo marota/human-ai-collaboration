@@ -1,0 +1,170 @@
+# The way to propose a map entry without the chat (docs/map-interface-spec.md §18.7).
+# map-entry-fr.yml asks the same questions under the same ids, and both offer the
+# map's own words as choices; tests/site/test_issue_form.py holds them to that.
+name: Add or correct a map entry
+description: Propose a team, project, commons or framework for the European human–AI collaboration map, or correct one of its cards.
+title: "Map data: "
+labels: ["map-proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for improving the [map](https://marota.github.io/human-ai-collaboration/map/). A maintainer reviews every proposal before it reaches the map: that it fits the map's scope, and that a public source backs it.
+
+        **The map's scope.** European teams and initiatives where AI helps a person, or a team, decide or act in an industrial or critical system — energy, transport, health, industry, telecoms, water, defence — rather than running it end to end.
+
+        The first part asks for the **minimum** a maintainer needs to check your proposal. The second is **optional**: whatever you add there saves them from looking it up. You may write in English or in French — *ce formulaire existe aussi [en français](https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry-fr.yml).*
+
+        A title such as *Map data: add KIT IAR (team)* or *Map data: fix the place of KIT IAR* helps sort proposals. The [map's chat](https://marota.github.io/human-ai-collaboration/assets/map/eu-hai-map.html?lang=en&chat=1) can do all of this with you, and draft the card for you.
+
+  - type: markdown
+    attributes:
+      value: "### The minimum"
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What do you propose?
+      options:
+        - "A new entry"
+        - "A correction to a card"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      description: Where it belongs on the map.
+      options:
+        - "Projects & programmes — funded projects: Horizon Europe, SESAR, national programmes"
+        - "Teams — research labs, industrial R&D, operator teams"
+        - "Commons — open datasets, benchmarks, simulators, platforms"
+        - "Frameworks — standards, regulations, reference methods"
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: Its full name. For a correction, the card's name as the map shows it.
+      placeholder: "e.g. KIT — Institute for Anthropomatics and Robotics"
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: A public page that documents it — its website, a project page, a publication or its DOI. For a correction, a page that shows the right value.
+      placeholder: "https://"
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: What it is — or what is wrong
+      description: Two or three sentences on what it does, and on how people and AI decide or act together in it. For a correction, what the card says and what it should say.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ### If you can — optional
+
+        Everything below saves the maintainer from looking it up. Leave out what you are not sure of.
+
+  - type: input
+    id: organisation
+    attributes:
+      label: Organisation
+      description: The lab, company, consortium or body behind it — for a framework, the body that issues it; for a commons, who maintains it.
+      placeholder: "e.g. Karlsruhe Institute of Technology"
+
+  - type: input
+    id: location
+    attributes:
+      label: Place
+      description: City and country of the team, or of the project's coordinator — where the map will pin it. Leave it empty for something international.
+      placeholder: "e.g. Karlsruhe, Germany"
+
+  - type: input
+    id: period
+    attributes:
+      label: Period
+      description: The year it started and, if it has ended or has a planned end, that year.
+      placeholder: "e.g. 2023–2026, or since 2019"
+
+  - type: dropdown
+    id: domains
+    attributes:
+      label: Domains
+      description: The systems it works on, in the map's own terms. Choose as many as apply.
+      multiple: true
+      options:
+        - "Energy / power grid"
+        - "Aviation / ATC"
+        - "Rail"
+        - "Road / surface transport"
+        - "Telecom / networks"
+        - "Water / gas"
+        - "Health / clinical"
+        - "Manufacturing / process"
+        - "Maritime / ports"
+        - "Nuclear"
+        - "Defence"
+        - "Human factors / cognitive"
+        - "XAI / trust / safety"
+        - "Multi-agent / other"
+        - "Data centres / AI factories"
+        - "AI networks & platforms"
+        - "Socio-technical simulation"
+
+  - type: dropdown
+    id: focus_areas
+    attributes:
+      label: Research axes
+      description: What it studies about people and AI deciding together, in the map's own terms. Choose as many as apply.
+      multiple: true
+      options:
+        - "Decision support"
+        - "Mixed initiative"
+        - "Human oversight"
+        - "Explainability"
+        - "Uncertainty communication"
+        - "Trust calibration"
+        - "Shared situational awareness"
+        - "Human factors"
+        - "Human–computer partnerships"
+        - "Cobots"
+        - "Digital twins"
+        - "RL for operations"
+        - "Process industry"
+        - "Power grid"
+        - "Energy markets"
+        - "Manufacturing"
+        - "Transport operations"
+        - "Healthcare operations"
+        - "Defence"
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Linked entries on the map
+      description: Its partners, the consortium it belongs to, the standards it applies, the datasets or tools it builds on — named as the map names them.
+      placeholder: "e.g. partner in AI4REALNET; builds on Grid2Op"
+
+  - type: textarea
+    id: more_sources
+    attributes:
+      label: Other sources
+      description: Other pages that back what you wrote — a repository, publications, the funder's page, press.
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Your connection to it, if you have one (you work there, you use it…), or anything the maintainer should know.

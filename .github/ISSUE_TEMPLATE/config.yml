@@ -1,0 +1,7 @@
+# The issue chooser: the map's form (map-entry.yml, map-entry-fr.yml) for an entry,
+# the map's chat as the guided way to the same issue, a blank issue for anything else.
+blank_issues_enabled: true
+contact_links:
+  - name: Propose it with the map's chat · Proposer avec le chat de la carte
+    url: https://marota.github.io/human-ai-collaboration/assets/map/eu-hai-map.html?chat=1
+    about: The chat checks your source, drafts the card with you and opens the issue. — Le chat vérifie votre source, rédige la fiche avec vous et ouvre l’issue.

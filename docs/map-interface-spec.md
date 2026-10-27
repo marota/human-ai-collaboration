@@ -1160,10 +1160,22 @@ would not (invariant 10):
 | Title block, under the lede | *A collaborative map: is something missing? Propose it with the chat* — on every visit, and the first tab stop (§14) |
 | Welcome panel | what is missing or wrong, how the chat checks the source and drafts the card, that GitHub review comes before the map; a *Propose an addition or a correction* button |
 | The chat's own opening | contributing as plainly as asking, with an example that opens a proposal (*A team is missing from the map*) |
-| The chat, when its server is down | the visitor-facing message, and the issue tracker as the way to propose meanwhile |
+| The chat, when its server is down | the visitor-facing message, and the map's issue form, in the reader's language, as the way to propose meanwhile |
 | Footer | contributions welcome, through the map's chat or by pull request |
 
 The site page around the map (`map.md`) says it at the top and explains the
 whole route — the source, the card, the issue, the review — together with what
 stays private: the server keeps no conversation, and a proposal's issue, which
 is public, shows its conversation to the contributor before it is sent.
+
+The way that needs no chat is a GitHub issue form,
+`.github/ISSUE_TEMPLATE/map-entry.yml`, and its French twin `map-entry-fr.yml`.
+It asks first for the minimum a reviewer needs — new entry or correction, layer,
+name, a public source, what it is or what is wrong — and then, optionally, for
+what saves the reviewer a search: organisation, place, period, domains, research
+axes, linked entries, other sources. Both versions ask the same questions under
+the same ids, and their choices are the map's own words — the layer names and
+domains of `I18N`, the research axes of the payload's `TAXO.focus` — so a
+proposal arrives in the vocabulary it is reviewed against. `map.md` explains the
+form under *Directly on GitHub*, and the chat links to it when its server is
+down; `tests/site/test_issue_form.py` holds all of this together.
