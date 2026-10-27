@@ -981,8 +981,13 @@ test.describe('§14 focus visibility and order', () => {
     expect(seen.after).not.toBe(seen.before);
   });
 
-  test('§14 the first tab stop is the search box', async ({ page }) => {
+  test('§14 the first tab stop is the invitation to contribute, the second the search box', async ({ page }) => {
+    // Focus follows what the eye reads: the invitation sits in the title block,
+    // above the search box, so it comes first — no tabindex, no visual reorder,
+    // either of which would make the two orders disagree.
     await openMap(page);
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement.id)).toBe('sb-contribute');
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => document.activeElement.id)).toBe('search');
   });
@@ -990,8 +995,9 @@ test.describe('§14 focus visibility and order', () => {
   test('§14 tabbing walks the sidebar in document order and only then leaves it', async ({ page }) => {
     await openMap(page);
     // Nothing in the sidebar sets tabindex, so document order is the contract:
-    // search → presets → layers → domains → links → off the map → My map →
-    // help. A stray positive tabindex anywhere would reorder this silently.
+    // the invitation to contribute → search → presets → layers → domains →
+    // links → off the map → My map → help. A stray positive tabindex anywhere
+    // would reorder this silently.
     const order = await page.evaluate(() => {
       const sel = '#sidebar input, #sidebar button, #sidebar [tabindex]:not([tabindex="-1"]), #sidebar a[href]';
       window.__stops = [...document.querySelectorAll(sel)];

@@ -19,6 +19,11 @@ deck: >-
 · [Version française]({{ '/assets/map/eu-hai-map.html?lang=fr' | relative_url }})
 · [Source and data on GitHub](https://github.com/marota/eu-hai-collab-map)
 
+**A collaborative map.** Anyone can add to it or correct it. Press **Chat** on
+the map, say what is missing or wrong, and the chat helps you turn it into a
+proposal that is reviewed in the open before it joins the map —
+[how it works](#a-collaborative-map).
+
 The map is bilingual: the **EN / FR** switch in its top-right corner changes the
 interface *and* the description of every entity on the map. Your choice is
 remembered.
@@ -90,12 +95,15 @@ facility is run by a team already on the map, it enriches that team's card with
 its operator, access model and capacity; the 18 sites with no team of
 their own carry a marker in the Teams layer.
 
-Eleven entities have no coordinates and so no pin: the international standards
-(ISO 9241-210, IEC 61508, IEEE 7000, SAE J3016, ARP6983/ED-324) and the founding
+Sixteen entities have no coordinates and so no pin, because none has one place
+in Europe to put it: the international standards (ISO 9241-210, IEC 61508,
+IEEE 7000, SAE J3016, ARP6983/ED-324, the NIST AI RMF), the founding
 human–automation models (Fitts' List, Sheridan &amp; Verplank, Parasuraman,
-Sheridan &amp; Wickens, Lee &amp; See on trust, Klein's ten challenges), plus one
-non-European commons. They are listed under
-**Off the map** in the side panel, and their cards read like any other.
+Sheridan &amp; Wickens, Lee &amp; See on trust, Klein's ten challenges, Endsley's
+situation awareness), reference frameworks from outside Europe (Shneiderman's
+human-centred AI, STAMP/STPA, value-sensitive design), and one non-European
+commons. They are listed under **Off the map** in the side panel, and their
+cards read like any other.
 
 Clicking a marker opens a card built from the whole record, not a summary of it:
 description, focus areas, timeline and milestones, consortium with each
@@ -121,21 +129,59 @@ The map is organised around a core and the ecosystem that enables it.
 
 Borderline cases are welcome rather than excluded.
 
-## Contributing
+## A collaborative map
 
-The map is meant to be corrected by the people it describes. Entities are plain
-YAML files validated in CI against a JSON Schema per layer, with a controlled
-vocabulary and reference-integrity checks.
+The map is meant to be completed and corrected by the people it describes — and
+by anyone who knows a team, a project, a commons or a framework it is missing,
+or an entry it gets wrong. Every contribution is reviewed before it appears, and
+the review happens in the open, on GitHub.
 
-To add or fix an entry: copy the relevant `data/<layer>/_template.yml`, fill it
-in, run `python scripts/validate_data.py`, and open a pull request. The review
-bar and the taxonomy are described in the repository's `CONTRIBUTING.md`.
+### With the chat
 
-The copy embedded in this site is generated from those YAML files — never edited
-by hand. To pull in a change:
+Press **Chat** in the map's top-right controls — or *Propose it with the chat*
+under the map's title — and say what is missing or wrong, in English or in
+French. The chat takes it from there, with you:
+
+1. **The source.** You give the page that documents what you are proposing. The
+   chat reads it and tells you whether it actually names it — a page about
+   something else is better caught now than in review.
+2. **The card.** It drafts the entry from that page, and you correct it on the
+   spot: the fields, the vocabulary, the place, and the YAML it will become.
+   This is the point of doing it in the chat: you are there to answer, and
+   what you fix in thirty seconds would take a maintainer far longer to
+   reconstruct.
+3. **The issue.** You read the exact GitHub issue it will open, then send it.
+   Nothing has changed on the map at that point.
+4. **The review.** A maintainer checks the proposal — that it fits the map's
+   scope, that a public source backs every claim, that it uses the map's
+   vocabulary, that the coordinates point at the right place — and turns it
+   into a change to the map's data. The map is regenerated from it.
+
+The chat runs a language model on the maintainer's own machine, not on a cloud
+service, and answers from the map's cards and nothing else. When that machine is
+off, the chat says so — and an issue opened directly, below, does the same job.
+
+What you type stays private unless you make it a proposal. The server keeps no
+record of conversations — only the address a request came from, to apply
+per-visitor limits — and your browser keeps the conversation on your side. A
+proposal's issue is public, and it includes the conversation it came from: you
+see it in full before you send it.
+
+### Directly on GitHub
+
+Open [an issue](https://github.com/marota/human-ai-collaboration/issues/new) on
+this site's repository, in your own words, with the page that documents it —
+the route the chat automates.
+
+### How a change reaches the map
+
+The data lives in a separate repository, `eu-hai-collab-map`: one YAML file per
+entity, validated in CI against a JSON Schema per layer, a controlled vocabulary
+and reference-integrity checks. The copy embedded in this site is generated from
+those files — never edited by hand. To pull in a change:
 
 ```
-git clone -b refactor/pentagon-layers https://github.com/marota/eu-hai-collab-map.git ../eu-hai-collab-map
+git clone https://github.com/marota/eu-hai-collab-map.git ../eu-hai-collab-map
 python3 scripts/build-map-data.py --source ../eu-hai-collab-map
 ```
 

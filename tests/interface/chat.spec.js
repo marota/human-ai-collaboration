@@ -662,3 +662,82 @@ test.describe('§18.6 the published map', () => {
     expect(elsewhere).toEqual([]);
   });
 });
+
+// ===================================================== the map is collaborative ==
+
+test.describe('§18.7 the map says it is collaborative', () => {
+  test('the title block invites contributing on every visit, and fetches nothing until pressed', async ({ page }) => {
+    const calls = await stubServer(page);
+    const scripts = [];
+    page.on('request', (r) => { if (r.url().includes('hai-chat')) scripts.push(r.url()); });
+    await openMap(page);
+    await expect(page.locator('.sb-collab')).toContainText('A collaborative map: is something missing?');
+    await expect(page.locator('#sb-contribute')).toHaveText('Propose it with the chat');
+    expect(scripts, 'an invitation is not a request').toEqual([]);
+    await page.click('#sb-contribute');
+    await expect(page.locator('#chat')).toBeVisible();
+    await expect.poll(() => calls.filter((c) => c.path === '/api/health').length).toBe(1);
+    expect(scripts.length).toBe(1);
+    await expect(page.locator('#chat-pill')).toHaveCount(1);
+    await expect(page.locator('#ch-input')).toBeFocused();
+    // Pressed again with the chat open, it leaves it open rather than toggling it shut.
+    await page.click('#sb-contribute');
+    await expect(page.locator('#chat')).toBeVisible();
+  });
+
+  test('the welcome panel explains it, and its button closes the panel on the way to the chat', async ({ page }) => {
+    await stubServer(page);
+    await openMap(page, { lang: 'fr' });
+    await page.click('#intro-btn');
+    await expect(page.locator('#welcome')).toHaveClass(/open/);
+    const block = page.locator('.wl-collab');
+    await expect(block).toContainText('Une carte collaborative');
+    await expect(block).toContainText('relue avant d’entrer dans la carte');
+    await page.click('#w-contribute');
+    await expect(page.locator('#welcome')).not.toHaveClass(/open/);
+    await expect(page.locator('#chat')).toBeVisible();
+  });
+
+  test('the chat opens on contributing as plainly as on asking, with an example that proposes', async ({ page }) => {
+    const calls = await stubServer(page);
+    await openMap(page);
+    await page.click('#chat-pill');
+    const collab = page.locator('#chat .ch-collab');
+    await expect(collab).toContainText('A collaborative map.');
+    await expect(collab).toContainText('a maintainer reviews before anything joins the map');
+    await page.locator('#chat .ch-ex', { hasText: 'A team is missing from the map' }).click();
+    await expect.poll(() => calls.filter((c) => c.path === '/api/chat').length).toBe(1);
+    const sent = calls.find((c) => c.path === '/api/chat').body.messages.pop();
+    expect(sent).toEqual({ role: 'user', content: 'A team is missing from the map' });
+  });
+
+  test('on a phone the invitation closes the drawer on its way to the chat', async ({ page }) => {
+    await stubServer(page);
+    await page.setViewportSize({ width: 375, height: 812 });
+    await openMap(page);
+    await page.evaluate(() => document.getElementById('sb-open').click());
+    await page.waitForFunction(() => document.body.classList.contains('panel-open'));
+    await page.click('#sb-contribute');
+    await expect(page.locator('#chat')).toBeVisible();
+    expect(await page.evaluate(() => document.body.classList.contains('panel-open'))).toBe(false);
+  });
+
+  test('a visitor who came to contribute while the chat is down is shown the issue tracker', async ({ page }, testInfo) => {
+    await page.route(`${TUNNEL}/**`, (route) => route.abort('connectionrefused'));
+    await openPublished(page, testInfo);
+    await page.click('#sb-contribute');
+    await expect(page.locator('#chat')).toContainText('A proposal can also be made directly as an issue');
+    await expect(page.locator('#chat a[href="https://github.com/marota/human-ai-collaboration/issues/new"]'))
+      .toHaveAttribute('target', '_blank');
+  });
+
+  test('both languages carry every word of it, and the footer names the chat', async ({ page }) => {
+    await openMap(page);
+    const words = await page.evaluate(() => ['collab', 'contribute', 'wCollabH', 'wCollab', 'wContribute']
+      .map((k) => [k, !!I18N.fr[k], !!I18N.en[k], I18N.fr[k] !== I18N.en[k]]));
+    for (const [key, fr, en, differ] of words) {
+      expect([key, fr, en, differ]).toEqual([key, true, true, true]);
+    }
+    expect(await page.evaluate(() => [I18N.fr.footer, I18N.en.footer].every((f) => /chat/.test(f)))).toBe(true);
+  });
+});
