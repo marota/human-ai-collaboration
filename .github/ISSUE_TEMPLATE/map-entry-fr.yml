@@ -1,0 +1,169 @@
+# The French twin of map-entry.yml: the same questions under the same ids, with
+# the map's French words as choices (docs/map-interface-spec.md §18.7).
+name: Ajouter ou corriger une fiche de la carte
+description: Proposer une équipe, un projet, un commun ou un cadre pour la carte européenne de la collaboration humain–IA, ou corriger l’une de ses fiches.
+title: "Map data: "
+labels: ["map-proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci d’enrichir la [carte](https://marota.github.io/human-ai-collaboration/map/). Un mainteneur relit chaque proposition avant qu’elle n’entre dans la carte : qu’elle relève de son périmètre, et qu’une source publique l’étaye.
+
+        **Le périmètre de la carte.** Les équipes et initiatives européennes où l’IA aide une personne, ou une équipe, à décider ou à agir dans un système industriel ou critique — énergie, transports, santé, industrie, télécoms, eau, défense — plutôt qu’à le piloter seule de bout en bout.
+
+        La première partie demande le **minimum** dont un mainteneur a besoin pour vérifier votre proposition. La seconde est **facultative** : tout ce que vous y ajoutez lui évite de le chercher. Vous pouvez écrire en français ou en anglais — *this form also exists [in English](https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry.yml).*
+
+        Un titre comme *Map data: add KIT IAR (team)* ou *Map data: fix the place of KIT IAR* aide à trier les propositions. Le [chat de la carte](https://marota.github.io/human-ai-collaboration/assets/map/eu-hai-map.html?lang=fr&chat=1) peut faire tout cela avec vous, et rédiger la fiche pour vous.
+
+  - type: markdown
+    attributes:
+      value: "### Le minimum"
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Que proposez-vous ?
+      options:
+        - "Une nouvelle fiche"
+        - "Une correction d’une fiche"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Couche
+      description: Où elle se place sur la carte.
+      options:
+        - "Projets & programmes — projets financés : Horizon Europe, SESAR, programmes nationaux"
+        - "Équipes — laboratoires, R&D industrielle, équipes d’opérateurs"
+        - "Communs — jeux de données, benchmarks, simulateurs, plateformes ouvertes"
+        - "Cadres — standards, réglementations, méthodes de référence"
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Nom
+      description: Son nom complet. Pour une correction, le nom de la fiche tel que la carte l’affiche.
+      placeholder: "ex. KIT — Institute for Anthropomatics and Robotics"
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: Une page publique qui le documente — son site, une page de projet, une publication ou son DOI. Pour une correction, une page qui montre la bonne valeur.
+      placeholder: "https://"
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Ce que c’est — ou ce qui est faux
+      description: En deux ou trois phrases, ce qu’il fait, et comment humains et IA y décident ou agissent ensemble. Pour une correction, ce que dit la fiche et ce qu’elle devrait dire.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ### Si vous pouvez — facultatif
+
+        Tout ce qui suit évite au mainteneur de le chercher. Laissez de côté ce dont vous n’êtes pas sûr.
+
+  - type: input
+    id: organisation
+    attributes:
+      label: Organisation
+      description: Le laboratoire, l’entreprise, le consortium ou l’organisme derrière — pour un cadre, l’organisme qui l’émet ; pour un commun, qui le maintient.
+      placeholder: "ex. Karlsruhe Institute of Technology"
+
+  - type: input
+    id: location
+    attributes:
+      label: Lieu
+      description: Ville et pays de l’équipe, ou du coordinateur du projet — là où la carte l’épinglera. Laissez vide pour ce qui est international.
+      placeholder: "ex. Karlsruhe, Allemagne"
+
+  - type: input
+    id: period
+    attributes:
+      label: Période
+      description: L’année de début et, s’il est terminé ou a une fin prévue, l’année de fin.
+      placeholder: "ex. 2023–2026, ou depuis 2019"
+
+  - type: dropdown
+    id: domains
+    attributes:
+      label: Domaines
+      description: Les systèmes sur lesquels il porte, dans les termes de la carte. Autant que nécessaire.
+      multiple: true
+      options:
+        - "Énergie / réseau électrique"
+        - "Aviation / ATC"
+        - "Ferroviaire"
+        - "Routes / transport sol"
+        - "Télécoms / réseaux"
+        - "Eau / gaz"
+        - "Santé / clinique"
+        - "Manufacturing / process"
+        - "Maritime / ports"
+        - "Nucléaire"
+        - "Défense"
+        - "Human factors / cognitif"
+        - "XAI / confiance / sûreté"
+        - "Multi-agents / autres"
+        - "Data centers / AI Factories"
+        - "Réseaux & plateformes IA"
+        - "Simulation socio-technique"
+
+  - type: dropdown
+    id: focus_areas
+    attributes:
+      label: Axes de recherche
+      description: Ce qu’il étudie de la décision partagée entre humains et IA, dans les termes de la carte. Autant que nécessaire.
+      multiple: true
+      options:
+        - "Aide à la décision"
+        - "Initiative partagée"
+        - "Supervision humaine"
+        - "Explicabilité"
+        - "Communication de l'incertitude"
+        - "Calibration de la confiance"
+        - "Conscience de situation partagée"
+        - "Facteurs humains"
+        - "Partenariats humain–machine"
+        - "Cobots"
+        - "Jumeaux numériques"
+        - "Apprentissage par renforcement en conduite"
+        - "Industrie de procédés"
+        - "Réseau électrique"
+        - "Marchés de l'énergie"
+        - "Manufacturing"
+        - "Conduite transport"
+        - "Opérations hospitalières"
+        - "Défense"
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Fiches liées sur la carte
+      description: Ses partenaires, le consortium dont il fait partie, les normes qu’il applique, les jeux de données ou outils sur lesquels il s’appuie — nommés comme la carte les nomme.
+      placeholder: "ex. partenaire d’AI4REALNET ; s’appuie sur Grid2Op"
+
+  - type: textarea
+    id: more_sources
+    attributes:
+      label: Autres sources
+      description: D’autres pages qui étayent ce que vous avez écrit — un dépôt, des publications, la page du financeur, la presse.
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Autre chose
+      description: Votre lien avec lui, si vous en avez un (vous y travaillez, vous l’utilisez…), ou ce que le mainteneur devrait savoir.

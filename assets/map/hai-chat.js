@@ -53,7 +53,8 @@
       tooMany: 'Beaucoup de demandes depuis cette adresse — réessayez un peu plus tard.',
       busyServer: 'Le chat répond à d’autres visiteurs — réessayez dans une minute.',
       tooLong: 'Ce message est trop long pour le chat.',
-      offlineIssue: 'Une proposition peut aussi se faire directement par une issue :',
+      offlineIssue: 'Une proposition peut aussi se faire directement par une issue GitHub, avec le formulaire de la carte :',
+      issueForm: 'Ajouter ou corriger une fiche de la carte',
       ready: 'prêt', model: 'modèle',
       // proposal
       propAdd: 'Proposer un ajout', propFix: 'Proposer une correction',
@@ -113,7 +114,8 @@
       tooMany: 'Many requests from this address — try again a little later.',
       busyServer: 'The chat is answering other visitors — try again in a minute.',
       tooLong: 'That message is too long for the chat.',
-      offlineIssue: 'A proposal can also be made directly as an issue:',
+      offlineIssue: 'A proposal can also be made directly as a GitHub issue, with the map\u2019s form:',
+      issueForm: 'Add or correct a map entry',
       ready: 'ready', model: 'model',
       propAdd: 'Propose an addition', propFix: 'Propose a correction',
       stepRef: '1 · The reference', stepDraft: '2 · The card', stepIssue: '3 · The issue',
@@ -159,8 +161,10 @@
   // server itself, so its API is same-origin; that is the documented way to
   // run it locally.
   const PUBLIC_SERVER = 'https://mac.tail9919aa.ts.net:8443';
-  // Where the chat's own proposals land, and so where one goes without it.
+  // Where the chat's own proposals land, and so where one goes without it:
+  // the map's issue form, in the reader's language (.github/ISSUE_TEMPLATE, §18.7).
   const ISSUES = 'https://github.com/marota/human-ai-collaboration/issues/new';
+  const issueForm = () => `${ISSUES}?template=${lang() === 'fr' ? 'map-entry-fr.yml' : 'map-entry.yml'}`;
   const LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/;
   const PUBLIC = !(LOOPBACK.test(location.hostname) || location.protocol === 'file:');
   const BASES = (() => {
@@ -566,7 +570,7 @@
     // A visitor who came to contribute still has a way when the chat is down.
     if (PUBLIC) {
       return `<strong>${esc(w('offlinePublic'))}</strong><br>${esc(w('offlineIssue'))}
-        <a href="${ISSUES}" target="_blank" rel="noopener">${esc(ISSUES.replace(/^https:\/\//, ''))}</a>`;
+        <a href="${esc(issueForm())}" target="_blank" rel="noopener">${esc(w('issueForm'))}</a>`;
     }
     return `<strong>${esc(w('offline'))}</strong><br>${esc(w('offlineHow'))}
       <code>python3 chat/server.py</code>

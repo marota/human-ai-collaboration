@@ -49,6 +49,7 @@ page, and [`chat.spec.js`](interface/chat.spec.js) asserts the gate from both si
 | `tests/generator/*.py` | `unittest` (stdlib) | `scripts/build-map-data.py`, against synthetic fixtures |
 | `tests/data/*.py` | `unittest` (stdlib) | the committed `hai-data.js` payload |
 | `tests/chat/*.py` | `unittest` (stdlib) | `chat/`, against the committed payload — no model, no network |
+| `tests/site/*.py` | `unittest` + PyYAML | the site around the map: the GitHub issue form (§18.7), against the map's own words |
 | `tests/fixtures/` | — | synthetic YAML trees, prefixed per test module |
 
 `tests/interface/chat.spec.js` covers the chat column (spec §18) against a stubbed server,
