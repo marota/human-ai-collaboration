@@ -1,229 +1,130 @@
-# Mise en ligne — procédure
+# Human–AI Joint Decision-Making in Critical Systems
 
-Trois étapes. Compter une demi-journée pour la 1 et la 2, le reste au fil de l'eau.
+*Design and evaluation criteria for AI decision support where errors are physical and irreversible.*
 
----
+**[marota.github.io/human-ai-collaboration](https://marota.github.io/human-ai-collaboration/)** · by [Antoine Marot](https://marota.github.io/human-ai-collaboration/about/)
 
-## 1. Le site (~1 h)
+AI is moving from tools into decision systems that shape critical infrastructure:
+transport, energy, healthcare, telecoms, industry and defence. This site asks how
+humans and AI actually make decisions together in those systems, and what would
+have to be measured before a deployment can be called safe. It brings together a
+thirteen-part series, an explainer video, the projects and evaluation protocols
+behind the arguments, a collaborative map of the European ecosystem, and an
+annotated reference base.
 
-1. Créer un dépôt public sur GitHub. Deux choix de nom :
-   - `marota.github.io` → l'URL sera `https://marota.github.io` (laisser `baseurl: ""` dans `_config.yml`)
-   - `human-ai-decision` → l'URL sera `https://marota.github.io/human-ai-decision` (mettre `baseurl: "/human-ai-decision"`)
-2. Dans `_config.yml`, remplacer `<USERNAME>` et `<REPO>`.
-3. Pousser le contenu de ce dossier à la racine du dépôt.
-4. Sur GitHub : **Settings → Pages → Source: Deploy from a branch → `main` / `(root)`**.
-5. Attendre 1–2 minutes. Le site est en ligne.
+This repository holds the site's source. Everything below lives either here or at
+the links given.
 
-Pour prévisualiser en local avant de pousser (facultatif) :
+## What is on the site
+
+| | |
+|---|---|
+| [**The series**](https://marota.github.io/human-ai-collaboration/series/) | Thirteen posts in three sections on human–AI joint decision-making in critical operations: what erodes expert judgement, what the cognitive systems engineering literature already knows, and what it would take to build. |
+| [**Explainer video**](https://marota.github.io/human-ai-collaboration/video/) | A synthesis of the series, and a perspective on how Europe could build shared capability to design, stress-test and certify human–AI collaboration before it reaches a control room. |
+| [**Projects**](https://marota.github.io/human-ai-collaboration/projects/) | The code, evaluation protocols and open challenges behind the arguments: what is measured, how, and where the method stops being valid. |
+| [**Ecosystem map**](https://marota.github.io/human-ai-collaboration/map/) | An interactive map, in English and French, of the European teams, projects, commons and frameworks working on human–AI collaboration in critical systems. It is collaborative: anyone can propose an addition or a correction. |
+| [**References**](https://marota.github.io/human-ai-collaboration/references/) | An annotated bibliography, grouped by what each work is useful for: cognitive systems engineering, human factors, regulation, open evaluation environments. |
+| [**About**](https://marota.github.io/human-ai-collaboration/about/) | The author, and the people this work was built with. |
+
+## The series
+
+**I. Observations that raise doubts**
+
+1. [From augmentation to cognitive surrender](https://marota.github.io/human-ai-collaboration/series/01-from-augmentation-to-cognitive-surrender/)
+2. [When new learners lean on AI to build their skills](https://marota.github.io/human-ai-collaboration/series/02-when-new-learners-lean-on-ai/)
+3. [When AI tells us what we want to hear](https://marota.github.io/human-ai-collaboration/series/03-when-ai-tells-us-what-we-want-to-hear/)
+4. [Do we still need to make decisions in the age of AI?](https://marota.github.io/human-ai-collaboration/series/04-do-we-still-need-to-make-decisions/)
+
+**II. Lessons & perspectives**
+
+5. [New perspectives for overcoming AI ironies](https://marota.github.io/human-ai-collaboration/series/05-new-perspectives-for-overcoming-ai-ironies/)
+6. [Foundation: from techno-centric AI to Human-AI partnerships](https://marota.github.io/human-ai-collaboration/series/06-foundation-techno-centric-to-partnerships/)
+7. [Partnerships under Human-Centered AI](https://marota.github.io/human-ai-collaboration/series/07-partnerships-under-human-centered-ai/)
+8. [Explainable AI is not enough for effective Human-AI partnerships](https://marota.github.io/human-ai-collaboration/series/08-explainable-ai-is-not-enough/)
+9. [Forget "human in the loop"](https://marota.github.io/human-ai-collaboration/series/09-forget-human-in-the-loop/)
+10. [Human-AI collaboration needs a Mission Control](https://marota.github.io/human-ai-collaboration/series/10-human-ai-needs-a-mission-control/)
+
+**III. Building for the future**
+
+11. [Two disciplines are emerging around AI. Neither is about the model.](https://marota.github.io/human-ai-collaboration/series/11-two-emerging-disciplines/)
+12. [Europe's Mission Control is already staffed. Meet three of its crews.](https://marota.github.io/human-ai-collaboration/series/12-europes-mission-control-is-already-staffed/)
+13. The European ecosystem map — *in preparation*
+
+## Where the resources are
+
+| Resource | Where |
+|---|---|
+| The series | [`_series/`](_series/), one Markdown file per part. The sections are in [`_data/series_sections.yml`](_data/series_sections.yml), the series page in [`series.md`](series.md). |
+| Explainer video | [On YouTube](https://www.youtube.com/watch?v=s8pMBovlHKo). Its page is [`video.md`](video.md). |
+| Projects | [`projects/`](projects/), one page per project. [Co-Study4Grid](https://github.com/marota/Co-Study4Grid) is open source (MPL-2.0). The Ambient AI Scribe's code is private, so its page is the public deliverable. |
+| Ecosystem map | [`map.md`](map.md) is the page around it. The map itself is [`assets/map/eu-hai-map.html`](assets/map/eu-hai-map.html), a single self-contained page. Its data, [`assets/map/hai-data.js`](assets/map/hai-data.js), is generated from the YAML of a separate repository, `eu-hai-collab-map`, which is private for now. |
+| The map's chat | [`assets/map/hai-chat.js`](assets/map/hai-chat.js) runs in the page. Its server, which answers with a local model on the maintainer's machine, is in [`chat/`](chat/); see [`chat/README.md`](chat/README.md). |
+| How the map works | [`docs/map-interface-spec.md`](docs/map-interface-spec.md) covers the data model, the visual language, filtering, the chat, and the invariants a change must keep. |
+| References | [`references.md`](references.md) |
+| About | [`about.md`](about.md) · [ORCID 0000-0003-1753-5493](https://orcid.org/0000-0003-1753-5493) |
+
+## Contributing to the map
+
+The map is meant to be completed and corrected by the people it describes. To
+propose a team, a project, a commons or a framework, or to correct a card, you can
+use either of two routes:
+
+- **The chat.** Press **Chat** on the [map](https://marota.github.io/human-ai-collaboration/map/). It checks your source,
+  drafts the card with you, and opens a GitHub issue that you read before sending.
+- **The issue form.** Use it when the chat is unavailable, or if you would rather
+  write it yourself. It is available
+  [in English](https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry.yml)
+  and [en français](https://github.com/marota/human-ai-collaboration/issues/new?template=map-entry-fr.yml),
+  and asks for the minimum first, then for what helps.
+
+Every proposal is reviewed in the open before it reaches the map. The map's page
+explains [how a proposal becomes an entry](https://marota.github.io/human-ai-collaboration/map/#a-collaborative-map). For
+anything else about the site, such as a broken link or a reference to fix, open an
+[issue](https://github.com/marota/human-ai-collaboration/issues/new/choose).
+
+## Citing and licence
+
+To cite the series, use [`CITATION.cff`](CITATION.cff), which GitHub shows as
+*Cite this repository*. The content is licensed under [CC BY 4.0](LICENSE).
+
+## Working on the site
+
+The site is plain Jekyll with a home-made theme: the templates are in
+`_layouts/` and `_includes/`, and the whole look is in
+`assets/css/main.css`. There is no Sass and no web font (the type is a system
+font stack); the colour tokens for light and dark mode sit at the top of that file.
+Every push to `main` publishes the site through GitHub Actions (the *Publish
+site* workflow).
+
 ```bash
 bundle install
-bundle exec jekyll serve      # http://localhost:4000
+bundle exec jekyll serve      # http://localhost:4000/human-ai-collaboration/
 ```
 
----
-
-## 2. Le DOI Zenodo (~2 h, dont la compilation du PDF)
-
-C'est ce qui rend la série **citable** et la sort du registre réseau social.
-
-1. **Créer un ORCID** si ce n'est pas fait : <https://orcid.org/register>. Cinq minutes.
-   Un jury institutionnel le cherchera ; renseigner l'ORCID dans `_config.yml`,
-   `CITATION.cff` et `about.md`.
-2. **Compiler les dix posts en un seul PDF** : page de titre, résumé d'une page,
-   les dix parties dans l'ordre, la bibliographie de `references.md` à la fin.
-   Nettoyer au passage : emojis, hashtags, appels à commentaire, et surtout
-   **unifier la numérotation** (les posts annoncent « 1/3 » et « 5/6 » —
-   incohérence visible sur un document de candidature).
-3. Aller sur <https://zenodo.org>, se connecter **avec l'ORCID** (pas avec GitHub :
-   ça lie proprement le dépôt à ton identifiant chercheur).
-4. **New upload** → type `Publication` → sous-type `Preprint` ou `Report`.
-   Titre, auteur + ORCID, licence CC-BY-4.0, mots-clés (voir `CITATION.cff`).
-   Ajouter l'URL du site et celle de la vidéo dans les *Related identifiers*.
-5. **Publish** → le DOI est frappé immédiatement.
-6. Reporter le DOI dans `index.md`, `series.md`, `CITATION.cff` et le CV.
-
-**Astuce versionnage :** Zenodo gère les versions. Si tu ajoutes des parties plus
-tard, tu publies une nouvelle version sous le même DOI « concept ».
-
-**Variante à envisager en parallèle :** un dépôt sur [HAL](https://hal.science).
-Pour un profil français visant l'écosystème Inria / INESIA, le signal est utile,
-et le coût marginal est faible une fois le PDF prêt.
-
----
-
-## Publier avec ou sans la section Projects
-
-La section **Projects** est publiée par défaut. Le drapeau vit dans
-`_config.yml` :
-
-```yaml
-features:
-  projects: true
-```
-
-Quand il est faux : l'entrée de nav, la carte d'accueil, les quatre pages et
-leurs images ne sont **pas construites du tout** — elles ne sont pas seulement
-cachées en CSS, elles n'existent pas dans le site publié.
-
-| Publier | Comment |
-|---|---|
-| **Avec Projects** (défaut) | `git push` sur `main` — le workflow s'en charge |
-| **Sans Projects** | Actions → *Publish site* → *Run workflow* → décocher `include_projects` |
-
-En local :
-
-```bash
-jekyll serve                                                     # avec Projects
-jekyll serve --config _config.yml,_config.without-projects.yml   # sans
-```
-
-`_config.without-projects.yml` redéclare `exclude` en entier — c'est une liste,
-donc Jekyll la remplace au lieu de la fusionner. Si tu ajoutes une entrée à
-`exclude` dans `_config.yml`, pense à la reporter là-bas.
-
-Le workflow échoue volontairement si le résultat ne correspond pas au mode
-demandé, ou si un lien vers `/projects/` a survécu dans une construction censée
-l'exclure.
-
-> **À faire une fois** : dans **Settings → Pages**, passer *Source* de
-> « Deploy from a branch » à **« GitHub Actions »**. Tant que ce n'est pas fait,
-> le workflow s'exécute mais le déploiement échoue.
-
----
-
-## 3. Les pages projets
-
-Les quatre pages de `projects/` sont écrites :
-
-| Page | Dépôt | Statut |
-|---|---|---|
-| `co-study4grid.md` | [Co-Study4Grid](https://github.com/marota/Co-Study4Grid) | public, MPL-2.0 |
-| `ambient-ai-scribe.md` | `OperatorAudioScribe` | privé — la page **est** le livrable public |
-| `personal-agent-harness.md` | montage local (scripts + config) | non versionné |
-| `index.md` | — | sommaire : projets perso / collectifs / challenges |
-
-Le parti pris : elles décrivent **ce qui est mesuré et comment**, pas le code.
-Sur un poste d'évaluateur, la méthode compte plus que l'implémentation — et pour
-un dépôt privé, c'est la seule chose publiable.
-
-Deux sections méritent d'être maintenues à jour en priorité :
-
-- **`Ambient AI Scribe` → Data governance.** Des enregistrements d'opérateurs sont
-  des données personnelles. La page décrit les garde-fous *architecturaux* (tout
-  en local, entrées privées jamais versionnées, sortie de mesure agrégée par
-  défaut) plutôt qu'une intention.
-- **Les résultats négatifs**, partout. Le « peut-on diviser le WER par 2 ? → non »
-  et la combinaison qui a *empiré* le WER valent plus, pour la crédibilité d'un
-  évaluateur, que les chiffres favorables.
-
----
-
-## Arborescence
-
-```
-.
-├── _config.yml                 # remplacer <USERNAME> et <REPO>
-├── index.md                    # accueil
-├── series.md                   # sommaire de la série
-├── video.md                    # vidéo intégrée + contexte
-├── references.md               # bibliographie annotée
-├── about.md                    # bio courte + liens
-├── CITATION.cff                # métadonnées de citation (GitHub l'affiche)
-├── Gemfile · .gitignore · LICENSE
-├── _layouts/                   # thème maison : default, home, page, post, series
-├── _includes/                  # head, header, footer, series-list, lead-figure
-├── _series/
-│   └── 01..10-<titre>.md        # les dix posts publiés, nettoyés
-├── projects/
-│   ├── index.md
-│   ├── co-study4grid.md
-│   ├── personal-agent-harness.md
-│   └── ambient-ai-scribe.md
-├── map.md                      # carte de l'écosystème européen
-├── docs/
-│   └── map-interface-spec.md   # spécification de l'interface carte (référence)
-├── scripts/
-│   └── build-map-data.py       # régénère assets/map/hai-data.js depuis les YAML
-├── chat/                       # serveur local du chat de la carte (hors site publié)
-│   └── README.md               # comment le lancer
-├── tests/                      # harnais de test (hors site publié)
-└── assets/
-    ├── css/main.css            # toute l'apparence du site
-    ├── map/eu-hai-map.html     # carte autonome (SVG, sans dépendance)
-    ├── map/hai-data.js         # GÉNÉRÉ — ne pas éditer à la main
-    ├── map/europe-geo.js       # fond Natural Earth pré-projeté
-    ├── map/hai-chat.js         # colonne de chat, chargée seulement avec ?chat=1
-    └── img/                    # favicon, illustrations série et projets
-```
-
-### Régénérer les données de la carte
-
-Les entités de la carte vivent en YAML dans le dépôt compagnon
-[eu-hai-collab-map](https://github.com/marota/eu-hai-collab-map) — c'est la
-source de vérité. `assets/map/hai-data.js` en est la projection : descriptions
-complètes, axes de recherche, consortium, financement, calendriers, licences,
-provenance. Pour la reconstruire après une correction en amont :
-
-```bash
-git clone -b refactor/pentagon-layers https://github.com/marota/eu-hai-collab-map.git ../eu-hai-collab-map
-python3 scripts/build-map-data.py --source ../eu-hai-collab-map
-```
-
-Le chemin peut aussi venir de `$EU_HAI_MAP_REPO`. Le script n'a besoin que de
-PyYAML, et affiche un récapitulatif (entités par couche, entités sans
-coordonnées, longueur de la plus longue description) pour repérer une régression
-d'un coup d'œil.
-
-### Le chat de la carte
-
-Une colonne de chat peut s'ouvrir à côté de la carte, **sur votre machine
-seulement** : elle répond à partir des fiches de `hai-data.js` et de rien
-d'autre, et transforme « il manque ceci » ou « cette fiche est fausse » en une
-fiche rédigée que la personne corrige sur place, puis en une issue GitHub qu'un
-mainteneur relit. Le modèle tourne en local via Ollama ; rien ne sort de la
-machine en dehors de la page de référence qu'on lui demande de lire et de
-l'issue qu'on choisit d'ouvrir.
-
-```bash
-python3 chat/server.py     # puis ouvrir l'URL affichée
-```
-
-Sans `?chat=1` la carte publiée est exactement la page qu'elle a toujours été —
-trois fichiers locaux, aucune requête réseau. C'est tout l'intérêt du paramètre.
-Le détail est dans [`chat/README.md`](chat/README.md) et au §18 de la
-spécification d'interface.
-
-Avant de toucher à `assets/map/eu-hai-map.html` ou au générateur, lire
-[`docs/map-interface-spec.md`](docs/map-interface-spec.md) : modèle de données,
-langage visuel, modèle de filtrage, et surtout la liste des invariants qu'un
-changement ne doit pas casser — la dérivation des couleurs de marqueur, en
-particulier, est copiée à l'identique de l'ancien script et doit le rester.
-
----
-
-## Apparence
-
-Le site n'utilise pas de thème externe : les gabarits sont dans `_layouts/` et
-`_includes/`, et **toute l'apparence tient dans `assets/css/main.css`**. Pas de
-SCSS, pas de build, pas de dépendance réseau — la police est une pile système à
-empattements, donc pas de Google Fonts et pas de requête tierce.
-
-Les couleurs sont des variables CSS déclarées en haut du fichier (`:root`), avec
-un jeu équivalent pour le mode sombre (`prefers-color-scheme: dark`). Changer
-l'accent du site = changer `--accent` / `--accent-deep` aux deux endroits.
-
-Deux conventions utiles dans les gabarits :
-
-- **Front matter d'une page** : `eyebrow` (surtitre), `deck` (chapô sous le
-  titre), `status` (badge, pages projets), `prose_class: prose--wide` pour une
-  colonne de texte plus large.
-- **Série** : tant que le `title:` d'un post commence par `[`, il est considéré
-  comme non écrit — il apparaît en « In preparation », sans lien. Remplacer le
-  titre suffit à l'activer partout (accueil, sommaire, navigation précédent /
-  suivant).
-
-La navigation principale se règle dans `_config.yml`, clé `nav:` — l'ordre de la
-liste est l'ordre affiché.
-
-Les emplacements à compléter sont marqués `[A COMPLETER]` et `TODO`.
-Pour tous les repérer : `grep -rn "A COMPLETER\|TODO" .`
+- **Navigation.** The `nav:` list in `_config.yml` sets the menu, in display order.
+- **A post of the series** is a file in `_series/`. Its `phase` places it in
+  a section. While its `title:` starts with `[`, the post counts as
+  unwritten: it is listed as *In preparation*, without a link.
+- **Page front matter.** `eyebrow` is the kicker, `deck` the standfirst,
+  `status` the badge on project pages, and `prose_class: prose--wide` gives a
+  wider column.
+- **Publishing without the Projects section.** Go to Actions → *Publish site* →
+  *Run workflow* and untick `include_projects`. Locally, run
+  `bundle exec jekyll serve --config _config.yml,_config.without-projects.yml`.
+  The Projects pages are then not built at all, and the workflow fails if a link
+  to `/projects/` survives. `_config.without-projects.yml` redeclares
+  `exclude` in full, so an entry added to `exclude` in `_config.yml` must be
+  added there too.
+- **The map's data** is generated and never edited by hand.
+  `python3 scripts/build-map-data.py --source ../eu-hai-collab-map` rebuilds
+  `assets/map/hai-data.js` from the data repository, or from `$EU_HAI_MAP_REPO`.
+  Read the [interface specification](docs/map-interface-spec.md) before changing
+  the map or its generator.
+- **The map's chat** runs on the maintainer's machine. After a merge,
+  `chat/service.sh update` moves it to the new `main` and restarts it; see
+  [`chat/README.md`](chat/README.md).
+- **Tests.** `npm test` runs the map in a real browser and checks its
+  generator, its payload, its chat and the issue form; see
+  [`tests/README.md`](tests/README.md).
+- **Placeholders** still to fill are marked `[A COMPLETER]` or `TODO`. To list
+  them, run `grep -rn "A COMPLETER\|TODO" .`

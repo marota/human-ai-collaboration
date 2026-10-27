@@ -9,10 +9,11 @@ type: generic
 authors:
   - family-names: "Marot"
     given-names: "Antoine"
-    # orcid: "https://orcid.org/0000-0000-0000-0000"   # TODO
+    orcid: "https://orcid.org/0000-0003-1753-5493"
 date-released: 2026-01-01
 license: CC-BY-4.0
-url: "https://<USERNAME>.github.io/<REPO>"
+url: "https://marota.github.io/human-ai-collaboration"
+repository-code: "https://github.com/marota/human-ai-collaboration"
 # doi: "10.5281/zenodo.XXXXXXX"    # TODO: apres depot Zenodo
 keywords:
   - human-AI collaboration
