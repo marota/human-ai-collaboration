@@ -1660,30 +1660,59 @@ test.describe('§5 clusters versus the top-left buttons', () => {
     }
   });
 
-  test('§5 SPEC-DEVIATION at 375px the Links pill itself sits over the Filters FAB', async ({ page }) => {
-    // Not the box but a control: at phone width the button row reaches the
-    // left edge, and the "Liens" pill lands on the FAB. A tap opens the links
-    // instead of the drawer. Asserted as-is so a layout fix shows here.
-    for (const width of [375]) {
-      await openAt(page, { width });
-      await expect(page.locator('#sb-open')).toBeVisible();
-      const covered = await page.evaluate(() => {
-        const b = document.getElementById('sb-open').getBoundingClientRect();
-        const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        return { inCluster: !!(top && top.closest('#ctl-cluster')), isFab: top === document.getElementById('sb-open') };
-      });
-      expect(covered.inCluster, `${width}px: the cluster box covers the FAB`).toBe(true);
-      expect(covered.isFab).toBe(false);
+  test('§5 on a phone the buttons take two lines and leave the Filters FAB to the tap', async ({ page }) => {
+    // At phone width the six buttons no longer fit on one line beside the FAB,
+    // and Links used to land on it: a tap meant for the filters toggled the
+    // links. Below 560px they now take two right-aligned lines, the view
+    // toggles first, then Chat and the language switch beside Help.
+    for (const lang of ['en', 'fr']) {
+      for (const width of [320, 360, 375, 390, 414, 430, 480, 560]) {
+        await openAt(page, { width, lang });
+        await expect(page.locator('#sb-open')).toBeVisible();
+        const r = await page.evaluate(() => {
+          const ids = ['links-pill', 'mymap-pill', 'feed-pill', 'chat-pill', 'lang-switch', 'help-btn'];
+          const el = (id) => id === 'lang-switch' ? document.querySelector('.lang-switch') : document.getElementById(id);
+          const fab = document.getElementById('sb-open').getBoundingClientRect();
+          const boxes = Object.fromEntries(ids.map((id) => [id, el(id).getBoundingClientRect()]));
+          const hits = (b) => b.left < fab.right && b.right > fab.left && b.top < fab.bottom && b.bottom > fab.top;
+          const mid = (b) => b.top + b.height / 2;
+          const top = document.elementFromPoint(fab.left + fab.width / 2, fab.top + fab.height / 2);
+          return {
+            onFab: ids.filter((id) => hits(boxes[id])),
+            fabOnTop: !!top && !!top.closest('#sb-open'),
+            line1: ['links-pill', 'mymap-pill', 'feed-pill'].map((id) => Math.round(mid(boxes[id]))),
+            line2: ['chat-pill', 'lang-switch', 'help-btn'].map((id) => Math.round(mid(boxes[id]))),
+            order2: ['chat-pill', 'lang-switch', 'help-btn'].map((id) => Math.round(boxes[id].left)),
+            helpRight: Math.round(boxes['help-btn'].right), feedRight: Math.round(boxes['feed-pill'].right),
+          };
+        });
+        const at = `${width}px ${lang}`;
+        expect(r.onFab, `${at}: no button overlaps the FAB`).toEqual([]);
+        expect(r.fabOnTop, `${at}: the FAB is what is under the pointer`).toBe(true);
+        expect(new Set(r.line1).size, `${at}: the view toggles share a line`).toBe(1);
+        expect(new Set(r.line2).size, `${at}: Chat, the language switch and Help share a line`).toBe(1);
+        expect(r.line2[0], `${at}: that line is below the toggles`).toBeGreaterThan(r.line1[0]);
+        expect(r.order2, `${at}: Chat, then the language switch, then Help`).toEqual([...r.order2].sort((a, b) => a - b));
+        expect(r.helpRight, `${at}: both lines end at the same right edge`).toBe(r.feedRight);
+        const box = await page.locator('#sb-open').boundingBox();
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        await page.waitForFunction(() =>
+          document.getElementById('sidebar').getBoundingClientRect().left === 0);
+        expect(await page.evaluate(() => document.body.classList.contains('panel-open')),
+          `${at}: a real tap opens the drawer`).toBe(true);
+      }
+    }
+  });
 
-      const box = await page.locator('#sb-open').boundingBox();
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      expect(await page.evaluate(() => document.body.classList.contains('panel-open')),
-        `${width}px: the tap never opens the drawer`).toBe(false);
-      // The handler works when it is reached, so the drawer itself is sound.
-      await pressById(page, 'sb-open');
-      await page.waitForFunction(() =>
-        document.getElementById('sidebar').getBoundingClientRect().left === 0);
-      expect(await page.evaluate(() => document.body.classList.contains('panel-open'))).toBe(true);
+  test('§5 from 561px the buttons keep a single line', async ({ page }) => {
+    // The second line is for phones only: where the row fits beside the FAB,
+    // it stays one line, as before.
+    for (const width of [561, 600, 840]) {
+      await openAt(page, { width });
+      const lines = await page.evaluate(() => new Set(
+        [...document.querySelectorAll('#ctl-cluster .ctl-group > *')]
+          .map((e) => { const b = e.getBoundingClientRect(); return Math.round(b.top + b.height / 2); })).size);
+      expect(lines, `${width}px: one line of buttons`).toBe(1);
     }
   });
 });
