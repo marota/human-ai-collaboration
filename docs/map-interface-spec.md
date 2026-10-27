@@ -1096,6 +1096,12 @@ machine is off or the server down, the column says so in the reader's language,
 with no command to run — the map is unaffected, and nothing was requested
 before the press.
 
+On that machine the server is a launchd agent (`chat/service.sh`), restarted
+within seconds if it stops and started at login. It runs from a worktree of its
+own, detached at `origin/main`, so the published chat answers from the payload
+the published map draws (invariant 17) rather than from the working checkout;
+a merge reaches it when the service is updated.
+
 A request through the tunnel is a **visitor's**, held to rules the curator's are
 not:
 
