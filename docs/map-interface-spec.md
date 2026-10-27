@@ -272,7 +272,11 @@ Three columns in a CSS grid, `312px | 1fr | 344px`:
 
 Below 840 px the sidebar and the feed become overlay drawers, the top-right
 cluster wraps to two rows, and the detail panel docks to the bottom of the
-screen.
+screen. Below 560 px, on a phone, the buttons no longer fit on one line beside
+the Filters button, so they take two lines of their own, both right-aligned:
+the view toggles (Links, My map, Feed), then Chat and the language switch beside
+Help. No button may sit over the Filters button, the only way to the sidebar
+drawer at that width.
 
 **All controls the reader acts on live in the top-right cluster.** Filters that
 configure the view live in the left panel. That split is the reason the period
