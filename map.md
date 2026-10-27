@@ -9,15 +9,13 @@ deck: >-
   collaboration for decision-making in industrial and critical systems.
 ---
 
+[Open the map full screen →]({{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }})
+
 <div class="map-frame">
   <iframe src="{{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }}"
           title="Map of European human–AI collaboration teams and initiatives"
           loading="lazy"></iframe>
 </div>
-
-[Open the map full screen →]({{ '/assets/map/eu-hai-map.html?lang=en' | relative_url }})
-· [Version française]({{ '/assets/map/eu-hai-map.html?lang=fr' | relative_url }})
-· [Source and data on GitHub](https://github.com/marota/eu-hai-collab-map)
 
 **A collaborative map.** Anyone can add to it or correct it. Press **Chat** on
 the map, say what is missing or wrong, and the chat helps you turn it into a
