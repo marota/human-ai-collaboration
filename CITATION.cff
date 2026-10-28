@@ -5,7 +5,6 @@ abstract: >-
   A thirteen-part series translating the cognitive systems engineering canon into
   design and evaluation criteria for AI decision support in critical
   infrastructure, with an accompanying explainer video and curated reference base.
-type: generic
 authors:
   - family-names: "Marot"
     given-names: "Antoine"
@@ -14,7 +13,7 @@ date-released: 2026-01-01
 license: CC-BY-4.0
 url: "https://marota.github.io/human-ai-collaboration"
 repository-code: "https://github.com/marota/human-ai-collaboration"
-# doi: "10.5281/zenodo.XXXXXXX"    # TODO: apres depot Zenodo
+# doi: "10.5281/zenodo.XXXXXXX"    # TODO: apres depot Zenodo, ici et dans preferred-citation
 keywords:
   - human-AI collaboration
   - cognitive systems engineering
@@ -22,3 +21,14 @@ keywords:
   - human oversight
   - critical infrastructure
   - EU AI Act
+# What GitHub's "Cite this repository" shows: the series, at the site. Without it,
+# GitHub cites the repository as software and links its code.
+preferred-citation:
+  type: generic
+  title: "Human-AI Joint Decision-Making in Critical Systems: a thirteen-part series"
+  authors:
+    - family-names: "Marot"
+      given-names: "Antoine"
+      orcid: "https://orcid.org/0000-0003-1753-5493"
+  year: 2026
+  url: "https://marota.github.io/human-ai-collaboration"
