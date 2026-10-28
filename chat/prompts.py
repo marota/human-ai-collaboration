@@ -94,10 +94,11 @@ wrong or out of date, begin your reply with exactly one control line and nothing
 before it:
 
 - `[PROPOSE:add:<layer>]` — something is missing. `<layer>` is one of \
-project, team, commons, framework. A lab, group, department or company R&D unit is a \
-`team`; a funded project, programme or consortium is a `project`; a dataset, \
-benchmark, model, software or community is a `commons`; a standard, regulation, \
-guideline or policy is a `framework`.
+project, team, cluster, commons, framework. A lab, group, department or company R&D unit \
+is a `team`; a funded project, programme or consortium is a `project`; an association, a \
+network of labs or a cluster of projects is a `cluster`; a dataset, benchmark, model, \
+software or community is a `commons`; a standard, regulation, guideline or policy is a \
+`framework`.
 - `[PROPOSE:fix:<id>]` — a card on the map is wrong. `<id>` is that card's exact id, \
 copied from the cards in this turn.
 
@@ -170,6 +171,8 @@ DRAFT_REQUIRED = {
                 "description"),
     "framework": ("name", "kind", "status", "jurisdiction", "issuing_body.org",
                   "issuing_body.url", "links.homepage", "description"),
+    "cluster": ("name", "kind", "status", "homepage", "location.country", "location.city",
+                "timeline.start", "description"),
 }
 
 
@@ -206,10 +209,13 @@ def schema_for(layer: str, corpus: Corpus, mode: str = "add") -> dict[str, Any]:
         elif f.kind == "ids":
             node = {"type": "array", "items": {"type": "string"}, "maxItems": 12}
         elif f.kind == "orgs":
+            # The roles are the field's own: a cluster's members founded it or
+            # joined it, and a consortium's roles would make that unsayable.
             node = {"type": "array", "maxItems": 40, "items": {
                 "type": "object",
                 "properties": {"org": {"type": "string"},
-                               "role": {"type": "string", "enum": list(cards.ROLES)},
+                               "role": {"type": "string",
+                                        "enum": list(f.vocab or cards.ROLES)},
                                "country": {"type": "string"}},
                 "required": ["org"],
             }}
@@ -241,7 +247,8 @@ def schema_for(layer: str, corpus: Corpus, mode: str = "add") -> dict[str, Any]:
 def draft_system(layer: str, lang: str, mode: str) -> str:
     target = {"project": "funded project or programme", "team": "team, lab or R&D group",
               "commons": "dataset, benchmark, model, software or community",
-              "framework": "standard, regulation, guideline or policy"}[layer]
+              "framework": "standard, regulation, guideline or policy",
+              "cluster": "association, network of labs or cluster of projects"}[layer]
     shared = f"""You fill in one card of the European human–AI collaboration map: a {target}.
 
 You are given the conversation with the contributor and, when they supplied one, the \
@@ -402,9 +409,26 @@ def guess_name(text: str) -> str:
     return acronym
 
 
+# A cluster, named the way a contributor names one. Read before every other
+# layer, since its names carry their words — "réseau de projets", "the Gaia-X
+# association, a community of cloud providers", "partenariat Horizon Europe" —
+# and narrow, since the words around it mean other things: a GPU cluster is a
+# team card, "clustering" a method, "in association with" a partnership.
+_CLUSTER_RE = re.compile(r"""
+    (?<!\bin\ )(?<!\ben\ )\bassociations?\b
+  | \b(?:aisbl|asbl)\b | \be\.\ ?v\.(?!\w)
+  | (?<!compute\ )(?<!computing\ )(?<!gpu\ )(?<!hpc\ )\bclusters?\ of\b
+  | \bclusters?\ de(?:\ [\w-]+){0,2}?\ projets\b
+  | \bnetworks?\ of(?:\ [\w-]+){0,2}?\ (?:labs?|laboratories|researchers|projects)\b
+  | \br[ée]seaux?\ de(?:\ [\w-]+){0,2}?\ (?:laboratoires|labos|chercheurs|recherche|projets)\b
+""", re.X)
+
+
 def guess_layer(text: str) -> str:
     """Which layer a proposal is about, from the words used for it."""
     t = text.lower()
+    if _CLUSTER_RE.search(t):
+        return "cluster"
     if re.search(r"\b(dataset|benchmark|jeux? de donn\w*|mod[eè]les? ouvert\w*|"
                  r"logiciel\w*|software|library|librairie|biblioth[eè]que|"
                  r"communaut\w*|community)", t):

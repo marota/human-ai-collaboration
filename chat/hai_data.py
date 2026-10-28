@@ -21,8 +21,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-# The four layers the map draws, in the order the sidebar lists them.
-LAYERS = ("project", "team", "commons", "framework")
+# The five layers the map draws, in the order the sidebar lists them.
+LAYERS = ("project", "team", "cluster", "commons", "framework")
 
 # Layer -> the directory an entity of that layer lives in upstream. The chat
 # quotes these paths in the issues it opens, so a maintainer knows which file a
@@ -30,12 +30,13 @@ LAYERS = ("project", "team", "commons", "framework")
 LAYER_DIR = {
     "project": "data/projects",
     "team": "data/teams",
+    "cluster": "data/clusters",
     "commons": "data/commons",
     "framework": "data/frameworks",
 }
 
-_ARRAYS = {"PROJECTS": "project", "TEAMS": "team", "COMMONS": "commons",
-           "FRAMEWORKS": "framework"}
+_ARRAYS = {"PROJECTS": "project", "TEAMS": "team", "CLUSTERS": "cluster",
+           "COMMONS": "commons", "FRAMEWORKS": "framework"}
 
 _DECODER = json.JSONDecoder()
 
@@ -119,6 +120,7 @@ class Corpus:
     _haystacks: dict[str, list[str]] = field(default_factory=dict, repr=False)
     _idf: dict[str, float] = field(default_factory=dict, repr=False)
     _neighbours: dict[str, set[str]] = field(default_factory=dict, repr=False)
+    _org_level: set[frozenset[str]] = field(default_factory=set, repr=False)
 
     def __post_init__(self) -> None:
         self.by_id = {e["id"]: e for e in self.entities}
@@ -139,15 +141,21 @@ class Corpus:
         # no signal, a token in three cards carries a lot.
         self._idf = {t: math.log(1 + docs / n) for t, n in seen.items()}
 
-        # edges.yml says which team sits in which project consortium, as
-        # `{project, team}`. The chat wants it as a neighbourhood, both ways:
-        # "who is in this project" and "which projects is this team in" are the
-        # same question asked from either end.
+        # edges.yml says which team sits in which project consortium, or which
+        # cluster it belongs to, as `{project|cluster, team}`. The chat wants it
+        # as a neighbourhood, both ways: "who is in this project" and "which
+        # projects is this team in" are the same question asked from either end.
         for edge in self.edges:
-            a, b = edge.get("project"), edge.get("team")
+            a, b = edge.get("project") or edge.get("cluster"), edge.get("team")
             if a in self.by_id and b in self.by_id:
                 self._neighbours.setdefault(a, set()).add(b)
                 self._neighbours.setdefault(b, set()).add(a)
+                # `org: true`: the team card stands in for its organisation,
+                # which takes part through a unit with no card of its own. The
+                # unit on the card may have nothing to do with it, so the chat
+                # must not say it does.
+                if edge.get("org"):
+                    self._org_level.add(frozenset((a, b)))
 
     def _haystack_text(self, e: dict[str, Any]) -> str:
         """Everything about an entity a reader might name it by."""
@@ -156,8 +164,10 @@ class Corpus:
                  e.get("desc_en", ""), e.get("kind", ""), e.get("status", ""),
                  " ".join(e.get("focus") or []), " ".join(e.get("domains") or []),
                  e.get("url", "")]
-        for member in e.get("consortium") or []:
+        for member in (e.get("consortium") or []) + (e.get("members") or []):
             parts += [member.get("org", ""), member.get("country", "")]
+        if isinstance(e.get("organisation"), dict):
+            parts.append(e["organisation"].get("name", ""))
         for key in ("affiliation", "issuer", "maintainer"):
             org = e.get(key) or {}
             if isinstance(org, dict):
@@ -169,6 +179,10 @@ class Corpus:
 
     def neighbours(self, entity_id: str) -> list[dict[str, Any]]:
         return [self.by_id[i] for i in sorted(self._neighbours.get(entity_id, ()))]
+
+    def org_level(self, x: str, y: str) -> bool:
+        """Whether the line between two cards is drawn at organisation level."""
+        return frozenset((x, y)) in self._org_level
 
     def counts(self) -> dict[str, int]:
         out = {layer: 0 for layer in LAYERS}
@@ -266,7 +280,15 @@ def load(path: str | Path) -> Corpus:
     src = Path(path).read_text(encoding="utf-8")
     entities: list[dict[str, Any]] = []
     for const, layer in _ARRAYS.items():
+        if f"const {const} = " not in src:  # a payload from before that layer existed
+            continue
         for e in _decode_value(src, const):
+            # The layer takes the `kind` key, which the rest of the chat reads
+            # as the layer. The payload's own kind — association,
+            # horizon_europe, dataset — is kept beside it: a card shows it, and
+            # a correction has to start from it.
+            if e.get("kind"):
+                e["payload_kind"] = e["kind"]
             e["kind"] = layer
             entities.append(e)
     return Corpus(
@@ -310,8 +332,8 @@ COUNTRY_NAMES = {
     "UK": ("united kingdom britain england scotland wales", "royaume-uni angleterre"),
 }
 
-_LAYER_PLURAL = {"project": "projects", "team": "teams", "commons": "commons",
-                 "framework": "frameworks"}
+_LAYER_PLURAL = {"project": "projects", "team": "teams", "cluster": "clusters",
+                 "commons": "commons", "framework": "frameworks"}
 
 
 def countries_in(text: str) -> list[str]:
@@ -330,11 +352,26 @@ def countries_in(text: str) -> list[str]:
     return out
 
 
+# The names of a cluster that hold another layer's word: the projects in "les
+# clusters de projets" and the labs in "a network of research labs" name the
+# cluster, not a layer of their own. They are taken out of the question before
+# the other layers are looked for.
+_CLUSTER_NAMES = (r"\b(?:clusters?|networks?|reseaux?) (?:of|de)(?: [a-z0-9-]+){0,2}? "
+                  r"(?:projects|projets|labs?|laboratories|laboratoires|labos|researchers|"
+                  r"chercheurs|recherche)\b")
+
 _LAYER_WORDS = (
     ("project", r"projets?|programmes?|consortiums?|project|programme"),
     ("team", r"[ée]quipes?|laboratoires?|labos?|groupes?|teams?|labs?"),
     ("commons", r"communs?|jeux? de donn|datasets?|benchmarks?|logiciels?|commons"),
     ("framework", r"cadres?|normes?|standards?|r[eè]glements?|frameworks?"),
+    # Last, so a question that names another layer keeps it — "teams in an
+    # association" asks about teams — and narrow, since the grid has networks
+    # of its own: "network operator", "réseau de transport" and "neural
+    # networks" name no cluster, and a compute or GPU cluster is a team card.
+    ("cluster", r"(?<!compute )(?<!computing )(?<!gpu )(?<!hpc )\bclusters?\b"
+                r"(?! (?:de calcul|hpc|gpu))|(?<!\bin )(?<!\ben )\bassociations?\b|"
+                + _CLUSTER_NAMES),
 )
 # Questions about when things began, which retrieval cannot answer: no card
 # contains the word "oldest", so a lexical search returns noise and the model
@@ -361,17 +398,16 @@ _OFFMAP_RE = re.compile(
 
 
 def _layer_named(text: str) -> str | None:
-    folded = fold(text)
-    for layer, pattern in _LAYER_WORDS:
-        if re.search(pattern, folded, re.I):
-            return layer
-    return None
+    named = _layers_named(text)
+    return named[0] if named else None
 
 
 def _layers_named(text: str) -> list[str]:
     """Every layer a question names — "frameworks and commons" is two."""
     folded = fold(text)
-    return [layer for layer, pattern in _LAYER_WORDS if re.search(pattern, folded, re.I)]
+    rest = re.sub(_CLUSTER_NAMES, " ", folded)
+    return [layer for layer, pattern in _LAYER_WORDS
+            if re.search(pattern, folded if layer == "cluster" else rest, re.I)]
 
 
 def _start_year(entity: dict[str, Any]) -> int | None:
@@ -480,7 +516,7 @@ def figures(corpus: Corpus, query: str) -> str:
     """
     counts = corpus.counts()
     whole = ", ".join(f"{counts[k]} {_LAYER_PLURAL[k]}" for k in LAYERS)
-    rows = [f"Whole map: {whole}, {counts['links']} consortium links "
+    rows = [f"Whole map: {whole}, {counts['links']} links "
             f"(snapshot {corpus.as_of})."]
 
     for code in countries_in(query)[:4]:
@@ -529,6 +565,17 @@ def catalogue(corpus: Corpus) -> str:
     return "\n".join(lines)
 
 
+def org_name(team: dict[str, Any]) -> str:
+    """The organisation a team card stands in for on an organisation-level line.
+
+    The payload names it when data/organisations.yml knows the team; otherwise
+    the affiliation is the best the card says, and its own name the last resort.
+    """
+    org = team.get("organisation") if isinstance(team.get("organisation"), dict) else {}
+    aff = team.get("affiliation") if isinstance(team.get("affiliation"), dict) else {}
+    return org.get("name") or aff.get("org") or team.get("name", "")
+
+
 def render_entity(corpus: Corpus, e: dict[str, Any], lang: str = "en") -> str:
     """One retrieved entity, in full, as the model should read it."""
     desc = e.get(f"desc_{lang}") or e.get("desc") or ""
@@ -541,10 +588,13 @@ def render_entity(corpus: Corpus, e: dict[str, Any], lang: str = "en") -> str:
         # French reply read "hors de la carte (no coordinates)".
         rows.append("location: " + ("hors carte (sans coordonnées)" if lang == "fr"
                                     else "off the map (no coordinates)"))
-    for key, heading in (("status", "status"), ("kind", "kind"), ("tier", "tier"),
+    # `kind` is the layer by now (see load); the card's own kind rides beside it.
+    for key, heading in (("status", "status"), ("payload_kind", "kind"), ("tier", "tier"),
                          ("when", "period"), ("url", "homepage")):
-        if e.get(key) and key != "kind":
+        if e.get(key):
             rows.append(f"{heading}: {e[key]}")
+    if e.get("size"):
+        rows.append(f"{'membership' if e['kind'] == 'cluster' else 'size'}: {e['size']}")
     if e.get("focus"):
         rows.append("focus: " + ", ".join(label(corpus, "focus", f, lang) for f in e["focus"]))
     if e.get("domains"):
@@ -554,19 +604,37 @@ def render_entity(corpus: Corpus, e: dict[str, Any], lang: str = "en") -> str:
         org = e.get(member_key) or {}
         if isinstance(org, dict) and org.get("org"):
             rows.append(f"{heading}: {org['org']}")
-    if e.get("consortium"):
-        members = ", ".join(
-            f"{m.get('org', '?')} ({m.get('role', 'partner')}, {m.get('country', '?')})"
-            for m in e["consortium"][:12])
-        rows.append(f"consortium: {members}")
+    # A team's organisation, when it is not already its affiliation: it is what
+    # takes part on an organisation-level line, so the model has to have it.
+    parent = e.get("organisation") if isinstance(e.get("organisation"), dict) else {}
+    aff = e.get("affiliation") if isinstance(e.get("affiliation"), dict) else {}
+    if parent.get("name") and parent["name"] != aff.get("org"):
+        rows.append(f"organisation: {parent['name']}")
+    for member_key, default in (("consortium", "partner"), ("members", "member")):
+        if e.get(member_key):
+            members = ", ".join(
+                f"{m.get('org', '?')} ({m.get('role', default)}, {m.get('country', '?')})"
+                for m in e[member_key][:12])
+            rows.append(f"{member_key}: {members}")
     if e.get("funding"):
         f = e["funding"]
         bits = [str(f.get(k)) for k in ("source", "programme", "amount") if f.get(k)]
         if bits:
             rows.append("funding: " + " · ".join(bits))
+    # Two kinds of line. On an organisation-level one the team card stands in
+    # for its organisation, and listing it as a plain link would credit the
+    # unit on the card with a membership that is its organisation's.
     links = corpus.neighbours(e["id"])
-    if links:
-        rows.append("linked cards: " + ", ".join(f"{n['name']} (#{n['id']})" for n in links[:12]))
+    direct = [n for n in links if not corpus.org_level(e["id"], n["id"])]
+    through = [n for n in links if corpus.org_level(e["id"], n["id"])]
+    if direct:
+        rows.append("linked cards: " + ", ".join(f"{n['name']} (#{n['id']})" for n in direct[:12]))
+    if through:
+        rows.append(
+            "linked through an organisation (the organisation takes part, not necessarily "
+            "the unit on the card): " + ", ".join(
+                f"{n['name']} (#{n['id']}) via {org_name(n if n['kind'] == 'team' else e)}"
+                for n in through[:12]))
     prov = e.get("prov") or {}
     if prov:
         rows.append(f"provenance: added by {prov.get('by', '?')} on {prov.get('on', '?')}, "

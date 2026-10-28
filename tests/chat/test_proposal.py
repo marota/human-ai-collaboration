@@ -94,6 +94,20 @@ class TheGrammarComesFromTheFieldTable(unittest.TestCase):
         self.assertEqual(rows["required"], ["org"])
         self.assertEqual(set(rows["properties"]["role"]["enum"]), set(CHAT.cards.ROLES))
 
+    def test_a_cluster_member_row_takes_the_cluster_s_own_roles(self):
+        # Held to the consortium's roles, the drafter could never write
+        # `founder`, and any role but `member` then failed validation.
+        rows = self.schema("cluster")["properties"]["members"]["items"]
+        self.assertEqual(rows["required"], ["org"])
+        self.assertEqual(rows["properties"]["role"]["enum"], list(CHAT.cards.CLUSTER_ROLES))
+
+    def test_a_cluster_s_kind_is_required_and_enumerated(self):
+        schema = self.schema("cluster")
+        self.assertIn("kind", schema["required"])
+        self.assertEqual(schema["properties"]["kind"]["enum"], list(CHAT.cards.KINDS["cluster"]))
+        self.assertIn("homepage", schema["required"])
+        self.assertNotIn("links", schema["properties"])
+
 
 class TheSystemPromptHoldsTheModelToTheMap(unittest.TestCase):
     @classmethod
@@ -189,6 +203,33 @@ class ReadsAnIntentToContribute(unittest.TestCase):
         self.assertEqual(CHAT.prompts.guess_layer("add the ISO 9241 standard"), "framework")
         self.assertEqual(CHAT.prompts.guess_layer("ajoute ce jeu de données"), "commons")
         self.assertEqual(CHAT.prompts.guess_layer("add Wendy Mackay's group"), "team")
+
+    def test_a_cluster_is_read_before_the_words_its_name_carries(self):
+        # A cluster's name holds the other layers' words — projects, Horizon
+        # Europe, a community — so it is looked for first.
+        for text in ("Il manque le réseau de projets ICT4Water",
+                     "add ICT4Water, the cluster of EU-funded water projects",
+                     "Il manque l'association ADRA, le côté privé du partenariat "
+                     "Horizon Europe sur l'IA",
+                     "the Gaia-X association, a community of cloud providers",
+                     "add the IDS Association e.V. in Dortmund",
+                     "add BDVA, the Big Data Value aisbl",
+                     "add CAIRNE, a network of research labs",
+                     "il manque le réseau de laboratoires CAIRNE",
+                     "ajoute les clusters de projets du programme"):
+            with self.subTest(text):
+                self.assertEqual(CHAT.prompts.guess_layer(text), "cluster")
+
+    def test_words_that_only_look_like_a_cluster_do_not_make_one(self):
+        for text in ("add the Jean Zay GPU cluster at IDRIS",
+                     "the clustering research group at Inria",
+                     "add the human factors lab at ONERA, which works in association "
+                     "with Airbus",
+                     "il manque l'équipe X, qui travaille en association avec Airbus",
+                     "il manque le réseau électrique de RTE",
+                     "add the power network operator Elia"):
+            with self.subTest(text):
+                self.assertEqual(CHAT.prompts.guess_layer(text), "team")
 
     def test_the_transcript_keeps_the_conversation_and_drops_the_tokens(self):
         text = CHAT.prompts.transcript_of([
