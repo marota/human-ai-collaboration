@@ -118,6 +118,8 @@ TAXO = {
     },
     "kind": {  # projects, frameworks, commons, infrastructure — one flat table
         "horizon_europe": ("Horizon Europe", "Horizon Europe"),
+        "horizon_2020": ("Horizon 2020", "Horizon 2020"),
+        "eu_other": ("Other EU programme", "Autre programme européen"),
         "national_grant": ("National programme", "Programme national"),
         "industrial_consortium": ("Industrial consortium", "Consortium industriel"),
         "internal": ("Internal programme", "Programme interne"),

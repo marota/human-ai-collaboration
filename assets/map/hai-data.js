@@ -888,6 +888,14 @@ const TAXO = {
    "en": "Horizon Europe",
    "fr": "Horizon Europe"
   },
+  "horizon_2020": {
+   "en": "Horizon 2020",
+   "fr": "Horizon 2020"
+  },
+  "eu_other": {
+   "en": "Other EU programme",
+   "fr": "Autre programme européen"
+  },
   "national_grant": {
    "en": "National programme",
    "fr": "Programme national"

@@ -1016,8 +1016,10 @@ test.describe('§12 the content switches too', () => {
     // vocabulary is expected to come past this line. It shrank by one here:
     // `jurisdiction.global` was never in the vocabulary the framework schema
     // documents, the data repository now rejects it, and the generator's label
-    // for it went with the eight entities that used to carry it.
-    expect(audit.entries).toBe(66);
+    // for it went with the eight entities that used to carry it. It then grew by
+    // two: `kind.horizon_2020` and `kind.eu_other`, so that a Horizon 2020 grant
+    // or a Digital Europe one is no longer labelled Horizon Europe.
+    expect(audit.entries).toBe(68);
     expect(audit.missing).toEqual([]);
   });
 

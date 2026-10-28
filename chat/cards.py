@@ -38,8 +38,8 @@ DOMAINS = (
 # `status` come from the payload's own TAXO, so they are read from the corpus
 # rather than repeated here.
 KINDS = {
-    "project": ("horizon_europe", "national_grant", "industrial_consortium",
-                "internal", "other"),
+    "project": ("horizon_europe", "horizon_2020", "eu_other", "national_grant",
+                "industrial_consortium", "internal", "other"),
     "commons": ("dataset", "benchmark", "model", "software", "community"),
     "framework": ("regulation", "standard", "guideline", "policy", "code_of_conduct"),
 }

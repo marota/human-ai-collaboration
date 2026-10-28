@@ -748,16 +748,17 @@ class TaxoPayload(unittest.TestCase):
             self.assertEqual(list(self.taxo[group]), list(table), group)
 
     def test_the_values_left_untranslated_are_the_known_handful(self):
-        # Six labels are identical in both languages because the French term is
-        # the English one (Cobots, Horizon Europe, a benchmark). Freezing the
-        # list means a seventh — a forgotten translation — shows up as a failure
+        # Seven labels are identical in both languages because the French term is
+        # the English one (Cobots, Horizon Europe, Horizon 2020, a benchmark). Freezing
+        # the list means an eighth — a forgotten translation — shows up as a failure
         # rather than as English text in the French interface (§12).
         same = sorted((g, k) for g, table in self.taxo.items()
                       for k, e in table.items() if e["en"] == e["fr"])
         self.assertEqual(same, [
             ("focus", "cobots"), ("focus", "manufacturing"),
             ("jurisdiction", "international"), ("kind", "benchmark"),
-            ("kind", "horizon_europe"), ("type", "infrastructure"),
+            ("kind", "horizon_2020"), ("kind", "horizon_europe"),
+            ("type", "infrastructure"),
         ])
 
     def test_the_payload_is_json_serialisable_and_stable(self):
