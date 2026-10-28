@@ -44,13 +44,13 @@ from tests._harness import MAP_HTML, SPEC, load_generator, load_payload, map_scr
 SCRIPT = map_script()
 SPEC_TEXT = SPEC.read_text(encoding="utf-8")
 
-# The four layers that carry entities. EDGES is a relation, not a layer of cards,
-# and `reg()` in the map registers exactly these four.
-ENTITY_LAYERS = ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS")
+# The five layers that carry entities. EDGES is a relation, not a layer of cards,
+# and `reg()` in the map registers exactly these five.
+ENTITY_LAYERS = ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS")
 # Everything the payload keys by name — the cards and the relation between them.
 PAYLOAD_LAYERS = ENTITY_LAYERS + ("EDGES",)
 # layer name -> the `kind` the map tags it with (`reg(DATA.PROJECTS,'project')`, …)
-LAYER_KIND = {"PROJECTS": "project", "COMMONS": "commons",
+LAYER_KIND = {"PROJECTS": "project", "CLUSTERS": "cluster", "COMMONS": "commons",
               "TEAMS": "team", "FRAMEWORKS": "framework"}
 # The generated payload, as the page spells it in its own `<script src>`.
 GENERATED_SRC = "hai-data.js"
@@ -131,6 +131,11 @@ def overlay_additions() -> dict:
 ADDED = overlay_additions()
 
 
+def edge_pair(e: dict) -> tuple:
+    """An edge as (source, team): the source is a project or a cluster."""
+    return (e.get("project") or e.get("cluster"), e.get("team"))
+
+
 def page_payload() -> dict:
     """`window.HAI_DATA` as the interface finds it: the generated payload with
     every overlay merged in, by the rule the overlays state and `PendingOverlay`
@@ -149,9 +154,9 @@ def page_payload() -> dict:
         have = {o["id"] for o in GENERATED[layer]}
         merged[layer] = list(GENERATED[layer]) + [o for o in ADDED[layer]
                                                   if o["id"] not in have]
-    pairs = {(e["project"], e["team"]) for e in GENERATED["EDGES"]}
+    pairs = {edge_pair(e) for e in GENERATED["EDGES"]}
     merged["EDGES"] = list(GENERATED["EDGES"]) + [
-        e for e in ADDED["EDGES"] if (e["project"], e["team"]) not in pairs]
+        e for e in ADDED["EDGES"] if edge_pair(e) not in pairs]
     dates = [GENERATED["AS_OF"]]
     for layer in ENTITY_LAYERS:
         for o in ADDED[layer]:
@@ -353,11 +358,11 @@ class Identity(unittest.TestCase):
             refs.update(o.get("usedBy", []) or [])
             refs.update(o.get("refs", []) or [])
             refs.update((o.get("infra") or {}).get("hosts", []) or [])
-            for c in o.get("consortium", []) or []:
+            for c in (o.get("consortium", []) or []) + (o.get("members", []) or []):
                 if c.get("ref"):
                     refs.add(c["ref"])
         for e in PAYLOAD["EDGES"]:
-            refs.update((e["project"], e["team"]))
+            refs.update(edge_pair(e))
         self.assertEqual(sorted(refs & PROTO_KEYS), [])
 
 
@@ -516,23 +521,84 @@ class Geography(unittest.TestCase):
 class CrossReferences(unittest.TestCase):
     """§3.2 / §3.3 — every id the payload points at has to resolve."""
 
-    def test_3_2_every_edge_resolves_to_a_project_and_a_team(self):
-        # `DATA.EDGES.forEach` bails out silently on an unknown project
-        # (`if(!p) return`) and `relate()` bails out on an unknown team, so a
+    def test_3_2_every_edge_resolves_to_a_project_or_a_cluster_and_a_team(self):
+        # `DATA.EDGES.forEach` bails out silently on an unknown source
+        # (`if (!p) return`) and `relate()` bails out on an unknown team, so a
         # broken reference costs a link with no error anywhere.
-        projects, teams = ids_of("PROJECTS"), ids_of("TEAMS")
+        sources = {"project": ids_of("PROJECTS"), "cluster": ids_of("CLUSTERS")}
+        teams = ids_of("TEAMS")
         for e in PAYLOAD["EDGES"]:
             with self.subTest(edge=e):
-                self.assertEqual(sorted(e), ["project", "team"])
-                self.assertIn(e["project"], projects)
+                self.assertLessEqual(set(e), {"project", "cluster", "team", "org", "via"})
+                kinds = [k for k in sources if k in e]
+                self.assertEqual(len(kinds), 1, "one source, a project or a cluster")
+                self.assertIn(e[kinds[0]], sources[kinds[0]])
                 self.assertIn(e["team"], teams)
+                if "org" in e:
+                    self.assertIs(e["org"], True)
 
     def test_3_2_no_edge_is_duplicated_or_reflexive(self):
         # Consortium links are drawn one curve per entry; a duplicated pair draws
         # the same curve twice (visibly darker) and inflates the links count.
-        pairs = [(e["project"], e["team"]) for e in PAYLOAD["EDGES"]]
+        pairs = [edge_pair(e) for e in PAYLOAD["EDGES"]]
         self.assertEqual(sorted(p for p, n in Counter(pairs).items() if n > 1), [])
         self.assertEqual([p for p in pairs if p[0] == p[1]], [])
+
+    def test_3_2_an_organisation_level_link_names_its_organisation(self):
+        # `level: organisation` upstream: the team card stands in for its
+        # organisation, which takes part through a unit with no card. The card
+        # says so by name, so the team has to carry the organisation it stands
+        # in for — data/organisations.yml is what makes such a line valid.
+        teams = {o["id"]: o for o in PAYLOAD["TEAMS"]}
+        org_lines = [e for e in PAYLOAD["EDGES"] if e.get("org")]
+        self.assertGreater(len(org_lines), 0)
+        for e in org_lines:
+            with self.subTest(edge=e):
+                org = teams[e["team"]].get("organisation") or {}
+                self.assertTrue(org.get("id") and org.get("name") and org.get("url"), org)
+
+    def test_3_2_one_line_per_organisation_and_the_others_share_it(self):
+        # The map draws one line per project (or cluster) and organisation. A
+        # second card of the same organisation linked to the same source carries
+        # `via`: the card whose line it shares, which belongs to the same
+        # organisation, is linked to the same source and draws a line itself.
+        teams = {o["id"]: o for o in PAYLOAD["TEAMS"]}
+        org_of = lambda tid: (teams[tid].get("organisation") or {}).get("id") or tid
+        drawn = {edge_pair(e) for e in PAYLOAD["EDGES"] if not e.get("via")}
+        per_org = Counter((src, org_of(team)) for src, team in drawn)
+        self.assertEqual(sorted(k for k, n in per_org.items() if n > 1), [])
+        shared = [e for e in PAYLOAD["EDGES"] if e.get("via")]
+        self.assertGreater(len(shared), 0)
+        for e in shared:
+            with self.subTest(edge=e):
+                src, team = edge_pair(e)
+                self.assertIn((src, e["via"]), drawn)
+                self.assertEqual(org_of(e["via"]), org_of(team))
+                self.assertNotEqual(e["via"], team)
+
+    def test_3_2_the_shared_line_goes_to_the_participating_unit_then_to_the_named_card(self):
+        # §4.3: of several cards of one organisation linked to one source, the
+        # line goes first to a unit that takes part itself, then to the card the
+        # partner list names (its coordinator first), then to the first in the
+        # file. A reversed rule would draw it to a stand-in card while the
+        # participating unit sat beside it.
+        rank: dict = {}
+        for layer, field in (("PROJECTS", "consortium"), ("CLUSTERS", "members")):
+            for o in PAYLOAD[layer]:
+                for row in o.get(field) or []:
+                    if row.get("ref"):
+                        r = 0 if row.get("role") == "coordinator" else 1
+                        pair = (o["id"], row["ref"])
+                        rank[pair] = min(r, rank.get(pair, r))
+        index = {edge_pair(e): i for i, e in enumerate(PAYLOAD["EDGES"])}
+        level = {edge_pair(e): bool(e.get("org")) for e in PAYLOAD["EDGES"]}
+        order = lambda pair: (level[pair], rank.get(pair, 2), index[pair])
+        shared = [e for e in PAYLOAD["EDGES"] if e.get("via")]
+        self.assertGreater(len(shared), 0)
+        for e in shared:
+            src, team = edge_pair(e)
+            with self.subTest(edge=e):
+                self.assertLess(order((src, e["via"])), order((src, team)))
 
     def test_3_3_every_createdBy_and_usedBy_id_resolves(self):
         known = by_id()
@@ -692,24 +758,18 @@ class Domains(unittest.TestCase):
                     self.assertNotIn("simulation", o["domains"])
 
     def test_3_3_the_lead_domain_is_one_of_the_entity_s_own_domains(self):
-        # SPEC-DEVIATION: §3.3 calls `domain` the lead that "drives colour when
-        # single", but the marker is painted from `domains[0]`, and one commons
-        # has a lead that is not in its own domain list at all — ELLIS declares no
-        # sector, so `primary()` falls back to "multi" while `domain_list()` keeps
-        # only the "xai" derived from its focus areas. It is drawn grey (xai) and
-        # filtered as xai while calling itself multi. Harmless today because it
-        # has no edges (edge colour is the only consumer of the lead), which is
-        # why this pins the exception rather than asserting the invariant.
+        # §3.3 calls `domain` the lead that "drives colour when single"; the
+        # marker is painted from `domains[0]` and the lines from the lead, so the
+        # two must agree. ELLIS declares no sector: its only domain is the "xai"
+        # derived from its focus areas, and the lead now falls back to that rather
+        # than to "multi". It used to call itself multi while drawn grey, which
+        # did not matter while it had no edges; as a cluster it has member lines,
+        # and they would have come out teal from a grey marker.
         odd = sorted(o["id"] for o in all_entities() if o["domain"] not in o["domains"])
-        self.assertEqual(odd, ["ellis-society"])
+        self.assertEqual(odd, [])
         ellis = by_id()["ellis-society"]
-        self.assertEqual(ellis["domain"], "multi")
-        self.assertEqual(ellis["domains"], ["xai"])
-        # No edge ever reads that lead, so nothing is currently mis-coloured.
-        refs = {r for o in PAYLOAD["COMMONS"] + PAYLOAD["FRAMEWORKS"]
-                for r in o.get("createdBy", []) + o.get("usedBy", [])}
-        self.assertNotIn("ellis-society", refs)
-        self.assertEqual(ellis.get("createdBy", []) + ellis.get("usedBy", []), [])
+        self.assertEqual((ellis["domain"], ellis["domains"]), ("xai", ["xai"]))
+        self.assertIn("ellis-society", {e.get("cluster") for e in PAYLOAD["EDGES"]})
 
 
 class Vocabulary(unittest.TestCase):
@@ -991,14 +1051,15 @@ class LayerTable(unittest.TestCase):
         header, rows = spec_layer_rows()
         self.assertEqual(header, ["Layer", "Count", "Marker", "Origin"])
         self.assertEqual([r[0] for r in rows],
-                         ["Projects & programmes", "Teams", "Commons",
+                         ["Projects & programmes", "Teams", "Clusters", "Commons",
                           "Frameworks", "Links"])
         self.assertEqual([r[2] for r in rows],
-                         ["large circle", "small circle", "dashed circle",
+                         ["large circle", "small circle", "hexagon", "dashed circle",
                           "square", "curved edge"])
         self.assertEqual([r[3] for r in rows], [
             "`data/projects/`",
             "`data/teams/` + infrastructure with no matching team",
+            "`data/clusters/`",
             "`data/commons/`",
             "`data/frameworks/`",
             "`data/edges.yml`",
@@ -1034,6 +1095,7 @@ class LayerTable(unittest.TestCase):
         self.assertEqual(documented, {
             "Projects & programmes": len(GENERATED["PROJECTS"]),
             "Teams": len(GENERATED["TEAMS"]),
+            "Clusters": len(GENERATED["CLUSTERS"]),
             "Commons": len(GENERATED["COMMONS"]),
             "Frameworks": len(GENERATED["FRAMEWORKS"]),
             "Links": len(GENERATED["EDGES"]),
@@ -1096,13 +1158,13 @@ class PerLayerFields(unittest.TestCase):
         "when": {"PROJECTS"}, "funding": {"PROJECTS"}, "budget": {"PROJECTS"},
         "consortium": {"PROJECTS"}, "demos": {"PROJECTS"}, "delivs": {"PROJECTS"},
         "type": {"TEAMS"}, "affiliation": {"TEAMS"}, "facilities": {"TEAMS"},
-        "infra": {"TEAMS"},
+        "infra": {"TEAMS"}, "organisation": {"TEAMS"}, "members": {"CLUSTERS"},
         "jurisdiction": {"FRAMEWORKS"}, "issuer": {"FRAMEWORKS"},
         "legal": {"FRAMEWORKS"}, "adopted": {"FRAMEWORKS"},
         "appliesTo": {"FRAMEWORKS"}, "refs": {"FRAMEWORKS"},
         "license": {"COMMONS"}, "maintainer": {"COMMONS"}, "repo": {"COMMONS"},
-        "size": {"COMMONS"},
-        "kind": {"PROJECTS", "COMMONS", "FRAMEWORKS"},
+        "size": {"COMMONS", "CLUSTERS"},
+        "kind": {"PROJECTS", "CLUSTERS", "COMMONS", "FRAMEWORKS"},
         "subSection": {"COMMONS", "FRAMEWORKS"},
         "usedBy": {"COMMONS", "FRAMEWORKS"},
     }
@@ -1375,7 +1437,7 @@ class PendingOverlay(unittest.TestCase):
                 for layer in ENTITY_LAYERS:
                     self.assertTrue(all(o.get("id") for o in add.get(layer, [])))
                 for edge in add.get("EDGES", []):
-                    self.assertEqual(sorted(edge), ["project", "team"])
+                    self.assertIn(sorted(edge), (["project", "team"], ["cluster", "team"]))
 
     def test_3_2_an_overlay_appends_and_never_rewrites_what_it_merges_into(self):
         # The merge is append-only by construction: it pushes onto the arrays
@@ -1403,7 +1465,7 @@ class PendingOverlay(unittest.TestCase):
             ids = [o["id"] for o in ADDED[layer]]
             with self.subTest(layer=layer):
                 self.assertEqual(sorted(i for i, n in Counter(ids).items() if n > 1), [])
-        pairs = [(e["project"], e["team"]) for e in ADDED["EDGES"]]
+        pairs = [edge_pair(e) for e in ADDED["EDGES"]]
         self.assertEqual(sorted(p for p, n in Counter(pairs).items() if n > 1), [])
 
 

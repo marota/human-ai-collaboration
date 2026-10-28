@@ -29,7 +29,7 @@ import {
 
 const FLOOR = 1945;     // §10.3, "The 1945 floor"
 const PRESENT = 2020;   // §10.1, PRESENT_FROM — everything on the map exists today
-const ALL_KINDS = ['project', 'team', 'commons', 'framework'];
+const ALL_KINDS = ['project', 'team', 'cluster', 'commons', 'framework'];
 
 /** The payload, re-read from raw fields rather than from the map's `items`. */
 async function payload(page) {
@@ -37,7 +37,7 @@ async function payload(page) {
     const D = window.HAI_DATA;
     const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
     const rows = [];
-    for (const [key, kind] of [['PROJECTS', 'project'], ['COMMONS', 'commons'],
+    for (const [key, kind] of [['PROJECTS', 'project'], ['CLUSTERS', 'cluster'], ['COMMONS', 'commons'],
                                ['TEAMS', 'team'], ['FRAMEWORKS', 'framework']]) {
       for (const d of D[key]) {
         const tl = d.timeline || {};
@@ -450,7 +450,7 @@ test.describe('§10 overlap semantics', () => {
     expect(s.matchCount).toBe(0);
     expect(s.inView).toBe(0);
     expect(s.offMapMatch).toBe(0);
-    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0]);
+    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0, 0]);
     expect(await page.textContent('.fd-empty')).toBe('Nothing in view — zoom out or widen the filters.');
     await expectCountersReconcile(page, 'empty selection');
   });

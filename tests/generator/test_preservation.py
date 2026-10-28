@@ -31,7 +31,7 @@ from tests._harness import DATA_JS, GENERATOR, REPO, load_generator, load_payloa
 
 GEN = load_generator()
 FIXTURES = REPO / "tests" / "fixtures"
-LAYERS = ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS")
+LAYERS = ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS")
 DESC_FIELDS = ("desc", "desc_en", "desc_fr")
 NOWHERE = Path("/nowhere/eu-hai-collab-map")
 
@@ -775,9 +775,9 @@ class Determinism(unittest.TestCase):
         self.assertEqual(len([l for l in lines[:6] if l.startswith("//")]), 5)
         self.assertEqual(
             [m for m in re.findall(r"^const (\w+) = ", out, re.M)],
-            ["PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES", "TAXO", "AS_OF"])
+            ["PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES", "TAXO", "AS_OF"])
         self.assertTrue(out.endswith(
-            "window.HAI_DATA = { PROJECTS, COMMONS, TEAMS, FRAMEWORKS, EDGES, TAXO, AS_OF };\n"))
+            "window.HAI_DATA = { PROJECTS, CLUSTERS, COMMONS, TEAMS, FRAMEWORKS, EDGES, TAXO, AS_OF };\n"))
 
     def test_invariant_1_one_entity_per_line_keeps_diffs_readable(self):
         # A changed entity should be a one-line diff. js_array indents by two
@@ -785,7 +785,7 @@ class Determinism(unittest.TestCase):
         # count for every layer.
         data = GEN.build(self.root)
         out = emit(data)
-        for name in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES"):
+        for name in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES"):
             with self.subTest(layer=name):
                 block = out.split(f"const {name} = [\n", 1)[1].split("\n];", 1)[0]
                 rows = [l for l in block.splitlines() if l.strip()]
@@ -797,7 +797,7 @@ class Determinism(unittest.TestCase):
     def test_invariant_1_the_rendered_output_round_trips_to_the_same_objects(self):
         data = GEN.build(self.root)
         out = emit(data)
-        for name in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES"):
+        for name in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES"):
             with self.subTest(layer=name):
                 self.assertEqual(parsed_array(out, name), data[name])
 
@@ -823,7 +823,7 @@ class Determinism(unittest.TestCase):
         # different version of the script — and the next honest regeneration
         # would produce a diff nobody asked for.
         payload = load_payload()
-        data = {k: payload[k] for k in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES")}
+        data = {k: payload[k] for k in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES")}
         self.assertEqual(emit(data), DATA_JS.read_text(encoding="utf-8"))
 
 

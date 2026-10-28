@@ -38,6 +38,7 @@ body:
       options:
         - "Projets & programmes — projets financés : Horizon Europe, SESAR, programmes nationaux"
         - "Équipes — laboratoires, R&D industrielle, équipes d’opérateurs"
+        - "Clusters — associations, réseaux et clusters qui fédèrent équipes et projets"
         - "Communs — jeux de données, benchmarks, simulateurs, plateformes ouvertes"
         - "Cadres — standards, réglementations, méthodes de référence"
     validations:

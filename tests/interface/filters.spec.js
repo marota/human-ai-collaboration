@@ -40,7 +40,7 @@ const ORACLE_SRC = `window.__oracle = (function () {
     infra:      ['compute','cluster','simulation'],
   };
   const ALL = GROUPS.industrial.concat(GROUPS.research, GROUPS.infra);
-  const KINDS = ['project','team','commons','framework'];
+  const KINDS = ['project','team','cluster','commons','framework'];
   const yr = v => { const m = /^(\\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
   const list = [];
   const byId = {};
@@ -52,8 +52,8 @@ const ORACLE_SRC = `window.__oracle = (function () {
                  geo: d.lat != null && d.lon != null, country: d.country };
     list.push(it); byId[it.id] = it;
   });
-  add(D.PROJECTS, 'project'); add(D.COMMONS, 'commons'); add(D.TEAMS, 'team'); add(D.FRAMEWORKS, 'framework');
-  const TOTALS = { project: D.PROJECTS.length, team: D.TEAMS.length, commons: D.COMMONS.length, framework: D.FRAMEWORKS.length };
+  add(D.PROJECTS, 'project'); add(D.CLUSTERS, 'cluster'); add(D.COMMONS, 'commons'); add(D.TEAMS, 'team'); add(D.FRAMEWORKS, 'framework');
+  const TOTALS = { project: D.PROJECTS.length, team: D.TEAMS.length, cluster: D.CLUSTERS.length, commons: D.COMMONS.length, framework: D.FRAMEWORKS.length };
   const ys = list.reduce((a, i) => a.concat([i.y0, i.y1]), []).filter(y => y != null);
   const YMIN = Math.max(1945, Math.min.apply(null, ys));
   const starts = list.map(i => i.y0).filter(y => y != null);
@@ -66,7 +66,7 @@ const ORACLE_SRC = `window.__oracle = (function () {
   const link = (a, b) => { if (!byId[a] || !byId[b]) return;
     if (!nb.has(a)) nb.set(a, new Set()); if (!nb.has(b)) nb.set(b, new Set());
     nb.get(a).add(b); nb.get(b).add(a); };
-  D.EDGES.forEach(e => link(e.project, e.team));
+  D.EDGES.forEach(e => link(e.project || e.cluster, e.team));
   D.COMMONS.concat(D.FRAMEWORKS).forEach(a => {
     (a.createdBy || []).forEach(u => link(u, a.id));
     (a.usedBy || []).forEach(u => link(a.id, u));
@@ -98,7 +98,7 @@ const ORACLE_SRC = `window.__oracle = (function () {
       return true;
     }).map(it => it.id);
   }
-  const countsOf = ids => { const n = { project: 0, team: 0, commons: 0, framework: 0 };
+  const countsOf = ids => { const n = { project: 0, team: 0, cluster: 0, commons: 0, framework: 0 };
     ids.forEach(id => n[byId[id].kind]++); return n; };
   const vagueOf = ids => ids.filter(id => byId[id].vague).length;
   const noGeoOf = ids => ids.filter(id => !byId[id].geo).length;
@@ -197,7 +197,7 @@ const visible = (page) => page.evaluate(() => {
   return { vis: [...vis].sort(), dimmed: [...dimmed].sort(), matched: [...matched].sort() };
 });
 
-/** The four layer-row figures as {kind: n}, straight off the rendered rows. */
+/** The layer-row figures as {kind: n}, straight off the rendered rows. */
 async function layerCounts(page) {
   const rows = await layerRows(page);
   return Object.fromEntries(rows.map((r) => [r.kind, r.count]));
@@ -263,8 +263,8 @@ const SBB = 'sbb';
 // read straight out of the payload, so the expected split is derived from the
 // data rather than from the tally the page just computed.
 const placelessByDomain = (page, dom) => page.evaluate((d) => {
-  const n = { project: 0, team: 0, commons: 0, framework: 0 };
-  const LAYER = { PROJECTS: 'project', TEAMS: 'team', COMMONS: 'commons', FRAMEWORKS: 'framework' };
+  const n = { project: 0, team: 0, cluster: 0, commons: 0, framework: 0 };
+  const LAYER = { PROJECTS: 'project', TEAMS: 'team', CLUSTERS: 'cluster', COMMONS: 'commons', FRAMEWORKS: 'framework' };
   Object.entries(LAYER).forEach(([key, kind]) => window.HAI_DATA[key].forEach((e) => {
     const doms = (e.domains && e.domains.length) ? e.domains : [e.domain];
     if (doms.includes(d) && (e.lat == null || e.lon == null)) n[kind]++;
@@ -459,7 +459,7 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
       .toEqual(await page.evaluate(() => window.__oracle.pass({ skip: 'domain' }).sort()));
   });
 
-  test('§6.1 the four layer figures sum to matchCount while all four layers are on', async ({ page }) => {
+  test('§6.1 the layer figures sum to matchCount while every layer is on', async ({ page }) => {
     await open(page);
     const n = await layerCounts(page);
     const s = await snapshot(page);
@@ -471,8 +471,8 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
     // The arithmetic is the proof that the rows and the caption read one predicate: the
     // rows skip the layer axis, so the whole of the difference is the layer switched off.
     await open(page);
-    for (const k of ['project', 'team', 'commons', 'framework']) {
-      await setLayers(page, ['project', 'team', 'commons', 'framework'].filter((x) => x !== k));
+    for (const k of ['project', 'team', 'cluster', 'commons', 'framework']) {
+      await setLayers(page, ['project', 'team', 'cluster', 'commons', 'framework'].filter((x) => x !== k));
       const n = await layerCounts(page);
       const s = await snapshot(page);
       expect(Object.values(n).reduce((a, b) => a + b, 0) - s.matchCount,
@@ -483,7 +483,7 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
   test('§6.1 a layer\'s own toggle never moves its own figure', async ({ page }) => {
     await open(page);
     const before = await layerCounts(page);
-    for (const k of ['project', 'team', 'commons', 'framework']) {
+    for (const k of ['project', 'team', 'cluster', 'commons', 'framework']) {
       await toggleLayer(page, k);                        // off
       expect((await layerCounts(page))[k], `${k} off`).toBe(before[k]);
       await toggleLayer(page, k);                        // and back on
@@ -508,13 +508,13 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
     await setDomains(page, ['energy']);
     const want = await page.evaluate(() => window.__oracle.counts({ domains: ['energy'], skip: 'layer' }));
     // The figures are a snapshot (§3.2), so what is held against them is the arithmetic:
-    // with the period wide open the four rows must partition exactly the entities carrying
+    // with the period wide open the rows must partition exactly the entities carrying
     // `energy`, counted here by a flat scan of the payload that never enters pass().
     const flat = await page.evaluate(() =>
       window.__oracle.items.filter((i) => i.doms.indexOf('energy') >= 0).length);
     expect(Object.values(want).reduce((a, b) => a + b, 0)).toBe(flat);
     expect(await layerCounts(page)).toEqual(want);
-    // every one of the four actually moved
+    // every one of them actually moved
     const corpus = await corpusTotals(page);
     for (const k of Object.keys(corpus)) expect(want[k], k).toBeLessThan(corpus[k]);
   });
@@ -975,7 +975,7 @@ test.describe('§6 My map replaces the axes', () => {
     await page.click('#mymap-pill');
     const ids = await page.evaluate((p) => window.__oracle.mapSetOf(p), [PIN]);
     const want = await page.evaluate((x) => window.__oracle.countsOf(x), ids);
-    // The four rows partition the pin set exactly — nothing counted twice, nothing dropped —
+    // The rows partition the pin set exactly — nothing counted twice, nothing dropped —
     // and every one of them is below its corpus total, which is the whole point of the mode.
     expect(Object.values(want).reduce((a, b) => a + b, 0)).toBe(ids.length);
     expect(await layerCounts(page)).toEqual(want);
@@ -1107,7 +1107,7 @@ test.describe('§6 starting views are a clean slate', () => {
     await applyPreset(page, 'energy');
     const s = await snapshot(page);
     expect(s.domains).toEqual(['energy']);
-    expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
+    expect(s.layers).toEqual({ project: true, team: true, cluster: true, commons: true, framework: true });
     expect(s.years).toEqual(await defaultYears(page));
     expect(s.myMap).toBe(false);
   });
@@ -1134,7 +1134,7 @@ test.describe('§6 starting views are a clean slate', () => {
     await applyPreset(page, 'human');
     const s = await snapshot(page);
     expect(sorted(s.domains)).toEqual(['hf', 'xai']);
-    expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
+    expect(s.layers).toEqual({ project: true, team: true, cluster: true, commons: true, framework: true });
     expect(s.years).toEqual(await defaultYears(page));
     expect(s.myMap).toBe(false);
     expect(s.matchCount).toBe(await page.evaluate(() => window.__oracle.pass({ domains: ['hf', 'xai'] }).length));
@@ -1184,7 +1184,7 @@ test.describe('§6 starting views are a clean slate', () => {
     expect(await ls(page, 'hai-map-v2-seen')).toBe('1');
     const s = await snapshot(page);
     expect(s.domains).toEqual(['energy']);
-    expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
+    expect(s.layers).toEqual({ project: true, team: true, cluster: true, commons: true, framework: true });
     expect(s.years).toEqual(await defaultYears(page));
     expect(s.myMap).toBe(false);
     const want = await page.evaluate(() => window.__oracle.pass({ domains: ['energy'] }).length);
@@ -1254,7 +1254,7 @@ test.describe('§6 boundaries', () => {
     expect(s.inView).toBe(0);
     expect(s.offScreen).toBe(0);
     expect(s.offMapMatch).toBe(0);
-    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0]);
+    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0, 0]);
     expect(await caption(page)).toBe('in view · 0 match the filters');
     expect(await layerCounts(page)).toEqual(await page.evaluate(() => window.__oracle.TOTALS));
     await expectCountersReconcile(page, 'every layer off');
@@ -1268,8 +1268,8 @@ test.describe('§6 boundaries', () => {
     await fitAll(page);
     expect((await snapshot(page)).domains).toEqual([]);
     expect((await snapshot(page)).matchCount).toBe(0);
-    expect(await layerCounts(page)).toEqual({ project: 0, team: 0, commons: 0, framework: 0 });
-    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0]);
+    expect(await layerCounts(page)).toEqual({ project: 0, team: 0, cluster: 0, commons: 0, framework: 0 });
+    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0, 0]);
     expect(await caption(page)).toBe('in view · 0 match the filters');
     expect(await undatedCount(page)).toBe(0);
     expect(await histBars(page)).toEqual([]);
@@ -1340,7 +1340,7 @@ test.describe('§6 boundaries', () => {
       const D = window.HAI_DATA;
       const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
       const ys = [], starts = [];
-      [].concat(D.PROJECTS, D.TEAMS, D.COMMONS, D.FRAMEWORKS).forEach((d) => {
+      [].concat(D.PROJECTS, D.CLUSTERS, D.TEAMS, D.COMMONS, D.FRAMEWORKS).forEach((d) => {
         const tl = d.timeline || {}, a = yr(tl.start), b = yr(tl.end);
         if (a != null) { ys.push(a); starts.push(a); }
         if (b != null) ys.push(b);
@@ -1392,7 +1392,7 @@ test.describe('§6 boundaries', () => {
     await page.click('#reset-btn');
     const s = await snapshot(page);
     expect(sorted(s.domains)).toEqual(sorted(await page.evaluate(() => window.__oracle.ALL)));
-    expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
+    expect(s.layers).toEqual({ project: true, team: true, cluster: true, commons: true, framework: true });
     expect(s.years).toEqual(await defaultYears(page));
     expect(s.myMap).toBe(false);
     expect(s.focusId).toBe(null);

@@ -13,7 +13,8 @@ class HarnessSmoke(unittest.TestCase):
     def test_payload_parses(self):
         data = load_payload()
         self.assertEqual(
-            sorted(data), ["AS_OF", "COMMONS", "EDGES", "FRAMEWORKS", "PROJECTS", "TAXO", "TEAMS"])
+            sorted(data),
+            ["AS_OF", "CLUSTERS", "COMMONS", "EDGES", "FRAMEWORKS", "PROJECTS", "TAXO", "TEAMS"])
         self.assertGreater(len(data["TEAMS"]), 0)
 
     def test_inline_script_is_reachable(self):

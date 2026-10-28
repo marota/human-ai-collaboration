@@ -71,7 +71,7 @@ def by_id(entries: list[dict]) -> dict:
 
 
 def all_entities(data: dict) -> list[dict]:
-    return [e for k in ("PROJECTS", "TEAMS", "COMMONS", "FRAMEWORKS") for e in data[k]]
+    return [e for k in ("PROJECTS", "TEAMS", "CLUSTERS", "COMMONS", "FRAMEWORKS") for e in data[k]]
 
 
 def map_colors() -> dict:
@@ -303,7 +303,7 @@ class RegenerationIsStable(unittest.TestCase):
         after = GEN.build(src)
 
         changed = []
-        for layer in ("PROJECTS", "TEAMS", "COMMONS", "FRAMEWORKS", "EDGES"):
+        for layer in ("PROJECTS", "TEAMS", "CLUSTERS", "COMMONS", "FRAMEWORKS", "EDGES"):
             self.assertEqual(len(before[layer]), len(after[layer]), layer)
             for a, b in zip(before[layer], after[layer]):
                 if json.dumps(a, sort_keys=True) != json.dumps(b, sort_keys=True):
@@ -535,25 +535,17 @@ class PrimaryDomain(unittest.TestCase):
     def test_sector_order_decides_between_two_specific_codes(self):
         self.assertEqual(GEN.primary(["rail", "energy"], None), "rail")
 
-    def test_approaches_never_reach_primary(self):
-        # SPEC-DEVIATION: §3.3 describes `domain` as "lead, drives colour when
-        # single", but primary() only ever looks at sectors. An entity whose
-        # only codes are research axes therefore gets domain='multi' while
-        # domains=['xai'] — a `domain` that is not in its own `domains`. Benign
-        # today because the marker reads domains[0] and only edge colours read
-        # `domain`; recorded here as the current behaviour, not endorsed.
+    def test_a_sectorless_entity_leads_with_its_first_domain(self):
+        # §3.3 describes `domain` as "lead, drives colour when single": the
+        # marker reads domains[0] and the edge colours read `domain`, so a lead
+        # outside the entity's own domains would draw its lines in another colour
+        # than its marker. With no lead and no sector, primary() takes the
+        # entity's first domain (a research axis); "multi" stays the default.
         self.assertEqual(GEN.primary([], None), "multi")
-        odd = [e for e in all_entities(payload()) if e["domain"] not in e["domains"]]
-        # Structural claim: the only way to get there is the empty-sector path,
-        # so the stray value is always the catch-all.
-        for e in odd:
-            self.assertEqual(e["domain"], "multi", e["id"])
-            self.assertEqual(set(e["domains"]) & set(GEN.SECTOR.values()), set(), e["id"])
-        self.assertEqual(
-            [e["id"] for e in odd], ["ellis-society"],
-            "a new entity reached the sector-less path; review the data change, "
-            "then update this pin")
-        self.assertEqual(odd[0]["domains"], ["xai"])
+        self.assertEqual(GEN.primary([], None, "xai"), "xai")
+        self.assertEqual(GEN.primary(["energy"], None, "xai"), "energy")
+        odd = [e["id"] for e in all_entities(payload()) if e["domain"] not in e["domains"]]
+        self.assertEqual(odd, [])
 
 
 class DomainMappingEndToEnd(TempCheckout):
@@ -584,7 +576,7 @@ class DomainMappingEndToEnd(TempCheckout):
             "location": {"city": "Tampere", "country": "FI", "lat": 61.5, "lon": 23.8}}])
         e = data["TEAMS"][0]
         self.assertEqual(e["domains"], ["xai", "hf"])
-        self.assertEqual(e["domain"], "multi")      # see PrimaryDomain above
+        self.assertEqual(e["domain"], "xai")        # its first domain; see PrimaryDomain above
 
     def test_an_entity_with_nothing_to_map_is_still_filterable(self):
         data = self.build(teams=[{
@@ -618,9 +610,9 @@ class InfrastructureHasNoLayerOfItsOwn(TempCheckout):
     of duplicate a reader reads as a data error, which is why the merge branch
     gets its own tests."""
 
-    def test_build_emits_five_layers_and_no_infrastructure_key(self):
+    def test_build_emits_the_map_layers_and_no_infrastructure_key(self):
         self.assertEqual(sorted(fixture_build()),
-                         ["COMMONS", "EDGES", "FRAMEWORKS", "PROJECTS", "TEAMS"])
+                         ["CLUSTERS", "COMMONS", "EDGES", "FRAMEWORKS", "PROJECTS", "TEAMS"])
 
     def test_matching_infrastructure_entry_creates_no_second_pin(self):
         teams = fixture_build()["TEAMS"]

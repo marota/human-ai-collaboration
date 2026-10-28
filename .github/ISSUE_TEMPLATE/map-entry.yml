@@ -39,6 +39,7 @@ body:
       options:
         - "Projects & programmes — funded projects: Horizon Europe, SESAR, national programmes"
         - "Teams — research labs, industrial R&D, operator teams"
+        - "Clusters — associations, networks and clusters that bring teams and projects together"
         - "Commons — open datasets, benchmarks, simulators, platforms"
         - "Frameworks — standards, regulations, reference methods"
     validations:

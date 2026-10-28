@@ -252,7 +252,7 @@ test.describe('invariant 10 — the page never makes a network request', () => {
 
     for (const id of ['overview', 'energy', 'aviation', 'health', 'human', 'sim']) await applyPreset(page, id);
     await setLayers(page, ['project', 'team']);
-    await setLayers(page, ['project', 'team', 'commons', 'framework']);
+    await setLayers(page, ['project', 'team', 'cluster', 'commons', 'framework']);
     await page.click('#f-domains .fgroup-h .mini-btn[data-ga="none"]');
     await page.click('#f-domains .fgroup-h .mini-btn[data-ga="all"]');
     await setPeriod(page, 2015, 2020);
@@ -537,7 +537,7 @@ test.describe('invariant 10 — the page never makes a network request', () => {
     // And it is a working map, not just a page that parsed.
     const s = await snapshot(page);
     expect(s.matchCount).toBeGreaterThan(0);
-    expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
+    expect(s.layers).toEqual({ project: true, team: true, cluster: true, commons: true, framework: true });
   });
 
   test('§16.10 a deep link that opens a card and restores pins loads nothing more', async ({ page }) => {
@@ -555,14 +555,14 @@ test.describe('invariant 10 — the page never makes a network request', () => {
 
   test('§16.10 a first visit — welcome panel and all — requests nothing extra', async ({ page }) => {
     // openMap() suppresses the welcome overlay, so this boots the page raw: the
-    // panel renders four glyphs, the corpus totals and the preset chips, and
+    // panel renders a glyph per layer, the corpus totals and the preset chips, and
     // none of it may reach for anything.
     const seen = recordRequests(page);
     await page.goto(`${MAP_PATH}?lang=en`);
     await expect(page.locator('#st-note')).not.toBeEmpty();
     await expect(page.locator('#welcome')).toHaveClass(/open/);
     await settleCounts(page);
-    expect(await page.locator('#wl-rows .wl-row').count()).toBe(5);
+    expect(await page.locator('#wl-rows .wl-row').count()).toBe(6);
     await page.click('#w-explore');
     expect(paths(seen)).toEqual(ownFiles());
   });
@@ -1062,14 +1062,14 @@ test.describe('invariant 9 — every string interpolated into HTML goes through 
     // The URL is reader-supplied input too. applyHash() validates every value
     // against byId / ALL_DOMS / KINDS, so a payload in the hash should reach no
     // interpolation at all — and the `lay=` case lands on the zero-results
-    // boundary, since none of the four layer names is in it.
+    // boundary, since none of the layer names is in it.
     const q = (s) => encodeURIComponent(s);
     await openMap(page, { hash: `#e=${q(IMG)}&pins=${q(SCR)}&dom=${q(AMP)}&lay=${q(IMG)}` });
     await settleCounts(page);
     const s = await snapshot(page);
     expect(s.focusId).toBeNull();
     expect(s.pins).toBe(0);
-    expect(s.layers).toEqual({ project: false, team: false, commons: false, framework: false });
+    expect(s.layers).toEqual({ project: false, team: false, cluster: false, commons: false, framework: false });
     // An unrecognised domain list falls back to every domain rather than none.
     expect(s.domains.length).toBeGreaterThan(0);
     expect(s.matchCount).toBe(0);
@@ -1107,7 +1107,7 @@ test.describe('invariant 9 — every string interpolated into HTML goes through 
     await applyPreset(page, 'energy');
     await applyPreset(page, 'overview');
     await setLayers(page, ['framework']);
-    await setLayers(page, ['project', 'team', 'commons', 'framework']);
+    await setLayers(page, ['project', 'team', 'cluster', 'commons', 'framework']);
     await setPeriod(page, 2019, 2024);
     await page.fill('#search', 'zalgo');
     await expect(page.locator('.sd-item').first()).toBeVisible();
@@ -1366,7 +1366,7 @@ test.describe('§15 performance', () => {
     // `items`: an entity with coordinates gets a marker, one without does not
     // (invariant 3).
     const placed = await page.evaluate(() =>
-      [...DATA.PROJECTS, ...DATA.COMMONS, ...DATA.TEAMS, ...DATA.FRAMEWORKS]
+      [...DATA.PROJECTS, ...DATA.CLUSTERS, ...DATA.COMMONS, ...DATA.TEAMS, ...DATA.FRAMEWORKS]
         .filter((d) => d.lat != null && d.lon != null).length);
     expect(await page.evaluate(() => { window.__mk = [...gMarkers.querySelectorAll('.mk')]; return window.__mk.length; }))
       .toBe(placed);
@@ -1381,7 +1381,7 @@ test.describe('§15 performance', () => {
     expect(off.same, 'by display, not by deletion').toBe(true);
     expect(off.count).toBe(placed);
 
-    await setLayers(page, ['project', 'team', 'commons', 'framework']);
+    await setLayers(page, ['project', 'team', 'cluster', 'commons', 'framework']);
     await applyPreset(page, 'energy');
     await setPeriod(page, 2010, 2015);
     await applyPreset(page, 'overview');
@@ -1401,11 +1401,11 @@ test.describe('§15 performance', () => {
     // Derived from DATA rather than from `edges`: one path per relation whose
     // two ends are both placed on the map.
     const expected = await page.evaluate(() => {
-      const all = [...DATA.PROJECTS, ...DATA.COMMONS, ...DATA.TEAMS, ...DATA.FRAMEWORKS];
+      const all = [...DATA.PROJECTS, ...DATA.CLUSTERS, ...DATA.COMMONS, ...DATA.TEAMS, ...DATA.FRAMEWORKS];
       const placed = new Map(all.map((d) => [d.id, d.lat != null && d.lon != null]));
       const both = (a, b) => placed.has(a) && placed.has(b) && placed.get(a) && placed.get(b);
       let n = 0;
-      DATA.EDGES.forEach((e) => { if (placed.has(e.project) && both(e.project, e.team)) n++; });
+      DATA.EDGES.forEach((e) => { const s = e.project || e.cluster; if (placed.has(s) && both(s, e.team)) n++; });
       [...DATA.COMMONS, ...DATA.FRAMEWORKS].forEach((a) => {
         (a.createdBy || []).forEach((u) => { if (both(u, a.id)) n++; });
         (a.usedBy || []).forEach((u) => { if (both(a.id, u)) n++; });
@@ -1421,7 +1421,7 @@ test.describe('§15 performance', () => {
 
     await page.click('#links-pill');
     await setLayers(page, ['team']);
-    await setLayers(page, ['project', 'team', 'commons', 'framework']);
+    await setLayers(page, ['project', 'team', 'cluster', 'commons', 'framework']);
     await settleCounts(page);
     const after = await page.evaluate(() => ({
       same: [...gEdges.querySelectorAll('path.edge')].every((el, i) => el === window.__ed[i]),

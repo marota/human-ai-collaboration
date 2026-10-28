@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate assets/map/hai-data.js from the curated YAML of eu-hai-collab-map.
 
-The map's five YAML layers (teams, projects, frameworks, commons,
-infrastructure) plus edges.yml are the source of truth. They live in the
-companion repository:
+The map's six YAML layers (teams, projects, clusters, frameworks, commons,
+infrastructure), edges.yml and organisations.yml are the source of truth. They
+live in the companion repository:
 
     https://github.com/marota/eu-hai-collab-map
 
@@ -31,6 +31,12 @@ Notes
   the entity, so cards can show operator, access model and capacity.
 - Marker colour and the domain filters are derived exactly as the legacy script
   derived them, so regenerating does not move or recolour anything.
+- A project or a cluster is linked to a team card either at unit level (the
+  unit itself takes part) or at organisation level (its organisation takes
+  part through a unit with no card). The map draws one line per organisation:
+  when several cards of the same organisation (data/organisations.yml) are
+  linked to the same project, all but one carry `via`, the card whose line
+  they share.
 """
 from __future__ import annotations
 
@@ -116,7 +122,7 @@ TAXO = {
         "infrastructure": ("Infrastructure", "Infrastructure"),
         "network": ("Network", "Réseau"),
     },
-    "kind": {  # projects, frameworks, commons, infrastructure — one flat table
+    "kind": {  # projects, clusters, frameworks, commons, infrastructure — one flat table
         "horizon_europe": ("Horizon Europe", "Horizon Europe"),
         "horizon_2020": ("Horizon 2020", "Horizon 2020"),
         "eu_other": ("Other EU programme", "Autre programme européen"),
@@ -134,6 +140,9 @@ TAXO = {
         "model": ("Model", "Modèle"),
         "software": ("Software", "Logiciel"),
         "community": ("Community", "Communauté"),
+        "association": ("Association", "Association"),
+        "network": ("Network", "Réseau"),
+        "project_cluster": ("Project cluster", "Cluster de projets"),
         "compute_cluster": ("Compute cluster", "Calculateur"),
         "cloud_platform": ("Cloud platform", "Plateforme cloud"),
         "hosting": ("Hosting", "Hébergement"),
@@ -165,6 +174,7 @@ TAXO = {
         "partner": ("Partner", "Partenaire"),
         "third_party": ("Linked third party", "Tiers lié"),
         "observer": ("Observer", "Observateur"),
+        "founder": ("Founder", "Fondateur"),
         "member": ("Member", "Membre"),
         "operator": ("Operator", "Opérateur"),
         "funder": ("Funder", "Financeur"),
@@ -224,6 +234,22 @@ def load_layer(root: Path, layer: str) -> list[dict]:
     return out
 
 
+def load_organisations(root: Path) -> dict[str, dict]:
+    """Team id -> its organisation {id, name, url}, from data/organisations.yml.
+
+    A card that is not listed there is its own organisation.
+    """
+    f = root / "data" / "organisations.yml"
+    out: dict[str, dict] = {}
+    if not f.exists():
+        return out
+    for o in yaml.safe_load(f.read_text(encoding="utf-8")) or []:
+        org = clean({"id": o.get("id"), "name": o.get("name"), "url": o.get("url")})
+        for tid in o.get("teams") or []:
+            out[tid] = org
+    return out
+
+
 def load_descriptions(root: Path) -> dict:
     out = {lang: {} for lang in LANGS}
     for lang in LANGS:
@@ -265,13 +291,16 @@ def domain_list(sec, app, lead) -> list[str]:
     return seen or ["multi"]
 
 
-def primary(sec, lead) -> str:
+def primary(sec, lead, fallback: str = "multi") -> str:
+    """The lead domain: edge colours read it. With no lead and no sector, the
+    entity's own first domain (a research axis) rather than the catch-all, so its
+    lines wear the colour of its marker."""
     if lead:
         return lead
     for x in sec:
         if x != "multi":
             return x
-    return sec[0] if sec else "multi"
+    return sec[0] if sec else fallback
 
 
 # The dating pass recorded, in provenance.source, how solid each start year is:
@@ -341,12 +370,13 @@ def links_of(d: dict) -> dict:
 def base_entry(d: dict, descs: dict, lead: str | None = None) -> dict:
     l = loc(d)
     sec, app = sectors(d), approaches(d)
+    doms = domain_list(sec, app, lead)
     lat, lon = l.get("lat"), l.get("lon")
     e = {
         "id": d["id"], "name": d.get("name", ""),
         "city": l.get("city") or "", "country": l.get("country") or "",
         "lat": lat, "lon": lon,
-        "domain": primary(sec, lead), "domains": domain_list(sec, app, lead),
+        "domain": primary(sec, lead, doms[0]), "domains": doms,
         "url": homepage(d),
         "desc": norm_text(d.get("description")),
         "focus": list(d.get("focus_areas") or []),
@@ -377,6 +407,8 @@ def build(root: Path):
     infra = load_layer(root, "infrastructure")
     frameworks = load_layer(root, "frameworks")
     commons = load_layer(root, "commons")
+    clusters = load_layer(root, "clusters")
+    org_of = load_organisations(root)
 
     # ---- teams (+ infrastructure, which has no markers of its own) ----
     TEAMS = []
@@ -390,6 +422,8 @@ def build(root: Path):
         })
         if aff:
             e["affiliation"] = aff
+        if d["id"] in org_of:
+            e["organisation"] = org_of[d["id"]]
         if d.get("infrastructure"):
             e["facilities"] = list(d["infrastructure"])
         TEAMS.append(e)
@@ -461,7 +495,21 @@ def build(root: Path):
             e["delivs"] = delivs
         PROJECTS.append(e)
     project_ids = {e["id"] for e in PROJECTS}
-    anchors_tp = team_ids | project_ids
+
+    # ---- clusters: associations, networks, clusters of projects ----
+    CLUSTERS = []
+    for d in clusters:
+        e = base_entry(d, descs)
+        e["kind"] = d.get("kind") or ""
+        e["size"] = d.get("size_indicator") or ""
+        members = [clean({"org": m.get("org"), "role": m.get("role"),
+                          "country": m.get("country"), "ref": m.get("initiative_id")})
+                   for m in d.get("members") or [] if (m or {}).get("org")]
+        if members:
+            e["members"] = members
+        CLUSTERS.append(e)
+    cluster_ids = {e["id"] for e in CLUSTERS}
+    anchors_tp = team_ids | project_ids | cluster_ids
 
     # ---- commons ----
     COMMONS = []
@@ -486,7 +534,7 @@ def build(root: Path):
 
     # reverse index: framework / commons usage declared on teams and projects
     used_by: dict[str, set] = {}
-    for d in teams + projects:
+    for d in teams + projects + clusters:
         for fid in (d.get("framework_ids") or []) + (d.get("commons_ids") or []):
             used_by.setdefault(fid, set()).add(d["id"])
 
@@ -526,23 +574,55 @@ def build(root: Path):
                 if e["name"] not in by_team[host]["facilities"]:
                     by_team[host]["facilities"].append(e["name"])
 
-    # ---- edges ----
+    # ---- edges: project or cluster -> team, at unit or organisation level ----
     EDGES = []
     raw = yaml.safe_load((root / "data" / "edges.yml").read_text(encoding="utf-8")) or []
+    sources = {"project": project_ids, "cluster": cluster_ids}
+    # How firmly the source's own partner list names a card: its coordinator
+    # (0), any other row (1), not at all (2).
+    named: dict[str, dict[str, int]] = {}
+    for e in PROJECTS:
+        for c in e.get("consortium", []):
+            if c.get("ref"):
+                rank = 0 if c.get("role") == "coordinator" else 1
+                named.setdefault(e["id"], {})[c["ref"]] = min(
+                    rank, named.get(e["id"], {}).get(c["ref"], rank))
+    for e in CLUSTERS:
+        for m in e.get("members", []):
+            if m.get("ref"):
+                named.setdefault(e["id"], {}).setdefault(m["ref"], 1)
+    groups: dict[tuple, list[dict]] = {}
     for ed in raw:
         if not isinstance(ed, dict):
             continue
-        p, t = ed.get("project"), ed.get("team")
-        if p in project_ids and t in team_ids:
-            EDGES.append({"project": p, "team": t})
+        kind = next((k for k in sources if ed.get(k)), None)
+        if not kind or ed[kind] not in sources[kind] or ed.get("team") not in team_ids:
+            continue
+        src, tid = ed[kind], ed["team"]
+        out = {kind: src, "team": tid}
+        if ed.get("level") == "organisation":
+            out["org"] = True
+        EDGES.append(out)
+        org = (org_of.get(tid) or {}).get("id") or tid
+        groups.setdefault((kind, src, org), []).append(out)
+    # One line per organisation: a unit that takes part itself keeps it before
+    # a card standing in for its organisation, then the card the partner list
+    # names (its coordinator first), then file order. The others share it.
+    for (kind, src, _), same in groups.items():
+        if len(same) < 2:
+            continue
+        order = sorted(range(len(same)), key=lambda i: (
+            bool(same[i].get("org")), named.get(src, {}).get(same[i]["team"], 2), i))
+        for i in order[1:]:
+            same[i]["via"] = same[order[0]]["team"]
 
-    # ---- consortium refs that resolve to a real card ----
-    for e in PROJECTS:
-        for c in e.get("consortium", []):
+    # ---- consortium and member refs that resolve to a real card ----
+    for e in PROJECTS + CLUSTERS:
+        for c in e.get("consortium", []) + e.get("members", []):
             if c.get("ref") and c["ref"] not in anchors:
                 c.pop("ref", None)
 
-    layers = {"PROJECTS": PROJECTS, "COMMONS": COMMONS,
+    layers = {"PROJECTS": PROJECTS, "CLUSTERS": CLUSTERS, "COMMONS": COMMONS,
               "TEAMS": TEAMS, "FRAMEWORKS": FRAMEWORKS, "EDGES": EDGES}
     return {k: [clean(o) if k != "EDGES" else o for o in v] for k, v in layers.items()}
 
@@ -566,8 +646,8 @@ def data_as_of(data: dict) -> str:
     moves when an entity's own last_updated/added_on actually does.
     """
     dates: list[str] = []
-    for layer in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS"):
-        for o in data[layer]:
+    for layer in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS"):
+        for o in data.get(layer, []):
             prov = o.get("prov") or {}
             dates += [d for d in (prov.get("upd"), prov.get("on")) if d]
     return max(dates) if dates else ""
@@ -582,12 +662,12 @@ def render(data: dict, source: Path) -> str:
         "// Code MIT · data CC BY 4.0.\n\n"
     )
     body = "".join(
-        f"const {name} = [\n{js_array(data[name])}\n];\n\n"
-        for name in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES")
+        f"const {name} = [\n{js_array(data.get(name, []))}\n];\n\n"
+        for name in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES")
     )
     taxo = "const TAXO = " + json.dumps(taxo_payload(), ensure_ascii=False, indent=1) + ";\n\n"
     as_of = "const AS_OF = " + json.dumps(data_as_of(data)) + ";\n\n"
-    tail = "window.HAI_DATA = { PROJECTS, COMMONS, TEAMS, FRAMEWORKS, EDGES, TAXO, AS_OF };\n"
+    tail = "window.HAI_DATA = { PROJECTS, CLUSTERS, COMMONS, TEAMS, FRAMEWORKS, EDGES, TAXO, AS_OF };\n"
     return head + body + taxo + as_of + tail
 
 
@@ -616,16 +696,18 @@ def main() -> None:
     out = Path(args.out)
     out.write_text(render(data, root), encoding="utf-8")
 
-    geoless = [o["id"] for k in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS")
+    geoless = [o["id"] for k in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS")
                for o in data[k] if o.get("geo") is False]
     longest = max((len(o.get("desc_en") or o.get("desc") or "")
-                   for k in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS")
+                   for k in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS")
                    for o in data[k]), default=0)
     print(f"source  {root}")
     print(f"out     {out.relative_to(REPO) if out.is_relative_to(REPO) else out}"
           f"  ({out.stat().st_size / 1024:.0f} kB)")
-    for name in ("PROJECTS", "TEAMS", "COMMONS", "FRAMEWORKS", "EDGES"):
+    for name in ("PROJECTS", "CLUSTERS", "TEAMS", "COMMONS", "FRAMEWORKS", "EDGES"):
         print(f"  {name.lower():<11} {len(data[name])}")
+    shared = sum(1 for e in data["EDGES"] if e.get("via"))
+    print(f"  one line per organisation: {shared} links share another card's line")
     print(f"  no lat/lon  {len(geoless)}  ({', '.join(geoless)})")
     print(f"  longest description  {longest} chars (was capped at 300)")
     print(f"  as of  {data_as_of(data)}  (most recent provenance touch — caps the period filter)")
