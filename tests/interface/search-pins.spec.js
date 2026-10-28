@@ -459,24 +459,26 @@ test.describe('§11 search — matching', () => {
   });
 
   test('§11 it does not reach into descriptions — name, city and affiliation only', async ({ page }) => {
-    // The widening stops at the affiliation. "biology" appears in a project's
-    // description and in no name, city or affiliation anywhere in the payload,
-    // so a hit here would mean the match had quietly grown a fourth field — and
-    // with it a ranking rule the spec does not define.
+    // The widening stops at the affiliation. "physiological" appears in several
+    // project descriptions and in no name, city or affiliation anywhere in the
+    // payload, so a hit here would mean the match had quietly grown a fourth
+    // field — and with it a ranking rule the spec does not define. (The probe
+    // was "biology" until the October 2026 review rewrote the one description
+    // that carried it.)
     await openMap(page);
     const probe = await page.evaluate(() => {
       const D = window.HAI_DATA;
       const all = [...D.PROJECTS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS];
       const f = (s) => String(s == null ? '' : s).toLowerCase();
       return {
-        inDesc: all.filter((d) => f(d.desc_en || d.desc).includes('biology')).map((d) => d.id),
+        inDesc: all.filter((d) => f(d.desc_en || d.desc).includes('physiological')).map((d) => d.id),
         inFields: all.filter((d) => [d.name, d.city, (d.affiliation || {}).org,
-          (d.affiliation || {}).parent].some((v) => f(v).includes('biology'))).map((d) => d.id),
+          (d.affiliation || {}).parent].some((v) => f(v).includes('physiological'))).map((d) => d.id),
       };
     });
     expect(probe.inDesc.length).toBeGreaterThan(0);   // the word is in the corpus…
     expect(probe.inFields).toEqual([]);               // …and in none of the matched fields
-    await type(page, 'biology');
+    await type(page, 'physiological');
     await dropOpen(page);
     expect(await rows(page)).toEqual([]);
     await expect(page.locator('#search-drop .sd-empty')).toHaveText('No matches');

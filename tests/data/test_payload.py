@@ -1197,11 +1197,12 @@ class PerLayerFields(unittest.TestCase):
                     self.assertGreaterEqual(eur, 0)
                 if eur == 0:
                     zeros.append(o["id"])
-        # One project carries an upstream placeholder of 0. The card reads
-        # `fn.eur ? …`, so a zero is falsy and the budget row is omitted rather
-        # than rendering "€0" — which is the right reading of "amount unknown".
-        # Pinned because that only holds while the placeholder stays exactly 0.
-        self.assertEqual(zeros, ["r2dato"])
+        # No project carries a 0 any more: r2dato's placeholder was replaced by
+        # its published budget in the 2026-10 review. The card reads
+        # `fn.eur ? …`, so a zero would be falsy and the budget row omitted
+        # rather than rendering "€0" — the right reading of "amount unknown".
+        # Pinned so a new zero is a decision, not an accident.
+        self.assertEqual(zeros, [])
 
     def test_3_3_link_values_that_are_not_urls_are_a_known_and_bounded_set(self):
         # `extUrl()` wraps whatever it is given in an `<a href>`, so a value that

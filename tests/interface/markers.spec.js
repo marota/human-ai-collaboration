@@ -770,7 +770,10 @@ test.describe('§4.2 the jitter pass', () => {
     await openMap(page);
     const crowded = MODEL.all.filter((m) => m.placed && m.groupSize > 1);
     expect(crowded.length).toBeGreaterThan(80);
-    expect(Math.max(...crowded.map((m) => m.groupSize))).toBeGreaterThanOrEqual(5);
+    // The largest stack is four. It was five — coda, haiku, hucan, jarvis and
+    // waterverse on Rome's centroid — until the October 2026 review moved
+    // project pins to each coordinator's address, which takes two of them out.
+    expect(Math.max(...crowded.map((m) => m.groupSize))).toBeGreaterThanOrEqual(4);
     const got = await page.evaluate((ids) => ids.map((id) => [byId[id].d.lat, byId[id].d.lon]),
       crowded.map((m) => m.id));
     got.forEach(([lat, lon], i) => {
