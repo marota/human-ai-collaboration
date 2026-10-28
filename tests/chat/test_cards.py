@@ -194,6 +194,22 @@ class ChecksWhatUpstreamWouldCheck(unittest.TestCase):
         self.assertIn("consortium", self.paths(
             CHAT.cards.validate("project", card, self.corpus, "add", "en")))
 
+    def test_the_project_schema_roles_third_party_and_observer_are_accepted(self):
+        # The data repository's project schema allows both, and since the
+        # October 2026 review a CORDIS linked third party is written
+        # `third_party` on 115 consortium lines. Refusing them here would turn
+        # every correction to one of those projects into an error the
+        # contributor cannot fix from the form.
+        card = {"id": "x-project", "name": "X", "status": "active",
+                "homepage": "https://example.org", "timeline": {"start": "2024"},
+                "description": "A project about operator decision support in grids.",
+                "provenance": {"added_by": "a", "source": "b", "confidence": "low"},
+                "consortium": [{"org": "A", "role": "coordinator", "country": "FR"},
+                               {"org": "B", "role": "third_party", "country": "DE"},
+                               {"org": "C", "role": "observer", "country": "BE"}]}
+        self.assertNotIn("consortium", self.paths(
+            CHAT.cards.validate("project", card, self.corpus, "add", "en")))
+
 
 class WarnsWhereAMaintainerWould(unittest.TestCase):
     @classmethod

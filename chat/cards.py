@@ -47,7 +47,7 @@ TEAM_TYPES = ("research_lab", "industrial_rd", "applied_project",
               "infrastructure", "network")
 STATUSES = ("active", "concluded", "planned")
 CONFIDENCES = ("high", "medium", "low")
-ROLES = ("coordinator", "partner", "member", "operator", "funder")
+ROLES = ("coordinator", "partner", "third_party", "observer", "member", "operator", "funder")
 LEGAL = ("in_force", "proposed", "draft", "superseded")
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
@@ -310,8 +310,8 @@ _MSG = {
     "short": ("needs at least 20 characters", "doit faire au moins 20 caractères"),
     "unknown_id": ("names a card that is not on the map",
                    "désigne une fiche absente de la carte"),
-    "role": ("has a role outside coordinator/partner/member/operator/funder",
-             "a un rôle hors coordinator/partner/member/operator/funder"),
+    "role": ("has a role outside " + "/".join(ROLES),
+             "a un rôle hors " + "/".join(ROLES)),
 }
 
 

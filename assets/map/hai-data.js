@@ -1038,6 +1038,14 @@ const TAXO = {
    "en": "Partner",
    "fr": "Partenaire"
   },
+  "third_party": {
+   "en": "Linked third party",
+   "fr": "Tiers lié"
+  },
+  "observer": {
+   "en": "Observer",
+   "fr": "Observateur"
+  },
   "member": {
    "en": "Member",
    "fr": "Membre"

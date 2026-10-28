@@ -796,7 +796,7 @@ class TaxoPayload(unittest.TestCase):
         # back as a defaultdict, or pre-filled from the corpus, would still
         # answer "not in" for an invented string while quietly inventing a
         # label for these — which is the only way this claim can break.
-        for group, value in (("role", "third_party"), ("access", "restricted")):
+        for group, value in (("access", "commercial"), ("access", "restricted")):
             with self.assertRaises(KeyError, msg=f"{group}.{value}"):
                 self.taxo[group][value]
 
@@ -810,12 +810,15 @@ class TaxoPayload(unittest.TestCase):
 
     def test_controlled_values_the_committed_payload_uses_without_a_label(self):
         # SPEC-DEVIATION: §3.4 and §12 claim every controlled vocabulary value
-        # has both labels, but the committed payload carries seven that are not
+        # has both labels, but the committed payload carries six that are not
         # in any TAXO table. They survive — the page de-underscores them, which
         # is the documented degradation — but they reach a French reader in
-        # English ("third party", "restricted"), and the four jurisdictions are
+        # English ("commercial", "restricted"), and the four jurisdictions are
         # country codes rather than vocabulary values at all. Snapshot of the
-        # current payload; update it when the tables catch up.
+        # current payload; update it when the tables catch up. The role table
+        # caught up first: `third_party` went from 12 consortium lines to 115
+        # when the October 2026 review aligned roles on CORDIS, so it now has
+        # its labels.
         fields = [("type", "type"), ("kind", "kind"), ("status", "status"),
                   ("tier", "tier"), ("legal", "legal"), ("jurisdiction", "jurisdiction")]
         missing = set()
@@ -843,13 +846,12 @@ class TaxoPayload(unittest.TestCase):
             ("access", "commercial"), ("access", "restricted"),
             ("jurisdiction", "DE"), ("jurisdiction", "DK"),
             ("jurisdiction", "NL"), ("jurisdiction", "UK"),
-            ("role", "third_party"),
         ])
         # Each of them still reads as text under the documented fallback.
         self.assertEqual(
             {v: v.replace("_", " ") for _, v in sorted(missing)},
             {"commercial": "commercial", "restricted": "restricted", "DE": "DE",
-             "DK": "DK", "NL": "NL", "UK": "UK", "third_party": "third party"})
+             "DK": "DK", "NL": "NL", "UK": "UK"})
 
     def test_3_4_SPEC_DEVIATION_both_languages_are_hand_written_and_taxonomy_yml_is_never_read(self):
         # SPEC-DEVIATION: §3.4 says "English comes from `data/taxonomy.yml`;

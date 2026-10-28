@@ -775,18 +775,20 @@ class Vocabulary(unittest.TestCase):
 
     def test_3_4_access_jurisdiction_and_role_carry_values_TAXO_does_not_define(self):
         # SPEC-DEVIATION: §3.4 says TAXO carries labels "for every controlled
-        # value". Three groups have values in the data that the table does not
+        # value". Two groups have values in the data that the table does not
         # define, so those render through the documented de-underscoring fallback
         # instead of a translated label — in French too, which is where it shows:
-        # `third_party` reads "third party" in both languages, and a `jurisdiction`
-        # of "DE" reads "DE" where a mapped value would read "Allemagne".
+        # a `jurisdiction` of "DE" reads "DE" where a mapped value would read
+        # "Allemagne". `role` left this list when `third_party` got its labels
+        # ("Linked third party" / "Tiers lié"); it stays in the check so a new
+        # role value without labels shows up here.
         have = self.coded_values()
         unmapped = {g: sorted(have[g] - set(PAYLOAD["TAXO"][g]))
                     for g in ("access", "jurisdiction", "role")}
         self.assertEqual(unmapped, {
             "access": ["commercial", "restricted"],
             "jurisdiction": ["DE", "DK", "NL", "UK"],
-            "role": ["third_party"],
+            "role": [],
         })
 
     def test_3_4_an_unmapped_key_degrades_to_readable_text(self):
@@ -805,13 +807,15 @@ class Vocabulary(unittest.TestCase):
         body = re.search(r"function taxo\(group, key\)\{(.*?)\n\}", SCRIPT, re.S).group(1)
         self.assertIn("VOCAB[group]", body)          # the table wins when it has the key
         self.assertRegex(body, r"String\(key\)\.replace\(\s*/_/g\s*,\s*' '\s*\)")
-        # And the fallback is load-bearing rather than decorative: one of the
-        # values that reaches it carries an underscore, so without the replace()
-        # a card would read "third_party" in both languages.
+        # No value that reaches the fallback today carries an underscore:
+        # `third_party`, the one that did, now has its labels. The replace() is
+        # what keeps the next unlabelled snake_case value from reading
+        # "third_party" in both languages, so the check above stays; this one
+        # pins that the payload currently leans on it for nothing.
         have = self.coded_values()
         unmapped = {v for g in ("access", "jurisdiction", "role")
                     for v in have[g] - set(PAYLOAD["TAXO"][g])}
-        self.assertEqual(sorted(v for v in unmapped if "_" in v), ["third_party"])
+        self.assertEqual(sorted(v for v in unmapped if "_" in v), [])
 
     def test_3_4_no_taxo_group_is_dead_weight(self):
         # Every group must be reachable from some entity field, or it is shipping

@@ -163,6 +163,8 @@ TAXO = {
     "role": {
         "coordinator": ("Coordinator", "Coordinateur"),
         "partner": ("Partner", "Partenaire"),
+        "third_party": ("Linked third party", "Tiers lié"),
+        "observer": ("Observer", "Observateur"),
         "member": ("Member", "Membre"),
         "operator": ("Operator", "Opérateur"),
         "funder": ("Funder", "Financeur"),

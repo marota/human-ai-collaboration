@@ -1018,8 +1018,11 @@ test.describe('§12 the content switches too', () => {
     // documents, the data repository now rejects it, and the generator's label
     // for it went with the eight entities that used to carry it. It then grew by
     // two: `kind.horizon_2020` and `kind.eu_other`, so that a Horizon 2020 grant
-    // or a Digital Europe one is no longer labelled Horizon Europe.
-    expect(audit.entries).toBe(68);
+    // or a Digital Europe one is no longer labelled Horizon Europe. And by two
+    // more: `role.third_party` and `role.observer`, the consortium roles of the
+    // data repository's project schema that had no label, once the October 2026
+    // review aligned 115 consortium lines on CORDIS's linked third parties.
+    expect(audit.entries).toBe(70);
     expect(audit.missing).toEqual([]);
   });
 
@@ -1044,11 +1047,11 @@ test.describe('§12 the content switches too', () => {
 
   test('§12 vocabulary values the generator never labelled render de-underscored in both languages', async ({ page }) => {
     // SPEC-DEVIATION: §12 says every controlled vocabulary value has both
-    // labels in DATA.TAXO. Seven values used by the payload have none, so
+    // labels in DATA.TAXO. Six values used by the payload have none, so
     // taxo() falls through to §17's documented de-underscored key — which means
-    // a French reader sees English words ("third party", "restricted",
-    // "commercial"). It degrades rather than breaks, as §17 promises, but the
-    // §12 claim is not true of the data as generated.
+    // a French reader sees English words ("restricted", "commercial"). It
+    // degrades rather than breaks, as §17 promises, but the §12 claim is not
+    // true of the data as generated.
     await openMap(page);
     const gaps = await page.evaluate(() => {
       const used = {};
@@ -1069,7 +1072,6 @@ test.describe('§12 the content switches too', () => {
     expect(gaps).toEqual([
       'access.commercial', 'access.restricted',
       'jurisdiction.DE', 'jurisdiction.DK', 'jurisdiction.NL', 'jurisdiction.UK',
-      'role.third_party',
     ]);
     // Every one of those gaps, not just the three spot-checked below, has to
     // degrade the way §17 promises: the de-underscored key, and the same string
@@ -1084,10 +1086,10 @@ test.describe('§12 the content switches too', () => {
     expect(fallback.en).toEqual(fallback.want);
     // And what the reader gets for them is identical in both languages.
     const rendered = await page.evaluate(() => {
-      const at = (l) => { LANG = l; return [taxo('role', 'third_party'), taxo('access', 'restricted'), taxo('jurisdiction', 'UK')]; };
+      const at = (l) => { LANG = l; return [taxo('access', 'commercial'), taxo('access', 'restricted'), taxo('jurisdiction', 'UK')]; };
       return { fr: at('fr'), en: at('en') };
     });
-    expect(rendered.fr).toEqual(['third party', 'restricted', 'UK']);
+    expect(rendered.fr).toEqual(['commercial', 'restricted', 'UK']);
     expect(rendered.en).toEqual(rendered.fr);
   });
 
