@@ -113,7 +113,7 @@ regeneration; the shape of the table is what is normative, not the figures.
 | Clusters | 15 | hexagon | `data/clusters/` |
 | Commons | 24 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
-| Links | 364 | curved edge | `data/edges.yml` |
+| Links | 503 | curved edge | `data/edges.yml` |
 
 **Clusters** are the associations, networks and clusters of projects that bring
 teams and projects together without being a funded project themselves (ADRA,
