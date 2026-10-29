@@ -103,22 +103,24 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
-Counts are a snapshot (28 October 2026) and move with every upstream
+Counts are a snapshot (29 October 2026) and move with every upstream
 regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
 | Projects & programmes | 110 | large circle | `data/projects/` |
-| Teams | 274 | small circle | `data/teams/` + infrastructure with no matching team |
-| Clusters | 6 | hexagon | `data/clusters/` |
-| Commons | 25 | dashed circle | `data/commons/` |
+| Teams | 269 | small circle | `data/teams/` + infrastructure with no matching team |
+| Clusters | 15 | hexagon | `data/clusters/` |
+| Commons | 24 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
-| Links | 294 | curved edge | `data/edges.yml` |
+| Links | 364 | curved edge | `data/edges.yml` |
 
 **Clusters** are the associations, networks and clusters of projects that bring
 teams and projects together without being a funded project themselves (ADRA,
-BDVA, IDSA, CAIRNE, ELLIS, ICT4Water). They link to the team cards of their
-member organisations, as projects link to their partners'.
+BDVA, ELLIS, LF Energy, CRESYM, AI.grids, the CIGRE and IFAC committees,
+ICT4Water…). They link to the team cards of their member organisations, as
+projects link to their partners'. An association can itself be a project's
+partner: the project then links to its cluster card.
 
 **Infrastructure has no layer of its own**, by design. Of its 41 entries, 23
 describe a facility run by a team already on the map: they enrich that team's
@@ -162,7 +164,8 @@ known entity, so the card never renders a dead link.
 
 `EDGES` entries join a project (`project`) or a cluster (`cluster`) to a team
 (`team`), with `org: true` for a link at organisation level and `via` for a card
-that shares its organisation's line (§4.3).
+that shares its organisation's line (§4.3). A project's `team` may also name a
+cluster, when an association is itself a partner of the project.
 
 ### 3.4 Vocabulary
 
@@ -462,8 +465,9 @@ Section order, each omitted when empty:
 12. Infrastructure — kind, operator, access model, capacity
 13. Demonstrators · Deliverables · Facilities hosted · Applies to · Builds on ·
     Publications · Other links
-14. Related entities — consortium teams, member teams, projects, clusters a team
-    is a member of, created, builds on, used by; a row linked at organisation
+14. Related entities — consortium teams, consortium clusters, member teams,
+    projects (of a team, or of a cluster that is a partner), clusters a team is
+    a member of, created, builds on, used by; a row linked at organisation
     level is tagged "via its organisation"
 15. Provenance — who added the entry, when, at what confidence, from what source
 
@@ -739,7 +743,7 @@ flatten them:
   nothing about when a decades-old institute began.
 - **Researched.** A handful were resolved individually: PowSyBl 2018, Italgas
   2017 (not the 1837 company), Energinet 2023, Vitens 2010, Inserm AI Health
-  2021-12, Thames Water 2026, IFAC TC 4.1 1982.
+  2021-12, Thames Water 2026, IFAC TC 4.1 1981.
 - **Judged from the nature of the entry.** Standing institutes and university
   departments are pre-2020 with near-certainty; a named modern programme inside
   an old institution is not. Three remain genuinely open — ČEPS Grid AI &

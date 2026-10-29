@@ -997,10 +997,10 @@ test.describe('§4.2 markers, and invariant 2', () => {
       groups: Object.fromEntries(DOM_GROUPS.map((g) => [g.key, g.doms])),
       colors: COLORS,
     }))).toEqual({ count: 17, groups: SPEC_GROUPS, colors: SPEC_COLORS });
-    // Shape is not smuggling domain in: energy is drawn in every layer but the
-    // clusters, which carry none, and the catch-all is drawn in all five — so
-    // the one-colour check above really did compare a hexagon with the rest.
-    expect(seen.energy.kinds.sort()).toEqual(KINDS.filter((k) => k !== 'cluster').sort());
+    // Shape is not smuggling domain in: energy is drawn in all five layers,
+    // the hexagons of LF Energy or CRESYM included, and so is the catch-all —
+    // so the one-colour check above really did compare a hexagon with the rest.
+    expect(seen.energy.kinds.sort()).toEqual([...KINDS].sort());
     expect(seen.multi.kinds.sort()).toEqual([...KINDS].sort());
   });
 

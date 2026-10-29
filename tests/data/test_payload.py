@@ -414,9 +414,8 @@ class RequiredFields(unittest.TestCase):
         # placeholder — which is only true while `desc` is always populated.
         missing = sorted(o["id"] for o in all_entities()
                          if not (o.get("desc_en") and o.get("desc_fr")))
-        # Four teams are still untranslated upstream; they fall back to `desc`.
-        self.assertEqual(missing, ["epri-europe", "flatland-association",
-                                   "polimi-airlab-rl", "uva-illc"])
+        # Three teams are still untranslated upstream; they fall back to `desc`.
+        self.assertEqual(missing, ["epri-europe", "polimi-airlab-rl", "uva-illc"])
         for o in all_entities():
             with self.subTest(id=o["id"]):
                 self.assertTrue(o.get("desc_en") or o.get("desc"))
@@ -525,15 +524,18 @@ class CrossReferences(unittest.TestCase):
         # `DATA.EDGES.forEach` bails out silently on an unknown source
         # (`if (!p) return`) and `relate()` bails out on an unknown team, so a
         # broken reference costs a link with no error anywhere.
+        # A project may also end on a cluster: an association that is itself a
+        # partner. A cluster ends on a team only.
         sources = {"project": ids_of("PROJECTS"), "cluster": ids_of("CLUSTERS")}
-        teams = ids_of("TEAMS")
+        teams = set(ids_of("TEAMS"))
+        ends = {"project": teams | set(ids_of("CLUSTERS")), "cluster": teams}
         for e in PAYLOAD["EDGES"]:
             with self.subTest(edge=e):
                 self.assertLessEqual(set(e), {"project", "cluster", "team", "org", "via"})
                 kinds = [k for k in sources if k in e]
                 self.assertEqual(len(kinds), 1, "one source, a project or a cluster")
                 self.assertIn(e[kinds[0]], sources[kinds[0]])
-                self.assertIn(e["team"], teams)
+                self.assertIn(e["team"], ends[kinds[0]])
                 if "org" in e:
                     self.assertIs(e["org"], True)
 
@@ -563,7 +565,7 @@ class CrossReferences(unittest.TestCase):
         # `via`: the card whose line it shares, which belongs to the same
         # organisation, is linked to the same source and draws a line itself.
         teams = {o["id"]: o for o in PAYLOAD["TEAMS"]}
-        org_of = lambda tid: (teams[tid].get("organisation") or {}).get("id") or tid
+        org_of = lambda tid: ((teams.get(tid) or {}).get("organisation") or {}).get("id") or tid
         drawn = {edge_pair(e) for e in PAYLOAD["EDGES"] if not e.get("via")}
         per_org = Counter((src, org_of(team)) for src, team in drawn)
         self.assertEqual(sorted(k for k, n in per_org.items() if n > 1), [])
@@ -1270,8 +1272,8 @@ class PerLayerFields(unittest.TestCase):
         # `extUrl()` wraps whatever it is given in an `<a href>`, so a value that
         # is not a URL becomes a link to a relative path that does not exist. §3.3
         # states the dead-link guarantee only for `consortium[].ref`, and these
-        # eight values are the places it does not reach: three bibliographic
-        # citations in `links.papers` (papers with no DOI URL upstream) and five
+        # six values are the places it does not reach: three bibliographic
+        # citations in `links.papers` (papers with no DOI URL upstream) and three
         # bare social handles. Pinned rather than fixed, so a regression widens
         # the set and fails here.
         offenders = []
@@ -1287,8 +1289,6 @@ class PerLayerFields(unittest.TestCase):
             ("dfki-trustworthy-ai", "linkedin"),
             ("dfki-trustworthy-ai", "twitter"),
             ("ellis-society", "twitter"),
-            ("lf-energy", "linkedin"),
-            ("lf-energy", "twitter"),
             ("meaningful-human-control", "papers"),
             ("ten-challenges-team-player", "papers"),
             ("trust-in-automation-lee-see", "papers"),

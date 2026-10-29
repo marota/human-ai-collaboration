@@ -575,9 +575,12 @@ def build(root: Path):
                     by_team[host]["facilities"].append(e["name"])
 
     # ---- edges: project or cluster -> team, at unit or organisation level ----
+    # A project may also end on a cluster: an association that is itself a
+    # partner, such as the Flatland Association in AI4REALNET.
     EDGES = []
     raw = yaml.safe_load((root / "data" / "edges.yml").read_text(encoding="utf-8")) or []
     sources = {"project": project_ids, "cluster": cluster_ids}
+    ends = {"project": team_ids | cluster_ids, "cluster": team_ids}
     # How firmly the source's own partner list names a card: its coordinator
     # (0), any other row (1), not at all (2).
     named: dict[str, dict[str, int]] = {}
@@ -596,7 +599,7 @@ def build(root: Path):
         if not isinstance(ed, dict):
             continue
         kind = next((k for k in sources if ed.get(k)), None)
-        if not kind or ed[kind] not in sources[kind] or ed.get("team") not in team_ids:
+        if not kind or ed[kind] not in sources[kind] or ed.get("team") not in ends[kind]:
             continue
         src, tid = ed[kind], ed["team"]
         out = {kind: src, "team": tid}

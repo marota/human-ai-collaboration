@@ -1109,7 +1109,7 @@ SUMMARY_FIXTURE = {
                    ("f3", 35, True), ("f4", 50, True)],
 }
 SUMMARY_COUNTS = {"PROJECTS": 2, "CLUSTERS": 3, "COMMONS": 1, "TEAMS": 3, "FRAMEWORKS": 4,
-                  "EDGES": 2}
+                  "EDGES": 3}
 # In the order main() walks the layers, which is not the order it prints them.
 SUMMARY_GEOLESS = ["p2", "k2", "c1", "t3", "f1"]
 # f4's English description, authored in data/i18n/descriptions.en.yml and
@@ -1165,6 +1165,8 @@ class Main(unittest.TestCase):
         (root / "data" / "edges.yml").write_text(
             "- project: p1\n  team: t1\n"               # kept
             "- cluster: k1\n  team: t1\n"               # kept: a cluster's member
+            "- project: p1\n  team: k3\n"               # kept: a cluster that is a partner
+            "- cluster: k1\n  team: k3\n"               # dropped: no cluster in a cluster
             "- project: p1\n  team: no-such-team\n"     # dropped: unknown team
             "- project: f4\n  team: t1\n",              # dropped: not a project
             encoding="utf-8")

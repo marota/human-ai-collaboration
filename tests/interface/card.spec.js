@@ -61,7 +61,7 @@ const SEC_SOURCES = [
   ['Other links', r => r.otherLinks > 0],
 ];
 const SEC_ORDER = SEC_SOURCES.map(([title]) => title);
-const REL_ORDER = ['Consortium teams', 'Member teams', 'Projects & programmes', 'Member of',
+const REL_ORDER = ['Consortium teams', 'Consortium clusters', 'Member teams', 'Projects & programmes', 'Member of',
   'Created', 'Builds on', 'Created by', 'Used by'];
 const CANON = [...SEC_ORDER, ...REL_ORDER];
 
@@ -249,8 +249,14 @@ const relOf = (r) => {
   const o = {};
   const put = (head, ids) => { const l = [...new Set(ids)]; if (l.length) o[head] = l; };
   if (r.layer === 'project' || r.layer === 'team' || r.layer === 'cluster') {
-    if (r.layer === 'project') put('Consortium teams', r.matesBy.team);
-    if (r.layer === 'cluster') put('Member teams', r.matesBy.team);
+    if (r.layer === 'project') {
+      put('Consortium teams', r.matesBy.team);
+      put('Consortium clusters', r.matesBy.cluster);
+    }
+    if (r.layer === 'cluster') {
+      put('Member teams', r.matesBy.team);
+      put('Projects & programmes', r.matesBy.project);
+    }
     if (r.layer === 'team') {
       put('Projects & programmes', r.matesBy.project);
       put('Member of', r.matesBy.cluster);

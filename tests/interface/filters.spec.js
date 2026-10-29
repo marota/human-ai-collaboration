@@ -307,10 +307,11 @@ test.describe('§6 the predicate', () => {
     await setPeriod(page, cfg.a, cfg.b);
     expect(await passIds(page, 'layer'))
       .toEqual(await page.evaluate((c) => window.__oracle.pass({ ...c, skip: 'layer' }).sort(), cfg));
-    // and it is genuinely wider than the unskipped predicate
+    // and it is genuinely wider than the unskipped predicate: with the layer
+    // axis left out, every layer has an energy or aviation entity in the period
     const kinds = await page.evaluate((ids) => [...new Set(ids.map(window.__oracle.kindOf))].sort(),
       await passIds(page, 'layer'));
-    expect(kinds).toEqual(['commons', 'framework', 'project', 'team']);
+    expect(kinds).toEqual(await page.evaluate(() => [...KINDS].sort()));
   });
 
   test('§6.1 skip:"domain" leaves the domain axis out and keeps the other two', async ({ page }) => {
