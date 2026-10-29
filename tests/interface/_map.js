@@ -52,7 +52,7 @@ export function snapshot(page) {
   }));
 }
 
-/** The four header tiles, as rendered. */
+/** The header tiles, one per layer, as rendered. */
 export function tiles(page) {
   return page.evaluate(() =>
     KINDS.map((k) => ({
@@ -136,7 +136,7 @@ export async function expectCountersReconcile(page, because = '') {
     .toBe(s.matchCount + s.keptOpen);
   const t = await tiles(page);
   expect(t.reduce((a, x) => a + x.count, 0),
-    `the four tiles must sum to what is in view${because ? ' — ' + because : ''}`)
+    `the tiles must sum to what is in view${because ? ' — ' + because : ''}`)
     .toBe(s.inView);
 }
 

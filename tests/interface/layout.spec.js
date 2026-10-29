@@ -190,9 +190,9 @@ const gridColumns = (page) =>
  *  one of them cannot leave a test quietly measuring nothing. */
 function corpus(page) {
   return page.evaluate(() => {
-    // The four entity layers §3.2 tables. EDGES are relations rather than
+    // The entity layers §3.2 tables. EDGES are relations rather than
     // entities, and TAXO/AS_OF are not arrays at all.
-    const LAYERS = ['PROJECTS', 'TEAMS', 'COMMONS', 'FRAMEWORKS'];
+    const LAYERS = ['PROJECTS', 'CLUSTERS', 'TEAMS', 'COMMONS', 'FRAMEWORKS'];
     const seen = new Set(); const all = [];
     for (const layer of LAYERS) {
       for (const d of (window.HAI_DATA[layer] || [])) {
@@ -842,11 +842,11 @@ test.describe('§5 the stats tiles', () => {
         labels: [...document.querySelectorAll('.stats span')]
           .map((s) => ({ text: s.textContent, scroll: s.scrollWidth, client: s.clientWidth })),
       }));
-      // Four equal columns, one per layer (invariant 14) — the constraint the
-      // label lengths have to live inside.
-      expect(cells.cols.split(' ')).toHaveLength(4);
-      expect(new Set(cells.cols.split(' ')).size).toBe(1);
-      expect(cells.labels).toHaveLength(4);
+      // Five columns, one per layer (invariant 14), each as wide as its own
+      // label with the room left over shared out: five equal fifths would clip
+      // FRAMEWORKS (the last test of this block measures that).
+      expect(cells.cols.split(' ')).toHaveLength(5);
+      expect(cells.labels).toHaveLength(5);
       expect((await tiles(page)).map((t) => t.label)).toEqual(cells.labels.map((l) => l.text));
       for (const l of cells.labels) {
         expect(l.scroll, `"${l.text}" is not clipped in the ${lang} sidebar`)
@@ -864,7 +864,7 @@ test.describe('§5 the stats tiles', () => {
           document.getElementById('sidebar').getBoundingClientRect().left === 0);
         const labels = await page.evaluate(() => [...document.querySelectorAll('.stats span')]
           .map((s) => ({ text: s.textContent, scroll: s.scrollWidth, client: s.clientWidth })));
-        expect(labels).toHaveLength(4);
+        expect(labels).toHaveLength(5);
         for (const l of labels) {
           expect(l.scroll, `"${l.text}" is not clipped in the ${width}px ${lang} drawer`)
             .toBeLessThanOrEqual(l.client);
@@ -875,13 +875,14 @@ test.describe('§5 the stats tiles', () => {
   }
 
   test('§5 on a 320px phone the drawer is narrow enough to clip FRAMEWORKS', async ({ page }) => {
-    // SPEC-DEVIATION: §17 states the four-tile row as a fit against "the 312 px
+    // SPEC-DEVIATION: §17 states the tile row as a fit against "the 312 px
     // sidebar", and the mobile drawer is min(88vw, 330px) — which is narrower
-    // than 312px on any phone below ~355px. The tiles' own budget is
-    // (0.88·vw − 36 − 15)/4 − 4 per label, and the uppercase English
-    // "FRAMEWORKS" needs 58px, so it clips below about 340px of window width.
-    // French is unaffected: "CADRES" is half the length. Asserted as-is; the
-    // row would need to reflow (two by two) to hold at 320px.
+    // than 312px on any phone below ~355px. Each column is as wide as its
+    // label, so the five labels need about 250px of the drawer's 0.88·vw − 36,
+    // and the uppercase English "FRAMEWORKS", the widest at 58px, is the one
+    // that gives way below about 325px of window width. French is unaffected:
+    // "CADRES" is half the length. Asserted as-is; the row would need to
+    // reflow to hold at 320px.
     await openAt(page, { width: 320, lang: 'en' });
     await pressById(page, 'sb-open');
     await page.waitForFunction(() =>
@@ -890,7 +891,7 @@ test.describe('§5 the stats tiles', () => {
       .map((s) => ({ text: s.textContent, scroll: s.scrollWidth, client: s.clientWidth })));
     expect(en.find((l) => l.text === 'Frameworks').scroll)
       .toBeGreaterThan(en.find((l) => l.text === 'Frameworks').client);
-    // The other three still fit, so it is the label length and not the row.
+    // The others still fit, so it is the label length and not the row.
     for (const l of en.filter((x) => x.text !== 'Frameworks')) {
       expect(l.scroll, `"${l.text}" still fits at 320px`).toBeLessThanOrEqual(l.client);
     }
@@ -906,29 +907,31 @@ test.describe('§5 the stats tiles', () => {
     }
   });
 
-  test('§5 a fifth tile clips FRAMEWORKS, which is why Countries leads the caption instead', async ({ page }) => {
+  test('§5 equal fifths clip FRAMEWORKS and a sixth tile clips again, which is why Countries leads the caption', async ({ page }) => {
     await openAt(page, { width: 1280, lang: 'en' });
-    // §17: "Five tiles do not fit the 312px sidebar at a legible label size."
-    // Measuring the fifth column against a clone of the real row proves both
-    // halves of that claim at once — and proves the clipping check above is not
-    // vacuous, since the same measure does trip here.
-    const five = await page.evaluate(() => {
+    // §17: five equal columns do not fit the 312px sidebar at a legible label
+    // size, so the row sizes each column to its label. Measuring clones of the
+    // real row proves it — and proves the clipping check above is not vacuous,
+    // since the same measure does trip here.
+    const measure = (cols, extra) => page.evaluate(([cols, extra]) => {
       const stats = document.querySelector('.stats');
       const clone = stats.cloneNode(true);
-      clone.style.gridTemplateColumns = 'repeat(5,1fr)';
-      clone.appendChild(clone.children[3].cloneNode(true));   // a fifth layer tile
+      clone.style.gridTemplateColumns = cols;
+      if (extra) clone.appendChild(clone.children[4].cloneNode(true));   // one more tile
       stats.parentNode.appendChild(clone);
       const out = [...clone.querySelectorAll('span')]
         .map((s) => ({ text: s.textContent, scroll: s.scrollWidth, client: s.clientWidth }));
       clone.remove();
       return out;
-    });
-    expect(five).toHaveLength(5);
-    const frameworks = five.filter((l) => l.text === 'Frameworks');
-    expect(frameworks).toHaveLength(2);
-    for (const l of frameworks) {
-      expect(l.scroll, 'a fifth column clips the longest label').toBeGreaterThan(l.client);
-    }
+    }, [cols, extra]);
+    const fifths = await measure('repeat(5,1fr)', false);
+    expect(fifths).toHaveLength(5);
+    const frameworks = fifths.find((l) => l.text === 'Frameworks');
+    expect(frameworks.scroll, 'equal fifths clip the longest label').toBeGreaterThan(frameworks.client);
+    // A sixth tile sized like the others does not fit either: some label gives way.
+    const six = await measure('repeat(6,auto)', true);
+    expect(six).toHaveLength(6);
+    expect(six.some((l) => l.scroll > l.client), 'a sixth tile clips a label').toBe(true);
     // Countries is not a layer and has no control of its own, so it leads the
     // caption rather than taking the fifth tile — with the figure the payload
     // entitles it to, rebuilt here and compared as an exact string. The figure

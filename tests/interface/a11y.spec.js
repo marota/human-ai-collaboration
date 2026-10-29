@@ -20,7 +20,7 @@
 // "Counts are a snapshot and move with every upstream regeneration; the shape
 // of the table is what is normative, not the figures" — so every number an
 // assertion compares against is computed from the payload the page just
-// loaded, and what stays pinned is the shape around it: the four layer names,
+// loaded, and what stays pinned is the shape around it: the layer names,
 // the sentence the figures are poured into, and the verb each figure takes.
 import { test, expect } from '@playwright/test';
 import {
@@ -33,7 +33,7 @@ import {
 async function payloadYears(page) {
   return page.evaluate(() => {
     const D = window.HAI_DATA;
-    const all = [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
+    const all = [...D.PROJECTS, ...D.CLUSTERS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
     const y = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
     const years = all.flatMap((e) => [y((e.timeline || {}).start), y((e.timeline || {}).end)]).filter((n) => n != null);
     const starts = all.map((e) => y((e.timeline || {}).start)).filter((n) => n != null);
@@ -53,7 +53,7 @@ async function payloadPeriodMatches(page, a, b, undated = true) {
   return page.evaluate(([A, B, UND]) => {
     const D = window.HAI_DATA;
     const y = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
-    return [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS].filter((e) => {
+    return [...D.PROJECTS, ...D.CLUSTERS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS].filter((e) => {
       const tl = e.timeline || {};
       const y0 = y(tl.start), y1 = y(tl.end);
       const vague = !(y0 != null || y1 != null) || !!e.dateHost;
@@ -74,7 +74,7 @@ async function payloadPeriodMatches(page, a, b, undated = true) {
 async function payloadTotals(page) {
   return page.evaluate(() => {
     const D = window.HAI_DATA;
-    const groups = { project: D.PROJECTS, team: D.TEAMS, commons: D.COMMONS, framework: D.FRAMEWORKS };
+    const groups = { project: D.PROJECTS, team: D.TEAMS, cluster: D.CLUSTERS, commons: D.COMMONS, framework: D.FRAMEWORKS };
     const byKind = {};
     for (const k of KINDS) byKind[k] = groups[k].length;
     const all = KINDS.flatMap((k) => groups[k]);
@@ -90,7 +90,7 @@ async function payloadTotals(page) {
 async function payloadOffMap(page) {
   return page.evaluate(() => {
     const D = window.HAI_DATA;
-    const all = [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
+    const all = [...D.PROJECTS, ...D.CLUSTERS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
     return {
       missingCoords: all.filter((e) => e.lat == null || e.lon == null).map((e) => e.id),
       flagged: all.filter((e) => e.geo === false).map((e) => e.id),
@@ -110,7 +110,7 @@ async function payloadOffMap(page) {
 async function agreementWitnesses(page) {
   return page.evaluate(() => {
     const D = window.HAI_DATA;
-    const groups = { project: D.PROJECTS, team: D.TEAMS, commons: D.COMMONS, framework: D.FRAMEWORKS };
+    const groups = { project: D.PROJECTS, team: D.TEAMS, cluster: D.CLUSTERS, commons: D.COMMONS, framework: D.FRAMEWORKS };
     const doms = [...document.querySelectorAll('input[data-dom]')].map((cb) => cb.dataset.dom);
     const count = (d, k) => groups[k].filter((e) =>
       ((e.domains && e.domains.length) ? e.domains : [e.domain]).includes(d)).length;
@@ -136,15 +136,15 @@ async function someEntityId(page) {
   await openMap(page);
   return page.evaluate(() => {
     const D = window.HAI_DATA;
-    return [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS].map((e) => e.id).sort()[0];
+    return [...D.PROJECTS, ...D.CLUSTERS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS].map((e) => e.id).sort()[0];
   });
 }
 
-/** The four layer names as the English interface writes them. These are
+/** The layer names as the English interface writes them. These are
  *  interface strings rather than data — i18n.spec.js owns their translation —
  *  so they stay pinned, which is what lets a tile's accessible name be checked
  *  as one whole string instead of a tail-anchored fragment. */
-const LAYER_LABEL = { project: 'Projects', team: 'Teams', commons: 'Commons', framework: 'Frameworks' };
+const LAYER_LABEL = { project: 'Projects', team: 'Teams', cluster: 'Clusters', commons: 'Commons', framework: 'Frameworks' };
 
 /** Narrow the domain axis to exactly one domain, through the real controls:
  *  every group's "None", then the one checkbox. */
@@ -254,23 +254,23 @@ test.describe('§14 landmarks and regions', () => {
 
 // ---------------------------------------------------------------------------
 test.describe('§14 aria-pressed on every toggle', () => {
-  test('§14 exactly nine controls claim a pressed state, and they are the toggles', async ({ page }) => {
+  test('§14 exactly ten controls claim a pressed state, and they are the toggles', async ({ page }) => {
     await openMap(page);
     // Enumerated rather than spot-checked: the failure this guards against is a
     // new two-state control that keeps its state in a CSS class only.
     expect(await page.evaluate(() =>
       [...document.querySelectorAll('[aria-pressed]')].map((el) => el.id || el.dataset.layer)))
-      .toEqual(['project', 'team', 'commons', 'framework', 'links-row', 'links-pill', 'mymap-pill',
+      .toEqual(['project', 'team', 'cluster', 'commons', 'framework', 'links-row', 'links-pill', 'mymap-pill',
         'feed-pill', 'chat-pill']);
   });
 
-  test('§14 the four layer toggles start pressed and track state', async ({ page }) => {
+  test('§14 the five layer toggles start pressed and track state', async ({ page }) => {
     await openMap(page);
-    expect((await layerRows(page)).map((r) => r.on)).toEqual([true, true, true, true]);
+    expect((await layerRows(page)).map((r) => r.on)).toEqual([true, true, true, true, true]);
     await toggleLayer(page, 'commons');
     expect(await attrs(page, '.layer-row[data-layer="commons"]', ['aria-pressed']))
       .toEqual({ 'aria-pressed': 'false' });
-    expect((await snapshot(page)).layers).toEqual({ project: true, team: true, commons: false, framework: true });
+    expect((await snapshot(page)).layers).toEqual({ project: true, team: true, cluster: true, commons: false, framework: true });
     await toggleLayer(page, 'commons');
     expect(await attrs(page, '.layer-row[data-layer="commons"]', ['aria-pressed']))
       .toEqual({ 'aria-pressed': 'true' });
@@ -352,9 +352,9 @@ test.describe('§14 aria-pressed on every toggle', () => {
     await openMap(page);
     await setLayers(page, []);
     await settleCounts(page);
-    expect((await layerRows(page)).map((r) => r.on)).toEqual([false, false, false, false]);
-    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0]);
-    for (const k of ['project', 'team', 'commons', 'framework'])
+    expect((await layerRows(page)).map((r) => r.on)).toEqual([false, false, false, false, false]);
+    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0, 0]);
+    for (const k of ['project', 'team', 'cluster', 'commons', 'framework'])
       await expect(page.locator(`#st-${k}`).locator('..')).toHaveAccessibleName(
         new RegExp(`— 0 in view · 0 match the filters$`));
   });
@@ -615,7 +615,7 @@ test.describe('§14 the stats block is a live region', () => {
     await expect(page.locator('.stats')).toHaveAttribute('aria-live', 'polite');
     expect(await page.evaluate(() => [...document.querySelectorAll('[aria-live]')].map((el) => el.className)))
       .toEqual(['stats']);
-    // All four tiles are inside it — a tile outside would change in silence.
+    // All the tiles are inside it — a tile outside would change in silence.
     expect(await page.evaluate(() =>
       KINDS.every((k) => document.getElementById('st-' + k).closest('[aria-live]') !== null))).toBe(true);
   });
@@ -638,13 +638,13 @@ test.describe('§14 the stats block is a live region', () => {
     // a bare "24 in view · 25 match the filters" announces a number without
     // saying what it counts (§9.1).
     // §3.2: the figures are a snapshot, the shape of the table is not. What is
-    // pinned is that shape — the four layers the interface counts — while every
+    // pinned is that shape — the layers the interface counts — while every
     // figure is derived. The partition check is what keeps the derivation
-    // honest: the four layers between them hold each entity exactly once, so a
+    // honest: the layers between them hold each entity exactly once, so a
     // tile's match half cannot come out right against a corpus the payload
     // never had (an entity counted in two layers, say).
     const { byKind: totals, ids } = await payloadTotals(page);
-    expect(Object.keys(totals)).toEqual(['project', 'team', 'commons', 'framework']);
+    expect(Object.keys(totals)).toEqual(['project', 'team', 'cluster', 'commons', 'framework']);
     expect(Object.values(totals).reduce((a, n) => a + n, 0)).toBe(ids);
     const t = await tiles(page);
     for (const tile of t) {
@@ -1659,7 +1659,7 @@ test.describe('§14 keyboard reach without the map', () => {
     // payload, so the list cannot agree with itself while both are wrong.
     const names = await page.evaluate(() => {
       const D = window.HAI_DATA, by = {};
-      for (const e of [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS]) by[e.id] = e.name;
+      for (const e of [...D.PROJECTS, ...D.CLUSTERS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS]) by[e.id] = e.name;
       return [...document.querySelectorAll('#nogeo-list [data-open]')].map((b) => by[b.dataset.open]);
     });
     expect(names.filter(Boolean).length).toBe(nogeo.length);

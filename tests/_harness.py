@@ -57,13 +57,13 @@ def load_payload() -> dict:
     """Parse the committed hai-data.js into Python objects.
 
     The file is generated JavaScript, not JSON, but every value in it is a JSON
-    literal by construction (`js_array` emits `json.dumps` output), so the five
+    literal by construction (`js_array` emits `json.dumps` output), so the six
     `const NAME = [...]` arrays and the two objects can be read back exactly.
     Parsing rather than executing keeps these tests free of a JS runtime.
     """
     src = DATA_JS.read_text(encoding="utf-8")
     out = {}
-    for name in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES"):
+    for name in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS", "EDGES"):
         out[name] = json.loads(_strip_trailing_commas(_const_value(src, name, "[", "]")))
     out["TAXO"] = json.loads(_strip_trailing_commas(_const_value(src, "TAXO", "{", "}")))
     out["AS_OF"] = json.loads(_const_value(src, "AS_OF", '"', '"', inclusive=True))

@@ -49,6 +49,7 @@ const SEC_SOURCES = [
   ['Timeline', r => !!r.timeline && (!!r.timeline.start || !!r.timeline.end
     || (r.timeline.milestones || []).length > 0)],
   ['Consortium', r => (r.consortium || []).length > 0],
+  ['Members', r => (r.members || []).length > 0],
   ['Funding', r => !!r.funding && ['source', 'call', 'grant', 'eur', 'url'].some(k => r.funding[k])],
   ['Infrastructure', r => !!r.infra && ['kind', 'operator', 'access', 'capacity'].some(k => r.infra[k])],
   ['Demonstrators', r => (r.demos || []).length > 0],
@@ -60,8 +61,8 @@ const SEC_SOURCES = [
   ['Other links', r => r.otherLinks > 0],
 ];
 const SEC_ORDER = SEC_SOURCES.map(([title]) => title);
-const REL_ORDER = ['Consortium teams', 'Projects & programmes', 'Created', 'Builds on',
-  'Created by', 'Used by'];
+const REL_ORDER = ['Consortium teams', 'Member teams', 'Projects & programmes', 'Member of',
+  'Created', 'Builds on', 'Created by', 'Used by'];
 const CANON = [...SEC_ORDER, ...REL_ORDER];
 
 // §8's short domain labels — the ones the card uses, as opposed to the long
@@ -71,13 +72,18 @@ const BADGE = { energy: 'energy', aviation: 'aviation', rail: 'rail', transport:
   compute: 'compute', cluster: 'AI network', simulation: 'socio-tech sim.', hf: 'human factors',
   xai: 'XAI', multi: 'multi/other', maritime: 'maritime', nuclear: 'nuclear', defense: 'defence' };
 
-// §8 item 6's ten identity fields, in the order the spec lists them, with the
+// §8 item 6's identity fields, in the order the spec lists them, with the
 // payload field each one reads — the same arrangement as SEC_SOURCES, and for
 // the same two reasons. It predicts one card's grid from that card's payload,
 // and it doubles as a way to *find* a card by the shape of its identity grid
 // (`idLabels()` below), which is how the tests that pin exact rows pick their
 // subjects now that none of them may name an id.
 const FACT_ORDER = [
+  // The organisation a team belongs to (data/organisations.yml), when its own
+  // affiliation does not already name it.
+  ['Organisation', d => !!(d.organisation && d.organisation.name
+    && d.organisation.name !== (d.affiliation || {}).org
+    && d.organisation.name !== (d.affiliation || {}).parent)],
   ['Affiliation', d => d.affiliation && d.affiliation.org && d.affiliation.org !== d.name],
   ['Parent body', d => !!(d.affiliation && d.affiliation.parent)],
   ['Jurisdiction', d => !!d.jurisdiction],
@@ -87,7 +93,9 @@ const FACT_ORDER = [
   ['Licence', d => !!d.license],
   ['Maintainer', d => !!d.maintainer],
   ['Repository', d => !!(d.repo && d.repo !== d.url)],
-  ['Reach', d => !!d.size],
+  ['Reach', d => !!d.size && d.layer !== 'cluster'],
+  // A cluster's size is its membership: same field, its own label.
+  ['Membership', d => !!d.size && d.layer === 'cluster'],
 ];
 
 // Markup in every string field of a synthetic entity. No entry in the payload
@@ -151,6 +159,7 @@ const hostileEntity = (bad) => ({
     id: 'synthetic-hostile', name: `${bad} name`, city: `${bad} city`, country: `${bad} cc`,
     when: `${bad} when`, desc: `${bad} desc`, url: `https://example.org/?q=${bad}`,
     kind: `${bad} kind`, status: `${bad} status`, tier: `${bad} tier`,
+    organisation: { name: `${bad} organisation` },
     affiliation: { org: `${bad} org`, parent: `${bad} parent` },
     jurisdiction: `${bad} juris`, issuer: { org: `${bad} issuer` },
     legal: `${bad} legal`, adopted: `${bad} adopted`, license: `${bad} licence`,
@@ -158,6 +167,7 @@ const hostileEntity = (bad) => ({
     focus: [`${bad} focus`], appliesTo: [`${bad} applies`],
     timeline: { start: `${bad} start`, end: `${bad} end`, milestones: [{ date: `${bad} date`, label: `${bad} ms` }] },
     consortium: [{ org: `${bad} partner`, role: `${bad} role`, country: `${bad} ct` }],
+    members: [{ org: `${bad} member`, role: `${bad} mrole`, country: `${bad} mct` }],
     funding: { source: `${bad} source`, call: `${bad} call`, grant: `${bad} grant` },
     infra: { kind: `${bad} infra`, operator: { org: `${bad} operator` }, access: `${bad} access`, capacity: `${bad} capacity` },
     demos: [{ label: `${bad} demo` }], delivs: [{ title: `${bad} deliv` }],
@@ -169,14 +179,15 @@ const hostileEntity = (bad) => ({
 /** Adjacency rebuilt from the payload, so that what a card *should* list does
  *  not come from the same `neighbors` map the card reads it from. */
 const neighboursFromData = (page, id) => page.evaluate((x) => {
-  const known = new Set([...DATA.PROJECTS, ...DATA.TEAMS, ...DATA.COMMONS, ...DATA.FRAMEWORKS].map(d => d.id));
+  const known = new Set([...DATA.PROJECTS, ...DATA.CLUSTERS, ...DATA.TEAMS, ...DATA.COMMONS, ...DATA.FRAMEWORKS].map(d => d.id));
   const out = new Set();
   const add = i => { if (known.has(i)) out.add(i); };
   if (!known.has(x)) return [];
   DATA.EDGES.forEach(e => {
-    if (!known.has(e.project)) return;                 // the page skips these too
-    if (e.project === x) add(e.team);
-    else if (e.team === x) add(e.project);
+    const s = e.project || e.cluster;                  // a project or a cluster
+    if (!known.has(s)) return;                         // the page skips these too
+    if (s === x) add(e.team);
+    else if (e.team === x) add(s);
   });
   [...DATA.COMMONS, ...DATA.FRAMEWORKS].forEach(a => {
     const ends = [...(a.createdBy || []), ...(a.usedBy || [])];
@@ -195,7 +206,7 @@ const neighboursFromData = (page, id) => page.evaluate((x) => {
  *  back from the structures the card itself reads. */
 const corpus = (page) => page.evaluate(() => {
   const D = window.HAI_DATA;
-  const all = [['project', D.PROJECTS], ['team', D.TEAMS],
+  const all = [['project', D.PROJECTS], ['team', D.TEAMS], ['cluster', D.CLUSTERS],
     ['commons', D.COMMONS], ['framework', D.FRAMEWORKS]]
     .flatMap(([kind, arr]) => arr.map(d => ({ kind, d })));
   const known = new Set(all.map(r => r.d.id));
@@ -204,10 +215,12 @@ const corpus = (page) => page.evaluate(() => {
     const { desc, desc_en: en, desc_fr: fr, ...rest } = d;
     const lk = d.links || {};
     const mates = new Set();
-    D.EDGES.forEach(e => {                               // the page skips unknown projects too
-      if (!known.has(e.project)) return;
-      if (e.project === d.id && known.has(e.team)) mates.add(e.team);
-      else if (e.team === d.id && known.has(e.project)) mates.add(e.project);
+    const kindOf = new Map(all.map(x => [x.d.id, x.kind]));
+    D.EDGES.forEach(e => {                               // the page skips unknown sources too
+      const s = e.project || e.cluster;
+      if (!known.has(s)) return;
+      if (s === d.id && known.has(e.team)) mates.add(e.team);
+      else if (e.team === d.id && known.has(s)) mates.add(s);
     });
     // `layer` rather than `kind`: the payload's own `kind` field ("software",
     // "horizon_europe") is a tag on the card and must not be shadowed.
@@ -222,6 +235,8 @@ const corpus = (page) => page.evaluate(() => {
       createdHere: (d.createdBy || []).filter(x => known.has(x)),
       usedHere: (d.usedBy || []).filter(x => known.has(x)),
       mates: [...mates],
+      matesBy: Object.fromEntries(['project', 'team', 'cluster'].map(k =>
+        [k, [...mates].filter(x => kindOf.get(x) === k)])),
       madeAssets: assets.filter(a => (a.createdBy || []).includes(d.id)).map(a => a.id),
       usedAssets: assets.filter(a => (a.usedBy || []).includes(d.id)).map(a => a.id) };
   });
@@ -233,8 +248,13 @@ const corpus = (page) => page.evaluate(() => {
 const relOf = (r) => {
   const o = {};
   const put = (head, ids) => { const l = [...new Set(ids)]; if (l.length) o[head] = l; };
-  if (r.layer === 'project' || r.layer === 'team') {
-    put(r.layer === 'project' ? 'Consortium teams' : 'Projects & programmes', r.mates);
+  if (r.layer === 'project' || r.layer === 'team' || r.layer === 'cluster') {
+    if (r.layer === 'project') put('Consortium teams', r.matesBy.team);
+    if (r.layer === 'cluster') put('Member teams', r.matesBy.team);
+    if (r.layer === 'team') {
+      put('Projects & programmes', r.matesBy.project);
+      put('Member of', r.matesBy.cluster);
+    }
     put('Created', r.madeAssets);
     put('Builds on', r.usedAssets);
   } else {
@@ -266,24 +286,46 @@ const skeletonOf = (r) => [
 
 /** The curves the map draws for one entity — edge *entries*, not neighbours: a
  *  team that both built an asset and uses it gets two, and geometry only exists
- *  when both ends are placed. With `other`, only the curves between that pair. */
+ *  when both ends are placed. With `other`, only the curves between that pair.
+ *  One line per organisation: an edge carrying `via` draws nothing of its own,
+ *  it shares the line of the card it names, which lights for either card. */
 const fanFromData = (page, id, other = null) => page.evaluate(([x, y]) => {
   const D = window.HAI_DATA;
   const placed = new Map();
-  [...D.PROJECTS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS]
+  [...D.PROJECTS, ...D.CLUSTERS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS]
     .forEach(d => placed.set(d.id, d.lat != null && d.lon != null));
-  let n = 0;
-  const pair = (a, b) => {
-    if (!placed.has(a) || !placed.has(b)) return;        // unresolvable: no link, no curve
-    const ends = y ? ((a === x && b === y) || (a === y && b === x)) : (a === x || b === x);
-    if (ends && placed.get(a) && placed.get(b)) n++;
+  const drawn = [], groups = new Map();
+  const add = (a, b) => {
+    if (!placed.has(a) || !placed.has(b)) return -1;     // unresolvable: no link, no curve
+    if (!(placed.get(a) && placed.get(b))) return -1;
+    drawn.push({ a, b }); return drawn.length - 1;
   };
-  D.EDGES.forEach(e => { if (placed.has(e.project)) pair(e.project, e.team); });
-  [...D.COMMONS, ...D.FRAMEWORKS].forEach(a => {
-    (a.createdBy || []).forEach(u => pair(u, a.id));
-    (a.usedBy || []).forEach(u => pair(a.id, u));
+  D.EDGES.forEach(e => {
+    const s = e.project || e.cluster;
+    if (!placed.has(s) || !placed.has(e.team)) return;
+    const key = s + '|' + (e.via || e.team);
+    if (!groups.has(key)) groups.set(key, { members: [], lines: [] });
+    const G = groups.get(key);
+    G.members.push(e.team);
+    const i = add(s, e.team);
+    if (i >= 0) { if (e.via) G.lines.push(i); else G.lines.unshift(i); }
   });
-  return n;
+  [...D.COMMONS, ...D.FRAMEWORKS].forEach(a => {
+    (a.createdBy || []).forEach(u => add(u, a.id));
+    (a.usedBy || []).forEach(u => add(a.id, u));
+  });
+  // One line per organisation (§4.3): every link has its path, and a group of
+  // cards of one organisation shows one of them — its head's, or the focused
+  // card's own path when the focus belongs to the group.
+  const shown = new Set(drawn.map((_, i) => i));
+  for (const G of groups.values()) {
+    G.lines.forEach(i => { drawn[i].shared = G.members; shown.delete(i); });
+    if (!G.lines.length) continue;
+    const own = G.members.includes(x) ? G.lines.find(j => drawn[j].b === x) : undefined;
+    shown.add(own != null ? own : G.lines[0]);
+  }
+  const on = (e, k) => e.a === k || e.b === k || (e.shared || []).includes(k);
+  return [...shown].filter(i => on(drawn[i], x) && (!y || on(drawn[i], y))).length;
 }, [id, other]);
 
 /** The vocabulary table, which ships with the data (§3.4), and the lookup rule
@@ -479,6 +521,56 @@ test.describe('invariant 5 — the panel and the feed render the same card', () 
 });
 
 // =========================================================================
+test.describe('§8 organisation-level links', () => {
+  // Derived from the payload: an organisation-level link that draws its own
+  // line, the organisation its team card belongs to, and a unit-level link of
+  // the same source when there is one.
+  const pick = (page) => page.evaluate(() => {
+    const e = DATA.EDGES.find((x) => x.org && !x.via);
+    const src = e.project || e.cluster;
+    const team = DATA.TEAMS.find((x) => x.id === e.team);
+    const unit = DATA.EDGES.find((x) => !x.org && (x.project || x.cluster) === src);
+    return { source: src, team: e.team, teamName: team.name, org: team.organisation.name,
+      sourceName: byId[src].d.name, unit: unit ? unit.team : null };
+  });
+  const row = (page, id) => page.locator(`${PANEL} .rel-row[data-open="${id}"]`).first();
+
+  test('§8 the row says "via its organisation", names the organisation on hover, and keeps the card name readable', async ({ page }) => {
+    await openMap(page);
+    await hideFeed(page);
+    const fx = await pick(page);
+    await open(page, fx.source, { fly: false });
+    const r = row(page, fx.team);
+    await expect(r.locator('.lvl')).toHaveText('via its organisation');
+    await expect(r).toHaveAttribute('title',
+      `${fx.org} takes part through a unit that has no card of its own; this card belongs to it.`);
+    await expect(r.locator('.lvl')).toHaveAttribute('aria-label',
+      `${fx.org} takes part through a unit that has no card of its own; this card belongs to it.`);
+    // The tag sits under the name rather than beside it, so the name keeps the
+    // row's width, and the full name is one hover away.
+    await expect(r.locator('.nm')).toHaveAttribute('title', fx.teamName);
+    expect((await r.locator('.nm').boundingBox()).width, 'the name is not squeezed by the tag')
+      .toBeGreaterThan(100);
+    if (fx.unit) await expect(row(page, fx.unit).locator('.lvl')).toHaveCount(0);
+
+    // From the team's side the sentence turns round: its organisation takes
+    // part, not necessarily the team.
+    await open(page, fx.team, { fly: false });
+    await expect(row(page, fx.source)).toHaveAttribute('title',
+      `${fx.org}, this team\u2019s organisation, takes part — not necessarily this team itself.`);
+  });
+
+  test('§8 the organisation-level sentences are French in French', async ({ page }) => {
+    await openMap(page, { lang: 'fr' });
+    await hideFeed(page);
+    const fx = await pick(page);
+    await open(page, fx.source, { fly: false });
+    await expect(row(page, fx.team).locator('.lvl')).toHaveText('via l\u2019organisation');
+    await expect(row(page, fx.team)).toHaveAttribute('title',
+      `${fx.org} participe par une unité qui n\u2019a pas de fiche ; cette fiche lui appartient.`);
+  });
+});
+
 test.describe('§8 section order, and omission when empty', () => {
   test('§8 a project card renders the sections the spec lists, in that order', async ({ page }) => {
     await openMap(page);
@@ -713,7 +805,7 @@ test.describe('§8 section order, and omission when empty', () => {
   });
 
   test('§8 the facts grid carries all four of a standard\'s identity fields, in order', async ({ page }) => {
-    // The two cards above cover six of §8 item 6's ten fields and neither
+    // The two cards above cover six of §8 item 6's fields and neither
     // carries `legal` or `adopted`. A grid read back as an object compares
     // equal whatever the order, so this one reads it as a list: the sequence is
     // the claim, not just the contents.
@@ -738,7 +830,7 @@ test.describe('§8 section order, and omission when empty', () => {
   });
 
   test('§8 no card in the payload drops or reorders an identity field', async ({ page }) => {
-    // §8 item 6 lists ten fields in one order, for every card in the payload.
+    // §8 item 6 lists its fields in one order, for every card in the payload.
     // The prediction is built here from the payload and from FACT_ORDER, so a
     // row deleted from
     // `identity` — or two of them swapped — fails against the spec's list
@@ -758,7 +850,8 @@ test.describe('§8 section order, and omission when empty', () => {
       page.evaluate(() => {
         const o = {};
         items.forEach(it => { const d = it.d;
-          o[it.id] = { name: d.name, url: d.url, affiliation: d.affiliation, jurisdiction: d.jurisdiction,
+          o[it.id] = { layer: it.kind, organisation: d.organisation,
+            name: d.name, url: d.url, affiliation: d.affiliation, jurisdiction: d.jurisdiction,
             issuer: d.issuer, legal: d.legal, adopted: d.adopted, license: d.license,
             maintainer: d.maintainer, repo: d.repo, size: d.size }; });
         return o;
@@ -1246,7 +1339,11 @@ test.describe('§7 selection and navigation', () => {
     expect(st.links).toBe(false);
     expect(st.onEdges).toBe(fan);
     expect(st.hot).toBe(fan);
-    expect(fan >= nbrs.length).toBe(true);
+    // One line per organisation: a neighbour whose edge names another card of
+    // its organisation in `via` shares that card's curve instead of drawing one.
+    const shared = await page.evaluate((id) => DATA.EDGES
+      .filter(e => (e.project || e.cluster) === id && e.via).length, PROJECT);
+    expect(fan + shared >= nbrs.length).toBe(true);
   });
 
   test('§7 closing the card clears the focus and the dimming it caused', async ({ page }) => {
@@ -1711,7 +1808,7 @@ test.describe('§8 the provenance footer', () => {
     // here would only record when this file was last edited. The page's own
     // `items` is what is on trial, so the total it is held to is summed from
     // `window.HAI_DATA` — the merged payload the page actually loaded.
-    const want = await page.evaluate(() => ['PROJECTS', 'TEAMS', 'COMMONS', 'FRAMEWORKS']
+    const want = await page.evaluate(() => ['PROJECTS', 'CLUSTERS', 'TEAMS', 'COMMONS', 'FRAMEWORKS']
       .reduce((n, k) => n + window.HAI_DATA[k].length, 0));
     expect(await page.evaluate(() => items.length)).toBe(want);
   });
@@ -1885,17 +1982,19 @@ test.describe('§8 boundaries', () => {
     expect(out.chips).toEqual([`${H} focus`, `${H} applies`]);
     expect(out.ms).toEqual([`${H} date${H} ms`]);
     expect(out.lists).toEqual([`${H} partner ${H} role · ${H} ct`,
-      `${H} demo`, `${H} deliv`, `${H} facility`]);
+      `${H} member ${H} mrole · ${H} mct`, `${H} demo`, `${H} deliv`, `${H} facility`]);
     expect(out.secFacts).toEqual([`${H} source`, `${H} call`, `${H} grant`,
       `${H} infra`, `${H} operator`, `${H} access`, `${H} capacity`, 'example.org/o']);
     expect(out.prov).toBe(`Added by ${H} by · ${H} upd · confidence ${H} confSource: ${H} src`);
     // Attributes too: a quote that survives unescaped ends the attribute early.
     expect(out.href).toBe(`https://example.org/?q=${H}`);
 
-    // The same synthetic entity carries all ten of §8 item 6's fields at once,
+    // The same synthetic entity carries every one of §8 item 6's fields but a
+    // cluster's membership at once,
     // which no card in the payload does — so this is also where the full list
     // and its order are pinned.
     expect(out.identity).toEqual([
+      ['Organisation', `${H} organisation`],
       ['Affiliation', `${H} org`],
       ['Parent body', `${H} parent`],
       ['Jurisdiction', `${H} juris`],
@@ -1907,7 +2006,9 @@ test.describe('§8 boundaries', () => {
       ['Repository', 'example.org/repo'],
       ['Reach', `${H} reach`],
     ]);
-    expect(out.identity.map(([k]) => k)).toEqual(FACT_ORDER.map(([k]) => k));
+    // Every label but a cluster's own: the synthetic entity is a commons, so its
+    // size reads as Reach, not Membership.
+    expect(out.identity.map(([k]) => k)).toEqual(FACT_ORDER.map(([k]) => k).filter(k => k !== 'Membership'));
   });
 
   test('§8 a card with one related entity still counts it, and says one', async ({ page }) => {

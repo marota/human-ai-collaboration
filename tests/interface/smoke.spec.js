@@ -8,7 +8,7 @@ test.describe('harness', () => {
     await openMap(page);
     const s = await snapshot(page);
     expect(s.matchCount).toBeGreaterThan(0);
-    expect(s.layers).toEqual({ project: true, team: true, commons: true, framework: true });
+    expect(s.layers).toEqual({ project: true, team: true, cluster: true, commons: true, framework: true });
   });
 
   test('counters reconcile at the default view', async ({ page }) => {

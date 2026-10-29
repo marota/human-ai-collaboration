@@ -38,16 +38,19 @@ DOMAINS = (
 # `status` come from the payload's own TAXO, so they are read from the corpus
 # rather than repeated here.
 KINDS = {
-    "project": ("horizon_europe", "national_grant", "industrial_consortium",
-                "internal", "other"),
+    "project": ("horizon_europe", "horizon_2020", "eu_other", "national_grant",
+                "industrial_consortium", "internal", "other"),
     "commons": ("dataset", "benchmark", "model", "software", "community"),
     "framework": ("regulation", "standard", "guideline", "policy", "code_of_conduct"),
+    "cluster": ("association", "network", "project_cluster"),
 }
 TEAM_TYPES = ("research_lab", "industrial_rd", "applied_project",
               "infrastructure", "network")
 STATUSES = ("active", "concluded", "planned")
 CONFIDENCES = ("high", "medium", "low")
-ROLES = ("coordinator", "partner", "member", "operator", "funder")
+ROLES = ("coordinator", "partner", "third_party", "observer", "member", "operator", "funder")
+# A cluster's members are not a consortium: they founded it or they joined it.
+CLUSTER_ROLES = ("founder", "member")
 LEGAL = ("in_force", "proposed", "draft", "superseded")
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
@@ -210,6 +213,29 @@ def _spec(layer: str) -> list[Field]:
                   help_fr="Texte libre — lignes, heures, paramètres, membres."),
             *_common_tail(layer, STATUSES),
         ]
+    if layer == "cluster":
+        return [
+            *_common_head(layer),
+            Field("kind", "select", "Kind", "Nature", required=True, vocab=KINDS["cluster"],
+                  help_en="association = a membership body (aisbl, e.V.); network = an informal "
+                          "network of labs; project_cluster = a grouping of funded projects.",
+                  help_fr="association = une structure à adhérents (aisbl, e.V.) ; network = un "
+                          "réseau informel de laboratoires ; project_cluster = un regroupement "
+                          "de projets financés."),
+            Field("homepage", "url", "Homepage", "Page d'accueil", required=True),
+            *_LOCATION,
+            Field("timeline.start", "year", "Founded", "Création", required=True,
+                  help_en="YYYY or YYYY-MM.", help_fr="AAAA ou AAAA-MM."),
+            Field("members", "orgs", "Members", "Membres", vocab=CLUSTER_ROLES,
+                  help_en="Member organisations worth naming, as the cluster's own list names "
+                          "them. Role: founder or member.",
+                  help_fr="Les organisations membres à citer, telles que la liste du cluster "
+                          "les nomme. Rôle : founder ou member."),
+            Field("size_indicator", "text", "Membership", "Adhérents", secondary=True,
+                  help_en="Free text, e.g. 'more than 250 members'.",
+                  help_fr="Texte libre, ex. « plus de 250 membres »."),
+            *_common_tail(layer, STATUSES),
+        ]
     if layer == "framework":
         return [
             *_common_head(layer),
@@ -310,8 +336,10 @@ _MSG = {
     "short": ("needs at least 20 characters", "doit faire au moins 20 caractères"),
     "unknown_id": ("names a card that is not on the map",
                    "désigne une fiche absente de la carte"),
-    "role": ("has a role outside coordinator/partner/member/operator/funder",
-             "a un rôle hors coordinator/partner/member/operator/funder"),
+    "role": ("has a role outside " + "/".join(ROLES),
+             "a un rôle hors " + "/".join(ROLES)),
+    "role_cluster": ("has a role outside " + "/".join(CLUSTER_ROLES),
+                     "a un rôle hors " + "/".join(CLUSTER_ROLES)),
 }
 
 
@@ -364,8 +392,12 @@ def validate(layer: str, card: dict[str, Any], corpus: Any,
                 if not isinstance(row, dict) or _blank(row.get("org")):
                     fail(path, "required")
                     break
-                if row.get("role") and row["role"] not in ROLES:
-                    fail(path, "role")
+                allowed = f.vocab or ROLES
+                if row.get("role") and row["role"] not in allowed:
+                    fail(path, "role" if allowed == ROLES else "role_cluster")
+                    break
+                if row.get("country") and not re.match(r"^[A-Z]{2}$", str(row["country"])):
+                    fail(path, "country")
                     break
 
     slug = card.get("id")
@@ -504,7 +536,7 @@ def fill_defaults(layer: str, card: dict[str, Any], corpus: Any,
         set_path(card, "provenance.confidence",
                  "medium" if (reference or {}).get("confirms") else "low")
 
-    homepage_path = "homepage" if layer == "project" else "links.homepage"
+    homepage_path = "homepage" if layer in ("project", "cluster") else "links.homepage"
     if reference and reference.get("url") and _blank(get_path(card, homepage_path)):
         set_path(card, homepage_path, reference["url"])
 
@@ -537,9 +569,14 @@ def current_values(layer: str, entity: dict[str, Any]) -> dict[str, Any]:
         if not _blank(value):
             set_path(out, path, value)
     if entity.get("url"):
-        set_path(out, "homepage" if layer == "project" else "links.homepage", entity["url"])
-    if layer != "team" and entity.get("kind") in sum((list(v) for v in KINDS.values()), []):
-        out["kind"] = entity["kind"]
+        set_path(out, "homepage" if layer in ("project", "cluster") else "links.homepage",
+                 entity["url"])
+    # By now `kind` is the layer (hai_data.load); the card's own kind is kept
+    # as `payload_kind`, and only a value the layer's form can offer comes back.
+    if entity.get("payload_kind") in KINDS.get(layer, ()):
+        out["kind"] = entity["payload_kind"]
+    if layer == "team" and entity.get("type") in TEAM_TYPES:
+        out["type"] = entity["type"]
     tl = entity.get("timeline") or {}
     for key in ("start", "end"):
         if tl.get(key):
@@ -551,11 +588,12 @@ def current_values(layer: str, entity: dict[str, Any]) -> dict[str, Any]:
             set_path(out, f"{dst}.org", org["org"])
             if org.get("url"):
                 set_path(out, f"{dst}.url", org["url"])
-    if entity.get("consortium"):
-        out["consortium"] = [
-            {k: m[k] for k in ("org", "role", "country") if m.get(k)}
-            for m in entity["consortium"]
-        ]
+    for key in ("consortium", "members"):
+        if entity.get(key):
+            out[key] = [{k: m[k] for k in ("org", "role", "country") if m.get(k)}
+                        for m in entity[key]]
+    if layer in ("cluster", "commons") and entity.get("size"):
+        out["size_indicator"] = entity["size"]
     prov = entity.get("prov") or {}
     for key, path in (("by", "provenance.added_by"), ("on", "provenance.added_on"),
                       ("src", "provenance.source"), ("conf", "provenance.confidence")):
@@ -582,6 +620,22 @@ def diff(before: dict[str, Any], after: dict[str, Any], layer: str) -> list[dict
 # "Lab: the sequel" unquoted is a nested mapping, and the file stops parsing.
 _PLAIN_RE = re.compile(r"^[A-Za-z0-9][\w .,;+&/()'’–—-]*$")
 
+# What a YAML 1.1 reader — PyYAML, which upstream CI parses with — takes for
+# something other than a string when it is written plain: a year is an int, a
+# date a date, Norway's country code a boolean. `start: 2019` then fails the
+# schema that asks for a string, and `country: NO` reads as false. Wider than
+# PyYAML on purpose (y/n, 1e5, any case), since quoting a string that did not
+# need it costs two characters. PyYAML itself is not imported: the server
+# stays dependency-free.
+_NOT_A_STRING_RE = re.compile(r"""^(?:
+    [-+]?(?:0b[01_]+|0x[0-9a-f_]+|[0-9][0-9_]*(?::[0-5]?[0-9])*)   # int, in any base
+  | [-+]?(?:[0-9][0-9_]*)?\.[0-9_]*(?:e[-+]?[0-9]+)?              # float
+  | [-+]?[0-9][0-9_]*e[-+]?[0-9]+                                 # 1e5, a YAML 1.2 float
+  | [-+]?\.(?:inf|nan)
+  | [0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[t ].*)?                     # date, timestamp
+  | y | n | yes | no | on | off | true | false | null | ~          # bool, null
+)$""", re.I | re.X)
+
 # Upstream key order, so a generated file reads like a hand-written one and a
 # diff against the template stays short. The last three are the keys of a
 # consortium or contact row, where `org` first is what makes the list readable.
@@ -590,8 +644,8 @@ _ORDER = ("id", "name", "type", "kind", "status", "tier", "jurisdiction", "licen
           "maintainer", "operator", "access_model", "repository_url", "size_indicator",
           "homepage", "focus_areas", "domains", "infrastructure", "project_ids",
           "framework_ids", "commons_ids", "infrastructure_ids", "related_initiative_ids",
-          "related_project_ids", "consortium", "demonstrators", "deliverables", "contact",
-          "links", "funding", "timeline", "description", "provenance",
+          "related_project_ids", "consortium", "members", "demonstrators", "deliverables",
+          "contact", "links", "funding", "timeline", "description", "provenance",
           # Keys of the nested mappings, in the order the upstream templates
           # write them: a consortium row reads org/role/country, a location
           # reads country/city/lat/lon.
@@ -608,7 +662,8 @@ def _scalar(value: Any) -> str:
     text = str(value)
     if text == "":
         return '""'
-    if _PLAIN_RE.match(text) and not text.endswith(":") and "  " not in text:
+    if (_PLAIN_RE.match(text) and not text.endswith(":") and "  " not in text
+            and text == text.rstrip() and not _NOT_A_STRING_RE.match(text)):
         return text
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 

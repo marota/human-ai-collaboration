@@ -40,15 +40,31 @@ class ParsesThePayload(unittest.TestCase):
         # every layer, which no interface test would notice.
         counts = self.corpus.counts()
         for const, layer in (("PROJECTS", "project"), ("TEAMS", "team"),
-                             ("COMMONS", "commons"), ("FRAMEWORKS", "framework")):
+                             ("CLUSTERS", "cluster"), ("COMMONS", "commons"),
+                             ("FRAMEWORKS", "framework")):
             self.assertEqual(counts[layer], len(self.payload[const]), layer)
         self.assertEqual(counts["links"], len(self.payload["EDGES"]))
         self.assertEqual(self.corpus.as_of, self.payload["AS_OF"])
 
     def test_each_entity_carries_its_layer(self):
         self.assertEqual({e["kind"] for e in self.corpus.entities},
-                         {"project", "team", "commons", "framework"})
+                         {"project", "team", "cluster", "commons", "framework"})
         self.assertEqual(self.corpus.by_id["ai4realnet"]["kind"], "project")
+
+    def test_the_payload_s_own_kind_is_kept_beside_the_layer(self):
+        # The layer takes the `kind` key; the card's own kind — association,
+        # horizon_europe, dataset — used to be lost under it, so a correction
+        # could never start from it and a card never showed it.
+        kept = 0
+        for const, layer in (("PROJECTS", "project"), ("CLUSTERS", "cluster"),
+                             ("COMMONS", "commons"), ("FRAMEWORKS", "framework")):
+            for raw in self.payload[const]:
+                e = self.corpus.by_id[raw["id"]]
+                self.assertEqual(e["kind"], layer, raw["id"])
+                if raw.get("kind"):
+                    self.assertEqual(e["payload_kind"], raw["kind"], raw["id"])
+                    kept += 1
+        self.assertTrue(kept)
 
     def test_ids_are_unique_so_a_link_is_unambiguous(self):
         self.assertEqual(len(self.corpus.by_id), len(self.corpus.entities))
@@ -63,7 +79,7 @@ class ParsesThePayload(unittest.TestCase):
         # either end, since "who is in this project" and "which projects is
         # this team in" are the same edge read two ways.
         edge = next(e for e in self.corpus.edges
-                    if e["project"] in self.corpus.by_id and e["team"] in self.corpus.by_id)
+                    if e.get("project") in self.corpus.by_id and e["team"] in self.corpus.by_id)
         self.assertIn(edge["team"],
                       [n["id"] for n in self.corpus.neighbours(edge["project"])])
         self.assertIn(edge["project"],
@@ -204,6 +220,37 @@ class CountsRatherThanEstimates(unittest.TestCase):
         for entity_id in re.findall(r"\(#([a-z0-9-]+)\)", line):
             self.assertEqual(self.corpus.by_id[entity_id]["kind"], "team")
 
+    def test_a_network_on_its_own_names_no_layer(self):
+        # The grid has networks of its own. Read as the clusters layer, "the
+        # oldest network operator" was answered from six clusters instead of
+        # the whole map; "neural networks" and compute clusters are no
+        # cluster either.
+        for question in ("What is the oldest network operator on the map?",
+                         "Quel est le plus ancien gestionnaire de réseau de transport "
+                         "sur la carte ?",
+                         "What is the oldest work on neural networks?",
+                         "Which compute clusters are off the map?"):
+            with self.subTest(question):
+                self.assertIsNone(CHAT.hai_data._layer_named(question))
+
+    def test_a_cluster_is_named_by_its_own_words(self):
+        for question in ("Which associations are on the map?", "les clusters de projets",
+                         "which networks of research labs are on the map?"):
+            with self.subTest(question):
+                self.assertEqual(CHAT.hai_data._layer_named(question), "cluster")
+
+    def test_a_question_naming_another_layer_keeps_it(self):
+        self.assertEqual(CHAT.hai_data._layer_named("Which teams belong to an association?"),
+                         "team")
+        self.assertEqual(CHAT.hai_data._layer_named("les équipes du réseau de laboratoires"),
+                         "team")
+
+    def test_the_oldest_network_operator_is_looked_for_across_the_whole_map(self):
+        text = CHAT.hai_data.figures(self.corpus,
+                                     "What is the oldest network operator on the map?")
+        self.assertIn("Earliest entities by start year:", text)
+        self.assertNotIn("Earliest clusters", text)
+
     def placeless(self, layer=None):
         return {e["id"] for e in self.corpus.entities if e.get("geo") is False
                 and (layer is None or e["kind"] == layer)}
@@ -247,8 +294,8 @@ class CountsRatherThanEstimates(unittest.TestCase):
         # names a team that has a marker as one that does not.
         empty = [k for k in CHAT.hai_data.LAYERS if not self.placeless(k)]
         self.assertTrue(empty)
-        plural = {"project": "projects", "team": "teams", "commons": "commons",
-                  "framework": "frameworks"}
+        plural = {"project": "projects", "team": "teams", "cluster": "clusters",
+                  "commons": "commons", "framework": "frameworks"}
         for layer in empty:
             lines = self.offmap_lines(f"which {plural[layer]} are off the map?")
             self.assertIn(f"No {plural[layer]} are off the map", "\n".join(lines))
@@ -330,6 +377,102 @@ class RendersCardsForTheModel(unittest.TestCase):
                  if l and not l.startswith("###")]
         self.assertEqual(len(lines), len(self.corpus.entities))
         self.assertTrue(all(line.count(" | ") == 2 for line in lines))
+
+    def render(self, entity_id):
+        return CHAT.hai_data.render_entity(self.corpus, self.corpus.by_id[entity_id])
+
+    @staticmethod
+    def line(text, head):
+        return next((l for l in text.splitlines() if l.startswith(head)), "")
+
+    def org_edges(self):
+        """The payload's organisation-level lines, as (project or cluster, team)."""
+        return [(e.get("project") or e.get("cluster"), e["team"]) for e in self.corpus.edges
+                if e.get("org") and (e.get("project") or e.get("cluster")) in self.corpus.by_id
+                and e["team"] in self.corpus.by_id]
+
+    def test_a_cluster_s_members_and_its_organisation_level_links_are_told_apart(self):
+        # ELLIS used to read "linked cards: Aalto — Digital Twins, …": the unit on
+        # each card credited with a membership that is its organisation's.
+        ellis = self.corpus.by_id["ellis-society"]
+        text = self.render("ellis-society")
+        members = self.line(text, "members: ")
+        self.assertTrue(ellis.get("members"))
+        for m in ellis["members"]:
+            self.assertIn(m["org"], members)
+        plain = self.line(text, "linked cards: ")
+        through = self.line(text, "linked through an organisation (the organisation takes "
+                                  "part, not necessarily the unit on the card): ")
+        org_level = [team for cluster, team in self.org_edges() if cluster == "ellis-society"]
+        self.assertTrue(org_level, "ELLIS has members linked at organisation level")
+        for team_id in org_level:
+            via = CHAT.hai_data.org_name(self.corpus.by_id[team_id])
+            self.assertIn(f"(#{team_id}) via {via}", through)
+            self.assertNotIn(f"(#{team_id})", plain)
+        for n in self.corpus.neighbours("ellis-society"):
+            if n["id"] not in org_level:
+                self.assertIn(f"(#{n['id']})", plain)
+
+    def test_every_organisation_level_line_reads_so_from_both_ends(self):
+        edges = self.org_edges()
+        self.assertTrue(edges)
+        for a, b in edges:
+            via = CHAT.hai_data.org_name(self.corpus.by_id[b])
+            for here, there in ((a, b), (b, a)):
+                with self.subTest(here=here, there=there):
+                    self.assertTrue(self.corpus.org_level(here, there))
+                    text = self.render(here)
+                    self.assertNotIn(f"(#{there})", self.line(text, "linked cards: "))
+                    through = self.line(text, "linked through an organisation")
+                    shown = re.findall(r"\(#([a-z0-9-]+)\) via ", through)
+                    self.assertTrue(there in shown or len(shown) == 12, through)
+                    if there in shown:
+                        self.assertIn(f"(#{there}) via {via}", through)
+
+    def test_a_direct_line_is_still_a_linked_card(self):
+        direct = [(e["project"], e["team"]) for e in self.corpus.edges
+                  if e.get("project") in self.corpus.by_id and e["team"] in self.corpus.by_id
+                  and not e.get("org")]
+        self.assertTrue(direct)
+        for a, b in direct[:20]:
+            self.assertFalse(self.corpus.org_level(a, b))
+            shown = re.findall(r"\(#([a-z0-9-]+)\)", self.line(self.render(a), "linked cards: "))
+            self.assertTrue(b in shown or len(shown) == 12, (a, b))
+
+    def test_the_organisation_named_is_the_one_the_payload_records(self):
+        org_name = CHAT.hai_data.org_name
+        self.assertEqual(org_name({"name": "Unit", "affiliation": {"org": "Aff"},
+                                   "organisation": {"id": "o", "name": "Org"}}), "Org")
+        self.assertEqual(org_name({"name": "Unit", "affiliation": {"org": "Aff"}}), "Aff")
+        self.assertEqual(org_name({"name": "Unit"}), "Unit")
+
+    def test_a_team_s_organisation_is_named_when_its_affiliation_does_not_name_it(self):
+        teams = [e for e in self.corpus.entities if e["kind"] == "team" and e.get("organisation")]
+        differ = [t for t in teams
+                  if t["organisation"]["name"] != (t.get("affiliation") or {}).get("org")]
+        self.assertTrue(differ)
+        for t in teams:
+            row = self.line(self.render(t["id"]), "organisation: ")
+            if t in differ:
+                self.assertEqual(row, f"organisation: {t['organisation']['name']}", t["id"])
+            else:
+                self.assertEqual(row, "", t["id"])
+
+    def test_a_card_shows_its_own_kind_and_its_size(self):
+        kinds = [e for e in self.corpus.entities if e.get("payload_kind")]
+        self.assertTrue(kinds)
+        for e in kinds:
+            self.assertIn(f"\nkind: {e['payload_kind']}\n", self.render(e["id"]), e["id"])
+        for e in (e for e in self.corpus.entities if e.get("size")):
+            head = "membership" if e["kind"] == "cluster" else "size"
+            self.assertIn(f"\n{head}: {e['size']}\n", self.render(e["id"]), e["id"])
+        # A cluster's size is how many members it has, and says so.
+        self.assertIn("\nmembership: 180 members\n", CHAT.hai_data.render_entity(
+            self.corpus, {"id": "x-cluster", "name": "X", "kind": "cluster",
+                          "size": "180 members", "desc": "An association."}))
+        self.assertIn("\nsize: 600 stars\n", CHAT.hai_data.render_entity(
+            self.corpus, {"id": "x-commons", "name": "X", "kind": "commons",
+                          "size": "600 stars", "desc": "A library."}))
 
 
 class ReadsCoordinatesFromTheCorpus(unittest.TestCase):

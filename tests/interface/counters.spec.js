@@ -31,11 +31,11 @@ import {
   setPeriod, applyPreset, expectCountersReconcile, settleCounts, zoomBy, fitAll,
 } from './_map.js';
 
-const KINDS = ['project', 'team', 'commons', 'framework'];
+const KINDS = ['project', 'team', 'cluster', 'commons', 'framework'];
 // The English tile labels (§9.1's "One tile per layer"). Part of the shape of
 // the panel rather than of the corpus, so these stay written down: a test that
 // read them off the page could not notice them being swapped.
-const LABELS = { project: 'Projects', team: 'Teams', commons: 'Commons', framework: 'Frameworks' };
+const LABELS = { project: 'Projects', team: 'Teams', cluster: 'Clusters', commons: 'Commons', framework: 'Frameworks' };
 
 /** Open the map with animation switched off, and wait out the debounced
  *  recount that boot's `fitView()` → `applyView()` always schedules. */
@@ -64,7 +64,7 @@ function corpus(page) {
     const D = window.HAI_DATA;
     const of = (arr) => arr.length;
     const all = [
-      ...D.PROJECTS.map((d) => ['project', d]), ...D.COMMONS.map((d) => ['commons', d]),
+      ...D.PROJECTS.map((d) => ['project', d]), ...D.CLUSTERS.map((d) => ['cluster', d]), ...D.COMMONS.map((d) => ['commons', d]),
       ...D.TEAMS.map((d) => ['team', d]), ...D.FRAMEWORKS.map((d) => ['framework', d]),
     ];
     const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
@@ -74,7 +74,7 @@ function corpus(page) {
     });
     return {
       totals: {
-        project: of(D.PROJECTS), team: of(D.TEAMS),
+        project: of(D.PROJECTS), team: of(D.TEAMS), cluster: of(D.CLUSTERS),
         commons: of(D.COMMONS), framework: of(D.FRAMEWORKS),
       },
       all: all.length,
@@ -100,7 +100,7 @@ function roster(page) {
     const D = window.HAI_DATA;
     const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
     return [
-      ...D.PROJECTS.map((d) => ['project', d]), ...D.COMMONS.map((d) => ['commons', d]),
+      ...D.PROJECTS.map((d) => ['project', d]), ...D.CLUSTERS.map((d) => ['cluster', d]), ...D.COMMONS.map((d) => ['commons', d]),
       ...D.TEAMS.map((d) => ['team', d]), ...D.FRAMEWORKS.map((d) => ['framework', d]),
     ].map(([kind, d]) => {
       const tl = d.timeline || {};
@@ -123,7 +123,7 @@ function relations(page) {
   return page.evaluate(() => {
     const D = window.HAI_DATA;
     const known = new Set();
-    [D.PROJECTS, D.COMMONS, D.TEAMS, D.FRAMEWORKS].forEach((a) => a.forEach((d) => known.add(d.id)));
+    [D.PROJECTS, D.CLUSTERS, D.COMMONS, D.TEAMS, D.FRAMEWORKS].forEach((a) => a.forEach((d) => known.add(d.id)));
     const nb = new Map();
     const link = (a, b) => {
       if (!known.has(a) || !known.has(b)) return;
@@ -131,7 +131,7 @@ function relations(page) {
       if (!nb.has(b)) nb.set(b, new Set());
       nb.get(a).add(b); nb.get(b).add(a);
     };
-    D.EDGES.forEach((e) => { if (known.has(e.project)) link(e.project, e.team); });
+    D.EDGES.forEach((e) => { const s = e.project || e.cluster; if (known.has(s)) link(s, e.team); });
     [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
       (a.createdBy || []).forEach((u) => link(u, a.id));
       (a.usedBy || []).forEach((u) => link(a.id, u));
@@ -199,7 +199,7 @@ async function derive(page) {
     const myScope = () => {
       const D = window.HAI_DATA;
       const known = new Set();
-      [D.PROJECTS, D.COMMONS, D.TEAMS, D.FRAMEWORKS].forEach((a) => a.forEach((d) => known.add(d.id)));
+      [D.PROJECTS, D.CLUSTERS, D.COMMONS, D.TEAMS, D.FRAMEWORKS].forEach((a) => a.forEach((d) => known.add(d.id)));
       const nb = new Map();
       const link = (a, b) => {
         if (!known.has(a) || !known.has(b)) return;
@@ -207,7 +207,7 @@ async function derive(page) {
         if (!nb.has(b)) nb.set(b, new Set());
         nb.get(a).add(b); nb.get(b).add(a);
       };
-      D.EDGES.forEach((e) => { if (known.has(e.project)) link(e.project, e.team); });
+      D.EDGES.forEach((e) => { const s = e.project || e.cluster; if (known.has(s)) link(s, e.team); });
       [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
         (a.createdBy || []).forEach((u) => link(u, a.id));
         (a.usedBy || []).forEach((u) => link(a.id, u));
@@ -232,7 +232,7 @@ async function derive(page) {
       return sx >= -pad && sx <= w + pad && sy >= -pad && sy <= h + pad;
     };
 
-    const zero = () => ({ project: 0, team: 0, commons: 0, framework: 0 });
+    const zero = () => ({ project: 0, team: 0, cluster: 0, commons: 0, framework: 0 });
     const inViewKind = zero(), matchKind = zero(), scopeKind = zero();
     const countries = new Set();
     let inView = 0, offScreen = 0, offMap = 0;
@@ -309,7 +309,7 @@ function panelCounts(page) {
  *  the same walk so the closed-list test below cannot pass vacuously. */
 function liveNumbers(page) {
   return page.evaluate(() => {
-    const INV13 = '#st-project,#st-team,#st-commons,#st-framework,'
+    const INV13 = '#st-project,#st-team,#st-cluster,#st-commons,#st-framework,'
       + '.layer-row[data-layer] .cnt,#tf-undated-n,#nogeo-count';
     // Indexed against the whole document rather than against this walk, so a
     // key means the same element whichever numbers happen to be on screen.
@@ -436,7 +436,7 @@ async function showWholeMap(page) {
   await settleCounts(page);
 }
 
-/** Assert the four tiles, the caption, the layer rows, the unknown-start count,
+/** Assert the tiles, the caption, the layer rows, the unknown-start count,
  *  the Off-the-map badge and the histogram all agree with the independently
  *  derived figures. This is invariant 13 in one call: any figure that has
  *  stopped following `matchesFilters()` shows up here. */
@@ -502,15 +502,15 @@ test.describe('§9.1 two readings', () => {
     expect(tile.title).toBe(`${tile.count} in view · ${row.count} match the filters`);
   });
 
-  test('§9.1 there is no fifth tile: countries leads the caption instead', async ({ page }) => {
+  test('§9.1 there is no sixth tile: countries leads the caption instead', async ({ page }) => {
     await open(page);
     const shape = await page.evaluate(() => ({
       tiles: [...document.querySelectorAll('.stats > div')].length,
       ids: [...document.querySelectorAll('.stats strong')].map((s) => s.id),
       countryTile: !!document.getElementById('st-country') || !!document.getElementById('st-countries'),
     }));
-    expect(shape.tiles).toBe(4);
-    expect(shape.ids).toEqual(['st-project', 'st-team', 'st-commons', 'st-framework']);
+    expect(shape.tiles).toBe(5);
+    expect(shape.ids).toEqual(['st-project', 'st-team', 'st-cluster', 'st-commons', 'st-framework']);
     expect(shape.countryTile).toBe(false);
     const d = await derive(page);
     expect(await caption(page)).toBe(captionFor(d));
@@ -556,8 +556,8 @@ test.describe('§9.1 two readings', () => {
     // Derived from the payload: of the entities matching this period, how many
     // of each layer can never carry a marker.
     const want = await page.evaluate(() => {
-      const n = { project: 0, team: 0, commons: 0, framework: 0 };
-      const all = { project: 0, team: 0, commons: 0, framework: 0 };
+      const n = { project: 0, team: 0, cluster: 0, commons: 0, framework: 0 };
+      const all = { project: 0, team: 0, cluster: 0, commons: 0, framework: 0 };
       items.forEach((it) => {
         if (periodState(it) === 'out') return;
         all[it.kind]++;
@@ -589,7 +589,7 @@ test.describe('§9.1 two readings', () => {
     await open(page);
     const rows = await layerRows(page);
     const placeless = await page.evaluate(() => {
-      const n = { project: 0, team: 0, commons: 0, framework: 0 };
+      const n = { project: 0, team: 0, cluster: 0, commons: 0, framework: 0 };
       items.forEach((it) => { if (!it.geo) n[it.kind]++; });
       return n;
     });
@@ -620,7 +620,7 @@ test.describe('§9.1 two readings', () => {
     await page.evaluate(() => openWelcome());
     const wl = await page.evaluate(() =>
       [...document.querySelectorAll('#wl-rows .wl-row .n')].map((n) => Number(n.textContent)));
-    expect(wl.slice(0, 4)).toEqual(KINDS.map((k) => c.totals[k]));
+    expect(wl.slice(0, KINDS.length)).toEqual(KINDS.map((k) => c.totals[k]));
     // ...and the live rows next door have not stayed on those numbers.
     const rows = await layerRows(page);
     expect(rows.map((r) => r.count)).not.toEqual(KINDS.map((k) => c.totals[k]));
@@ -653,7 +653,7 @@ test.describe('inv 14 one tile per layer', () => {
       const t = await tiles(page);
       expect(t.reduce((a, x) => a + x.count, 0), because).toBe(s.inView);
       // The sum on its own is an identity, not a property: `renderStats()`
-      // bins `state.inView` by kind, so four tiles addressed by kind cannot
+      // bins `state.inView` by kind, so tiles addressed by kind cannot
       // help adding up to it. What has to hold in each of these states is that
       // every tile carries the independently derived per-layer in-view figure.
       for (const x of t) {
@@ -772,7 +772,7 @@ test.describe('inv 12 reconciliation', () => {
     // leading with "0 countries ·".
     expect(await caption(page))
       .toBe(`in view · ${c.all} match the filters (${c.all - c.nogeo} off screen, ${c.nogeo} off the map)`);
-    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0]);
+    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0, 0]);
     await expectCountersReconcile(page, 'panned off the map');
   });
 
@@ -1404,7 +1404,7 @@ test.describe('§9.2 the caption names the gap', () => {
     expect(s.matchCount).toBe(0);
     expect(s.keptOpen).toBe(1);
     expect(s.inView).toBe(1);
-    expect((await tiles(page)).map((t) => t.count)).toEqual([1, 0, 0, 0]);
+    expect((await tiles(page)).map((t) => t.count)).toEqual([1, 0, 0, 0, 0]);
     // The tile's own reconciliation says the same thing in the other direction.
     expect((await tileA11y(page)).find((t) => t.kind === 'project').title)
       .toBe('1 in view · 0 match the filters');
@@ -1442,7 +1442,7 @@ test.describe('§9.2 the caption names the gap', () => {
     await settleCounts(page);
     // "0 countries ·" would be noise, so the term is dropped rather than shown.
     expect(await caption(page)).toBe('in view · 0 match the filters');
-    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0]);
+    expect((await tiles(page)).map((t) => t.count)).toEqual([0, 0, 0, 0, 0]);
     expect(await feedHeader(page)).toEqual({ count: 0, offScreen: null, offMap: null });
     const pc = await panelCounts(page);
     expect(pc.nogeo).toBe(0);

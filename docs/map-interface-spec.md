@@ -103,16 +103,22 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
-Counts are a snapshot (26 October 2026) and move with every upstream
+Counts are a snapshot (28 October 2026) and move with every upstream
 regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
-| Projects & programmes | 115 | large circle | `data/projects/` |
+| Projects & programmes | 110 | large circle | `data/projects/` |
 | Teams | 274 | small circle | `data/teams/` + infrastructure with no matching team |
-| Commons | 26 | dashed circle | `data/commons/` |
+| Clusters | 6 | hexagon | `data/clusters/` |
+| Commons | 25 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
-| Links | 303 | curved edge | `data/edges.yml` |
+| Links | 294 | curved edge | `data/edges.yml` |
+
+**Clusters** are the associations, networks and clusters of projects that bring
+teams and projects together without being a funded project themselves (ADRA,
+BDVA, IDSA, CAIRNE, ELLIS, ICT4Water). They link to the team cards of their
+member organisations, as projects link to their partners'.
 
 **Infrastructure has no layer of its own**, by design. Of its 41 entries, 23
 describe a facility run by a team already on the map: they enrich that team's
@@ -140,16 +146,23 @@ Per layer, additionally:
 - **Projects** — `kind`, `when` (compact span for tooltip and print), `budget`
   (legacy alias), `funding{source,call,grant,eur,url}`,
   `consortium[{org,role,country,ref}]`, `demos[]`, `delivs[]`.
-- **Teams** — `type`, `affiliation{org,parent,url}`, `facilities[]`,
-  `infra{kind,operator,access,capacity,hosts[]}` when an infrastructure entry
-  merged in.
+- **Teams** — `type`, `affiliation{org,parent,url}`,
+  `organisation{id,name,url}` when `data/organisations.yml` lists the card,
+  `facilities[]`, `infra{kind,operator,access,capacity,hosts[]}` when an
+  infrastructure entry merged in.
+- **Clusters** — `kind` (association, network, project cluster), `size` (the
+  membership, in the cluster's own words), `members[{org,role,country,ref}]`.
 - **Frameworks** — `kind`, `subSection`, `jurisdiction`, `issuer{org,url}`,
   `legal`, `adopted`, `appliesTo[]`, `refs[]`, `createdBy[]`, `usedBy[]`.
 - **Commons** — `kind`, `subSection`, `license`, `maintainer{org,url}`, `repo`,
   `size`, `createdBy[]`, `usedBy[]`.
 
-`consortium[].ref` is dropped when it does not resolve to a known entity, so the
-card never renders a dead link.
+`consortium[].ref` and `members[].ref` are dropped when they do not resolve to a
+known entity, so the card never renders a dead link.
+
+`EDGES` entries join a project (`project`) or a cluster (`cluster`) to a team
+(`team`), with `org: true` for a link at organisation level and `via` for a card
+that shares its organisation's line (§4.3).
 
 ### 3.4 Vocabulary
 
@@ -191,10 +204,11 @@ channels, and they must stay independent.
 | Project | 8.5 | circle |
 | Commons | 7.5 | circle, dashed stroke |
 | Framework | 6 | rounded square |
+| Cluster | 7 | hexagon |
 | Team | 4.5 | circle, thinner stroke |
 
 A multi-domain entity is drawn as **equal pie slices**, one per domain (vertical
-bands for the square). This is deliberately not a "primary domain plus badges":
+bands for the square and the hexagon). This is deliberately not a "primary domain plus badges":
 an entity working across energy and rail is not primarily either, and the
 reader should see the split at marker size.
 
@@ -205,11 +219,12 @@ Seventeen domain colours in three filter groups:
 - **Research focus** — human factors, XAI, multi-agent/other
 - **Research infrastructure** — compute, AI networks, socio-technical simulation
 
-Draw order is `team → commons → framework → project`, so the large, sparse
+Draw order is `team → commons → framework → cluster → project`, so the large, sparse
 markers sit above the dense small ones.
 
 Co-located entities are **jittered** by 0.18° on a circle, per layer group, so a
-city with eight labs shows eight markers rather than one. This is applied once,
+city with eight labs shows eight markers rather than one. Projects, clusters and
+commons share one pass, in that order; teams and frameworks have their own. This is applied once,
 before projection, and is therefore stable across sessions.
 
 ### 4.3 Edges
@@ -225,6 +240,23 @@ coordinates. An entity off the map still participates in the graph.
 
 Consortium links are drawn from `edges.yml`; created/used links come from the
 commons and framework cross-references.
+
+**One line per organisation.** A line of `edges.yml` joins a project or a
+cluster to a team card, either because the unit on the card takes part itself,
+or — `level: organisation`, `org: true` in the payload — because its
+organisation takes part through a unit with no card of its own, the card
+standing in for it. When several cards of one organisation
+(`data/organisations.yml`) are linked to the same project, the generator names
+the card that heads the group in the others' `via`: a unit that takes part
+itself before a card standing in for its organisation, then the card the partner
+list names (its coordinator first), then file order. Every link keeps its path
+and its neighbours, so the cards list every unit, but `refresh()` shows one path
+per group: the head's when both its ends are on screen, otherwise the first of
+the group's that is — a filter that hides the head does not take the
+organisation's line with it — and, when a card of the group is focused, that
+card's own path. Pointing at any card of the group lights the path shown. The
+card marks an organisation-level row "via its organisation", with the
+organisation's name on hover.
 
 **The selection fan is attenuated, not just drawn.** Selecting a
 twenty-partner project used to put twenty full-strength curves across the whole
@@ -343,7 +375,7 @@ the filters actually select, recorded before the focus override below). Every
 counter in the interface reads one of the three. Four independent axes combine
 with AND:
 
-1. **Layer** — four toggles.
+1. **Layer** — one toggle per layer.
 2. **Domain** — 17 checkboxes. An entity survives if *any* of its domains is
    checked, so a multi-domain marker stays visible until all of its domains are
    unchecked.
@@ -416,20 +448,24 @@ Section order, each omitted when empty:
 3. Domain badges with colour dots
 4. Description, paragraphs preserved
 5. Pin / Visit website
-6. Facts grid — affiliation, parent, jurisdiction, issuing body, legal status,
-   adoption, licence, maintainer, repository, reach
+6. Facts grid — organisation, affiliation, parent, jurisdiction, issuing body,
+   legal status, adoption, licence, maintainer, repository, reach (membership
+   on a cluster)
 7. Focus areas, as chips
 8. Timeline — span, then milestones on a rule
 9. Consortium — organisation, role, country; clickable when the reference
    resolves, and followed by `→ <entity name>` when the two differ, which is
    almost always: the row carries the consortium's legal name ("Technische
    Universiteit Delft") while the entity is a named laboratory inside it
-10. Funding — source, call, grant, budget in locale-formatted euros
-11. Infrastructure — kind, operator, access model, capacity
-12. Demonstrators · Deliverables · Facilities hosted · Applies to · Builds on ·
+10. Members (clusters) — organisation, role, country, linked like the consortium
+11. Funding — source, call, grant, budget in locale-formatted euros
+12. Infrastructure — kind, operator, access model, capacity
+13. Demonstrators · Deliverables · Facilities hosted · Applies to · Builds on ·
     Publications · Other links
-13. Related entities — consortium teams or projects, created, builds on, used by
-14. Provenance — who added the entry, when, at what confidence, from what source
+14. Related entities — consortium teams, member teams, projects, clusters a team
+    is a member of, created, builds on, used by; a row linked at organisation
+    level is tagged "via its organisation"
+15. Provenance — who added the entry, when, at what confidence, from what source
 
 The provenance footer is not decoration. The map is a curated snapshot with
 uneven certainty, and a reader deciding whether to act on an entry needs to see
@@ -453,7 +489,7 @@ mixing them is the single most reliable way to make the interface look broken:
 
 | Reading | What it counts | Where it is used |
 |---|---|---|
-| **In view** | Entities with a marker inside the stage rectangle | the four header tiles, the feed header |
+| **In view** | Entities with a marker inside the stage rectangle | the header tiles, the feed header |
 | **Matches the filters** | Entities passing the filter axes (§6), off-map ones included | the caption, the layer rows, the *unknown start* count, the Off-the-map badge |
 
 A third quantity — the **corpus total** — belongs only where the page is
@@ -479,13 +515,15 @@ the period histogram drew all 449 entities whatever the reader had selected.
 
 The fixes are structural rather than cosmetic:
 
-- **One tile per layer.** Projects, Teams, Commons, Frameworks. Every headline
+- **One tile per layer.** Projects, Teams, Clusters, Commons, Frameworks. Every headline
   figure now traces to exactly one row in the Layers section, and each tile
   carries its own reconciliation on hover — "24 in view · 25 match the filters"
   — so the reader never has to work out which of the caption's eleven off-map
   entities were commons.
-- **Countries leads the caption instead of taking a fifth tile.** It is not a
-  layer and has no control, and five tiles at 312 px clip "FRAMEWORKS".
+- **Countries leads the caption instead of taking a sixth tile.** It is not a
+  layer and has no control. Five equal columns at 312 px clip "FRAMEWORKS", so
+  each tile is as wide as its label and the room left over is shared out; a
+  sixth tile would clip again.
 - **Every live count is recomputed in `refresh()`**, from the same predicate.
 - **A layer row splits its figure where the map cannot follow it.** See §9.1.1.
 
@@ -515,7 +553,7 @@ ever carry one.
 
 ### 9.2 Counters follow the viewport
 
-The four header tiles count **what is on screen**, not what matches the filters.
+The header tiles count **what is on screen**, not what matches the filters.
 Zooming into central Europe changes them. The number matching the filters is
 shown underneath as a caption, so both readings are available and neither is
 ambiguous.
@@ -901,11 +939,13 @@ appears in the panel and the feed at once.
 
 **A new layer** is the expensive one: `KINDS`, `TOTALS`, `MK_R`, the draw order,
 `shapeSvg()`, `relSections()`, the legend, the welcome rows and the generator
-all enumerate the four current layers. It also needs a header tile — one per
-layer, no aggregates (invariant 14) — whose `<strong>` id is `st-<kind>`, since
-`renderStats()` and `updateLayerCounts()` address the tiles by kind rather than
-by a hand-written list. Five tiles do not fit the 312 px sidebar at a legible
-label size, so a fifth layer means rethinking that row, not squeezing it.
+all enumerate the five current layers, as do the chat (`hai_data.LAYERS`, the
+proposal form in `cards.py`) and the issue forms. It also needs a header tile —
+one per layer, no aggregates (invariant 14) — whose `<strong>` id is
+`st-<kind>`, since `renderStats()` and `updateLayerCounts()` address the tiles by
+kind rather than by a hand-written list. The clusters layer took the fifth tile
+by sizing each column to its label; a sixth tile does not fit the 312 px sidebar
+at a legible label size, so a sixth layer means rethinking that row.
 
 **A new counter or filter control.** Two rules, both in §6.1 and §9.1: compute
 it from `matchesFilters()` / `scopeItems()` rather than from `items` or

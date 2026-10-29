@@ -98,7 +98,7 @@ function loadGeoFile() {
 
 const RAW = loadPayload();
 const G = loadGeoConstants();
-const KINDS = ['project', 'team', 'commons', 'framework'];
+const KINDS = ['project', 'team', 'cluster', 'commons', 'framework'];
 
 // The seventeen domain colours, transcribed from §4.2's three groups. Kept here
 // rather than read from the page so that "colour means domain" is checked
@@ -116,8 +116,8 @@ const SPEC_GROUPS = {
   infra: ['compute', 'cluster', 'simulation'],
 };
 // §4.2's radius column, and §4.2's draw order.
-const SPEC_R = { project: 8.5, commons: 7.5, framework: 6, team: 4.5 };
-const SPEC_DRAW_ORDER = ['team', 'commons', 'framework', 'project'];
+const SPEC_R = { project: 8.5, cluster: 7, commons: 7.5, framework: 6, team: 4.5 };
+const SPEC_DRAW_ORDER = ['team', 'commons', 'framework', 'cluster', 'project'];
 
 /** The table above in the form CSS answers in. A marker's fill is an attribute
  *  and comes back as the hex that was written; a swatch's colour is a style and
@@ -166,7 +166,7 @@ function refProject(lon, lat) {
  *  pass should leave it at, and where that projects to. */
 const MODEL = (() => {
   const clone = JSON.parse(JSON.stringify({
-    project: RAW.PROJECTS, team: RAW.TEAMS, commons: RAW.COMMONS, framework: RAW.FRAMEWORKS,
+    project: RAW.PROJECTS, team: RAW.TEAMS, cluster: RAW.CLUSTERS, commons: RAW.COMMONS, framework: RAW.FRAMEWORKS,
   }));
   const byId = new Map();
   for (const kind of KINDS) {
@@ -179,8 +179,8 @@ const MODEL = (() => {
       });
     }
   }
-  // The jitter groups: projects and commons share one pass, teams and
-  // frameworks have their own. Grouped on the coordinates rounded to 1/100°.
+  // The jitter groups: projects, clusters and commons share one pass, teams
+  // and frameworks have their own. Grouped on the coordinates rounded to 1/100°.
   const pass = (ids, label) => {
     const groups = new Map();
     for (const id of ids) {
@@ -205,7 +205,7 @@ const MODEL = (() => {
   };
   const ids = (kind) => clone[kind].map((d) => d.id);
   const groups = {
-    pc: pass([...ids('project'), ...ids('commons')], 'pc'),
+    pc: pass([...ids('project'), ...ids('cluster'), ...ids('commons')], 'pc'),
     team: pass(ids('team'), 'team'),
     framework: pass(ids('framework'), 'framework'),
   };
@@ -226,17 +226,28 @@ const UNPLACED = MODEL.all.filter((m) => !m.placed);
 const RELATIONS = (() => {
   const drawn = [];
   const pairs = new Set();
-  const relate = (a, b, rel, colorFrom) => {
-    if (!MODEL.byId.has(a) || !MODEL.byId.has(b)) return;
+  const groups = new Map();
+  const relate = (a, b, rel, colorFrom, extra = {}) => {
+    if (!MODEL.byId.has(a) || !MODEL.byId.has(b)) return -1;
     pairs.add([a, b].sort().join('::'));
-    if (MODEL.byId.get(a).placed && MODEL.byId.get(b).placed) {
-      drawn.push({ a, b, rel, color: SPEC_COLORS[MODEL.byId.get(colorFrom).lead] || null });
-    }
+    if (!(MODEL.byId.get(a).placed && MODEL.byId.get(b).placed)) return -1;
+    drawn.push({ a, b, rel, color: SPEC_COLORS[MODEL.byId.get(colorFrom).lead] || null, ...extra });
+    return drawn.length - 1;
   };
+  // A line starts from a project or a cluster, and every link gets its path,
+  // grouped by source and organisation: the card a `via` names heads its group.
+  // The map shows one path per group (§4.3) — see shownWith() below.
   for (const e of RAW.EDGES) {
-    if (!MODEL.byId.has(e.project)) continue;      // the page bails on an unknown project
-    relate(e.project, e.team, 'consortium', e.project);
+    const s = e.project || e.cluster;
+    if (!MODEL.byId.has(s) || !MODEL.byId.has(e.team)) continue;   // the page bails on an unknown end
+    const key = s + '|' + (e.via || e.team);
+    if (!groups.has(key)) groups.set(key, { members: [], lines: [] });
+    const G = groups.get(key);
+    G.members.push(e.team);
+    const i = relate(s, e.team, 'consortium', s, { alt: !!e.via });
+    if (i >= 0) { if (e.via) G.lines.push(i); else G.lines.unshift(i); }
   }
+  for (const G of groups.values()) for (const i of G.lines) drawn[i].shared = G.members;
   for (const asset of [...RAW.COMMONS, ...RAW.FRAMEWORKS]) {
     for (const uid of asset.createdBy || []) relate(uid, asset.id, 'createdBy', asset.id);
     for (const uid of asset.usedBy || []) relate(asset.id, uid, 'usedBy', asset.id);
@@ -245,10 +256,29 @@ const RELATIONS = (() => {
     const A = MODEL.byId.get(e.a), B = MODEL.byId.get(e.b);
     e.len = Math.hypot(B.X - A.X, B.Y - A.Y);
   }
-  return { drawn, pairs };
+  return { drawn, pairs, groups };
 })();
 
-const fanOf = (id) => RELATIONS.drawn.filter((e) => e.a === id || e.b === id);
+const onLine = (e, id) => e.a === id || e.b === id || (e.shared || []).includes(id);
+
+/** The paths the page shows with every marker on screen (§4.3, one line per
+ *  organisation), as indices into RELATIONS.drawn: every relation outside a
+ *  group, and one path per group — its head's, or the focused card's own when
+ *  the focus belongs to the group. */
+function shownWith(focus = null) {
+  const shown = new Set();
+  RELATIONS.drawn.forEach((e, i) => { if (!e.shared) shown.add(i); });
+  for (const G of RELATIONS.groups.values()) {
+    if (!G.lines.length) continue;
+    const own = focus != null && G.members.includes(focus)
+      ? G.lines.find((j) => RELATIONS.drawn[j].b === focus) : undefined;
+    shown.add(own != null ? own : G.lines[0]);
+  }
+  return shown;
+}
+/** The indices a focus on `id` lights, and the lines themselves. */
+const fanIdx = (id) => [...shownWith(id)].filter((i) => onLine(RELATIONS.drawn[i], id)).sort((a, b) => a - b);
+const fanOf = (id) => fanIdx(id).map((i) => RELATIONS.drawn[i]);
 
 /** §4.3's two attenuations, written out from the spec's prose: 0.85 at four
  *  neighbours or fewer, 0.40 at sixteen or more, and lighter still with length. */
@@ -259,9 +289,8 @@ function fanBase(n) {
 
 /** Every entity that has a fan, widest first, ties to the lower id. */
 const FAN_RANK = (() => {
-  const n = new Map(MODEL.all.map((m) => [m.id, 0]));
-  for (const e of RELATIONS.drawn) { n.set(e.a, n.get(e.a) + 1); n.set(e.b, n.get(e.b) + 1); }
-  return [...n].filter(([, k]) => k > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const n = MODEL.all.map((m) => [m.id, fanIdx(m.id).length]);
+  return n.filter(([, k]) => k > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
 })();
 const widestFan = (ok = () => true) => FAN_RANK.find(([, n]) => ok(n));
 const narrowestFan = (ok = () => true) => [...FAN_RANK].reverse().find(([, n]) => ok(n));
@@ -334,7 +363,7 @@ function markerParts(page, id) {
       x: s.getAttribute('x'), y: s.getAttribute('y'), width: s.getAttribute('width'),
       height: s.getAttribute('height'), rx: s.getAttribute('rx'), d: s.getAttribute('d'),
       stroke: s.getAttribute('stroke'), sw: s.getAttribute('stroke-width'),
-      dash: s.getAttribute('stroke-dasharray'),
+      dash: s.getAttribute('stroke-dasharray'), points: s.getAttribute('points'),
     });
     const lbl = el.querySelector('text.lbl');
     return {
@@ -542,7 +571,7 @@ async function pickEmptySea(page) {
 function glyphRows(page, rowSelector) {
   return page.evaluate((sel) => [...document.querySelectorAll(sel)].map((row) => {
     const svg = row.querySelector('.glyph svg');
-    const shapes = [...svg.querySelectorAll('circle,rect,path')];
+    const shapes = [...svg.querySelectorAll('circle,rect,path,polygon')];
     const o = shapes[shapes.length - 1];
     const lbl = row.querySelector('.lbl');
     return {
@@ -770,7 +799,10 @@ test.describe('§4.2 the jitter pass', () => {
     await openMap(page);
     const crowded = MODEL.all.filter((m) => m.placed && m.groupSize > 1);
     expect(crowded.length).toBeGreaterThan(80);
-    expect(Math.max(...crowded.map((m) => m.groupSize))).toBeGreaterThanOrEqual(5);
+    // The largest stack is four. It was five — coda, haiku, hucan, jarvis and
+    // waterverse on Rome's centroid — until the October 2026 review moved
+    // project pins to each coordinator's address, which takes two of them out.
+    expect(Math.max(...crowded.map((m) => m.groupSize))).toBeGreaterThanOrEqual(4);
     const got = await page.evaluate((ids) => ids.map((id) => [byId[id].d.lat, byId[id].d.lon]),
       crowded.map((m) => m.id));
     got.forEach(([lat, lon], i) => {
@@ -902,7 +934,7 @@ test.describe('§4.2 markers, and invariant 2', () => {
         const o = shapes[shapes.length - 1];
         const key = JSON.stringify({
           hit: kids[0].getAttribute('r'), halo: kids[1].getAttribute('r'),
-          tag: o.tagName, r: o.getAttribute('r'), w: o.getAttribute('width'),
+          tag: o.tagName, r: o.getAttribute('r'), w: o.getAttribute('width'), pts: o.getAttribute('points'),
           rx: o.getAttribute('rx'), sw: o.getAttribute('stroke-width'),
           dash: o.getAttribute('stroke-dasharray'), stroke: o.getAttribute('stroke'),
         });
@@ -914,7 +946,7 @@ test.describe('§4.2 markers, and invariant 2', () => {
       expect(Object.keys(sil[kind]), `${kind} markers must share one silhouette`).toHaveLength(1);
     }
     const key = (kind) => Object.keys(sil[kind])[0];
-    expect(new Set(KINDS.map(key)).size, 'each layer needs its own silhouette').toBe(4);
+    expect(new Set(KINDS.map(key)).size, 'each layer needs its own silhouette').toBe(KINDS.length);
 
     // And the silhouettes are the ones §4.2 tabulates.
     const parsed = Object.fromEntries(KINDS.map((k) => [k, JSON.parse(key(k))]));
@@ -923,12 +955,14 @@ test.describe('§4.2 markers, and invariant 2', () => {
     expect(parsed.team).toMatchObject({ tag: 'circle', r: String(SPEC_R.team), dash: null });
     // A framework is a rounded square: side = 2r, corner radius 2.5.
     expect(parsed.framework).toMatchObject({ tag: 'rect', w: String(2 * SPEC_R.framework), rx: '2.5' });
+    // A cluster is a hexagon, its outline a polygon with no radius attribute.
+    expect(parsed.cluster).toMatchObject({ tag: 'polygon', r: null, dash: null });
     // Teams carry the thinner stroke the table asks for; the rest a heavier one.
     expect(Number(parsed.team.sw)).toBeLessThan(Number(parsed.project.sw));
     expect(parsed.project.sw).toBe(parsed.commons.sw);
     // The halo clears the marker by the same margin whatever the layer.
     for (const kind of KINDS) {
-      const r = kind === 'framework' ? SPEC_R.framework : Number(parsed[kind].r);
+      const r = kind === 'framework' || kind === 'cluster' ? SPEC_R[kind] : Number(parsed[kind].r);
       expect(Number(parsed[kind].halo), `${kind} halo`).toBe(r + 5);
     }
   });
@@ -963,8 +997,11 @@ test.describe('§4.2 markers, and invariant 2', () => {
       groups: Object.fromEntries(DOM_GROUPS.map((g) => [g.key, g.doms])),
       colors: COLORS,
     }))).toEqual({ count: 17, groups: SPEC_GROUPS, colors: SPEC_COLORS });
-    // Shape is not smuggling domain in: energy is drawn in all four layers.
-    expect(seen.energy.kinds.sort()).toEqual([...KINDS].sort());
+    // Shape is not smuggling domain in: energy is drawn in every layer but the
+    // clusters, which carry none, and the catch-all is drawn in all five — so
+    // the one-colour check above really did compare a hexagon with the rest.
+    expect(seen.energy.kinds.sort()).toEqual(KINDS.filter((k) => k !== 'cluster').sort());
+    expect(seen.multi.kinds.sort()).toEqual([...KINDS].sort());
   });
 
   test('inv.2 the domain key carries the marker colour — filter swatches and card badges', async ({ page }) => {
@@ -1167,6 +1204,39 @@ test.describe('§4.2 markers, and invariant 2', () => {
     expect(outline).toMatchObject({ tag: 'rect', fill: 'none', rx: '2.5', width: String(w) });
   });
 
+  test('§4.2 a cluster is a hexagon, and several domains are vertical bands cut to its outline', async ({ page }) => {
+    await openMap(page);
+    // One domain: a single six-point polygon in that domain's colour.
+    const solo = soleDomain('cluster');
+    expect(solo, 'no placed cluster carries a single domain').not.toBe(undefined);
+    const one = await markerParts(page, solo.id);
+    expect(one.bodyTag, `${solo.id} is one shape, not a group`).toBe('polygon');
+    expect(one.shapes).toHaveLength(1);
+    expect(one.shapes[0]).toMatchObject({ tag: 'polygon', fill: SPEC_COLORS[solo.domains[0]] });
+    expect(one.shapes[0].points.split(' ')).toHaveLength(6);
+    // Several: one band per domain, then the hexagon outline on top.
+    const fx = widestSplit((m) => m.kind === 'cluster');
+    const mk = await markerParts(page, fx.id);
+    const n = mk.domains.length;
+    expect(n, `${fx.id} must be multi-domain to band at all`).toBeGreaterThan(1);
+    expect(mk.bodyTag).toBe('g');
+    expect(mk.shapes).toHaveLength(n + 1);
+    mk.domains.forEach((dom, i) =>
+      expect(mk.shapes[i], `band ${i}`).toMatchObject({ tag: 'polygon', fill: SPEC_COLORS[dom] }));
+    expect(mk.shapes[n]).toMatchObject({ tag: 'polygon', fill: 'none' });
+    expect(mk.shapes[n].points.split(' ')).toHaveLength(6);
+    // The outline sits on its circumradius, and the bands tile it in equal
+    // areas: equal widths would give a hexagon's middle band the most ink.
+    const pts = (s) => s.points.split(' ').map((p) => p.split(',').map(Number));
+    const area = (P) => Math.abs(P.reduce((a, p, i) => {
+      const q = P[(i + 1) % P.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+    for (const [x, y] of pts(mk.shapes[n])) expect(Math.hypot(x, y)).toBeCloseTo(SPEC_R.cluster * 1.08, 1);
+    const whole = area(pts(mk.shapes[n]));
+    const bands = mk.shapes.slice(0, n).map((s) => area(pts(s)));
+    expect(bands.reduce((a, b) => a + b, 0)).toBeCloseTo(whole, 1);
+    for (const b of bands) expect(Math.abs(b - whole / n), 'one band per domain, of equal area').toBeLessThan(whole * 0.01);
+  });
+
   test('§4.2 a single-domain marker is one solid shape, not a one-slice pie', async ({ page }) => {
     await openMap(page);
     // One fixture per circle layer, each the first single-domain entity its
@@ -1186,7 +1256,7 @@ test.describe('§4.2 markers, and invariant 2', () => {
     }
   });
 
-  test('§4.2 the draw order is team → commons → framework → project', async ({ page }) => {
+  test('§4.2 the draw order is team → commons → framework → cluster → project', async ({ page }) => {
     // "so the large, sparse markers sit above the dense small ones" — in SVG,
     // later siblings paint on top, so the document order *is* the stacking.
     await openMap(page);
@@ -1197,10 +1267,10 @@ test.describe('§4.2 markers, and invariant 2', () => {
       expect(rank[i], `marker ${i} (${order[i]}) must not come before ${order[i - 1]}`)
         .toBeGreaterThanOrEqual(rank[i - 1]);
     }
-    // All four layers really are present, so the check above is not vacuous.
+    // All five layers really are present, so the check above is not vacuous.
     expect(new Set(order)).toEqual(new Set(KINDS));
     expect(rank[0]).toBe(0);
-    expect(rank[rank.length - 1]).toBe(3);
+    expect(rank[rank.length - 1]).toBe(4);
   });
 
   test('§4.2 the halo is invisible until the marker is hovered or focused', async ({ page }) => {
@@ -1294,14 +1364,14 @@ test.describe('§4.2 markers, and invariant 2', () => {
 // =============================================================== §3.2 layers
 
 test.describe('§3.2 layers', () => {
-  test('§3.2 there are exactly four layers, and infrastructure is not one of them', async ({ page }) => {
+  test('§3.2 there are exactly five layers, and infrastructure is not one of them', async ({ page }) => {
     // "Infrastructure has no layer of its own, by design." Its entries arrive
     // as teams: some merge into a team already on the map, the rest are
     // rendered as team markers of their own. How many fall either way is a
     // snapshot (§3.2), so the split is computed from the payload below.
     await openMap(page);
     expect(await page.evaluate(() => KINDS)).toEqual(KINDS);
-    await expect(page.locator('#layer-rows .layer-row[data-layer]')).toHaveCount(4);
+    await expect(page.locator('#layer-rows .layer-row[data-layer]')).toHaveCount(5);
     const kindsSeen = await page.evaluate(() => [...new Set(items.map((it) => it.kind))].sort());
     expect(kindsSeen).toEqual([...KINDS].sort());
 
@@ -1315,17 +1385,17 @@ test.describe('§3.2 layers', () => {
     expect(ownPin.length, 'infrastructure entries rendered as a team of their own').toBeGreaterThan(0);
     expect(merged.length, 'infrastructure entries folded into a team already on the map').toBeGreaterThan(0);
     // …and the page carries exactly those entries, every one of them a team
-    // marker rather than a fifth shape.
+    // marker rather than a shape of its own.
     const pageInfra = await page.evaluate(() =>
       items.filter((it) => it.d.infra).map((it) => it.id + '|' + it.kind).sort());
     expect(pageInfra).toEqual(withInfra.map((m) => m.id + '|team').sort());
-    expect(await page.evaluate(() => Object.keys(TOTALS).length)).toBe(4);
+    expect(await page.evaluate(() => Object.keys(TOTALS).length)).toBe(5);
   });
 
-  test('§3.2 the layer counts and totals come from the four source collections', async ({ page }) => {
+  test('§3.2 the layer counts and totals come from the five source collections', async ({ page }) => {
     await openMap(page);
     expect(await page.evaluate(() => ({ ...TOTALS }))).toEqual({
-      project: RAW.PROJECTS.length, team: RAW.TEAMS.length,
+      project: RAW.PROJECTS.length, team: RAW.TEAMS.length, cluster: RAW.CLUSTERS.length,
       commons: RAW.COMMONS.length, framework: RAW.FRAMEWORKS.length,
     });
   });
@@ -1334,7 +1404,7 @@ test.describe('§3.2 layers', () => {
     // §17 calls a new layer "the expensive one" and then hands the next author
     // the enumeration: "KINDS, TOTALS, MK_R, the draw order, shapeSvg(),
     // relSections(), the legend, the welcome rows and the generator all
-    // enumerate the four current layers." Of those tables only KINDS and TOTALS
+    // enumerate the five current layers." Of those tables only KINDS and TOTALS
     // were ever read back from the page. MK_R, KIND_ORDER and drawOrder are
     // hand-written literals, and each fails silently in its own way: no MK_R
     // entry draws r="NaN", an invisible marker that still satisfies "one marker
@@ -1424,9 +1494,10 @@ test.describe('§3.2 layers', () => {
     expect(glyphs.team).toMatchObject({ outline: 'circle', dash: null });
     expect(glyphs.commons).toMatchObject({ outline: 'circle', dash: '3 2.4' });
     expect(glyphs.framework).toMatchObject({ outline: 'rect', rx: '2.5' });
+    expect(glyphs.cluster).toMatchObject({ outline: 'polygon', dash: null, rx: null });
   });
 
-  test('§3.2 the legend on the map shows the four marker silhouettes, not four circles', async ({ page }) => {
+  test('§3.2 the legend on the map shows the five marker silhouettes, not five circles', async ({ page }) => {
     // The test above reads the sidebar's layer rows and says "the legend is
     // only a legend if its glyph is the marker" — but the key a reader actually
     // has in front of them while looking at the map is the floating legend, and
@@ -1450,6 +1521,7 @@ test.describe('§3.2 layers', () => {
       team: { outline: 'circle', dash: null, rx: null },
       commons: { outline: 'circle', dash: '3 2.4', rx: null },
       framework: { outline: 'rect', rx: '2.5', dash: null },
+      cluster: { outline: 'polygon', rx: null, dash: null },
     };
     KINDS.forEach((k, i) => {
       expect(legend[i], `the ${k} legend row`).toMatchObject(want[k]);
@@ -1459,7 +1531,7 @@ test.describe('§3.2 layers', () => {
         .toEqual([sidebar[i].outline, sidebar[i].rx, sidebar[i].dash, sidebar[i].sw]);
       expect(legend[i].size, 'the legend draws at 16px, the sidebar at 18').toBe('16');
     });
-    // Four distinct silhouettes. This is the assertion that four circles fail.
+    // Five distinct silhouettes. This is the assertion that five circles fail.
     const sig = legend.map((r) => JSON.stringify([r.outline, r.rx, r.dash, r.sw]));
     expect(new Set(sig).size, `the legend draws ${sig.join(' / ')}`).toBe(KINDS.length);
     // A team's outline is the thin one here too (§4.2's stroke column).
@@ -1761,7 +1833,7 @@ test.describe('§4.3 edges', () => {
     // The widest fan in the corpus: the most edges there are to get wrong, and
     // the most that must stay dark.
     const { id, n } = fanFixture('widest');
-    const mine = new Set(RELATIONS.drawn.map((e, i) => [e, i]).filter(([e]) => e.a === id || e.b === id).map(([, i]) => i));
+    const mine = new Set(fanIdx(id));
     expect(mine.size, `${id}'s fan`).toBe(n);
     expect(RELATIONS.drawn.length - mine.size, 'and edges that must stay dark').toBeGreaterThan(0);
     await focusEntity(page, id);
@@ -1805,7 +1877,10 @@ test.describe('§4.3 edges', () => {
     await page.click('#links-row');
     await settleCounts(page);
     let rows = await edgeRows(page);
-    expect(rows.filter((r) => r.on)).toHaveLength(RELATIONS.drawn.length);
+    // The whole mesh is one line per organisation: a card that shares its
+    // organisation's line keeps its own path dark while the head is on screen.
+    expect(rows.filter((r) => r.on)).toHaveLength(shownWith().size);
+    expect(shownWith().size).toBeLessThan(RELATIONS.drawn.length);
     expect(new Set(rows.filter((r) => r.on).map((r) => r.op))).toEqual(new Set([0.28]));
     expect(new Set(rows.filter((r) => r.on).map((r) => r.w))).toEqual(new Set([0.8]));
 
@@ -1815,7 +1890,7 @@ test.describe('§4.3 edges', () => {
     const hotIdx = new Set(await page.evaluate(() => hotEdges));
     expect(hotIdx.size, `${id}'s fan`).toBe(n);
     const cold = rows.filter((r, i) => r.on && !hotIdx.has(i));
-    expect(cold.length).toBe(RELATIONS.drawn.length - n);
+    expect(cold.length).toBe(shownWith(id).size - n);
     expect(cold.length, 'there must be a mesh left over to dim').toBeGreaterThan(0);
     expect(new Set(cold.map((r) => r.op)), 'the mesh gets out of the fan\'s way').toEqual(new Set([0.08]));
     expect(Math.min(...rows.filter((r, i) => hotIdx.has(i)).map((r) => r.op)))
@@ -1844,6 +1919,64 @@ test.describe('§4.3 edges', () => {
     const before = await widths();
     await setZ(page, 9);
     expect(await widths(), 'nine times the scale, the same 0.8-unit trace').toBe(before);
+  });
+});
+
+// ============================================ §4.3 one line per organisation
+
+test.describe('§4.3 one line per organisation', () => {
+  // The fixture is derived: the first group in the payload where two cards of
+  // one organisation are linked to the same source, each with a path.
+  const FX = (() => {
+    for (const G of RELATIONS.groups.values()) {
+      if (G.lines.length < 2) continue;
+      const head = RELATIONS.drawn[G.lines[0]], alt = RELATIONS.drawn[G.lines[1]];
+      return { source: head.a, head: head.b, headIdx: G.lines[0], card: alt.b, cardIdx: G.lines[1] };
+    }
+    return null;
+  })();
+
+  test('§4.3 a source shows one line per organisation, to the card the data names', async ({ page }) => {
+    expect(FX, 'no organisation has two cards linked to one source').not.toBe(null);
+    await openMap(page);
+    await focusEntity(page, FX.source);
+    const hot = await page.evaluate(() => [...hotEdges]);
+    expect(hot).toContain(FX.headIdx);
+    expect(hot).not.toContain(FX.cardIdx);
+    // Both cards stay neighbours, so the source's card lists them both.
+    expect(await page.evaluate(([s, c]) => nOf(s).has(c), [FX.source, FX.card])).toBe(true);
+  });
+
+  test('§4.3 a card that shares its organisation\'s line lights its own path when focused', async ({ page }) => {
+    await openMap(page);
+    await focusEntity(page, FX.card);
+    const hot = (await page.evaluate(() => [...hotEdges])).sort((a, b) => a - b);
+    expect(hot).toEqual(fanIdx(FX.card));
+    expect(hot).toContain(FX.cardIdx);
+    expect(hot).not.toContain(FX.headIdx);
+  });
+
+  test('§4.3 pointing at the sharing card in the source\'s card lights the organisation\'s line', async ({ page }) => {
+    await openMap(page);
+    await focusEntity(page, FX.source);
+    const host = await cardHost(page);
+    await page.hover(`${host} .rel-row[data-open="${FX.card}"]`);
+    await expect.poll(() => page.evaluate(() => peekId)).toBe(FX.card);
+    const rows = await edgeRows(page);
+    expect(rows[FX.headIdx].op).toBe(0.95);
+  });
+
+  test('§4.3 with the head off screen, the organisation keeps its line through the other card', async ({ page }) => {
+    // My map with only the sharing card pinned: its source comes along as a
+    // neighbour and the head does not, so the organisation's line has to be
+    // the sharing card's own ("only your pins and their links", tour.4b).
+    await openMap(page);
+    await page.evaluate((c) => {
+      state.pins = new Set([c]); state.myMap = true; state.links = true; refresh();
+    }, FX.card);
+    const rows = await edgeRows(page);
+    expect(rows[FX.cardIdx].on).toBe(true);
+    expect(rows[FX.headIdx].on).toBe(false);
   });
 });
 
@@ -1969,10 +2102,8 @@ test.describe('§4.3 the selection fan', () => {
       return b ? b.dataset.open : null;
     }, host);
     expect(partner, 'the card lists its partners').not.toBe(null);
-    const mine = new Set(RELATIONS.drawn
-      .map((e, i) => [e, i])
-      .filter(([e]) => (e.a === partner || e.b === partner) && (e.a === id || e.b === id))
-      .map(([, i]) => i));
+    // The partner's own line, or its organisation's line when it shares one.
+    const mine = new Set(fanIdx(id).filter((i) => onLine(RELATIONS.drawn[i], partner)));
     expect(mine.size).toBeGreaterThan(0);
 
     await page.hover(`${host} .rel-row[data-open="${partner}"]`);
@@ -2018,10 +2149,7 @@ test.describe('§4.3 the selection fan', () => {
     // Markers overlap, so the partner to point at is the first one the pointer
     // can actually reach.
     const at = await pickHoverable(page, fanOf(id).map((e) => (e.a === id ? e.b : e.a)));
-    const mine = new Set(RELATIONS.drawn
-      .map((e, i) => [e, i])
-      .filter(([e]) => (e.a === at.id || e.b === at.id) && (e.a === id || e.b === id))
-      .map(([, i]) => i));
+    const mine = new Set(fanIdx(id).filter((i) => onLine(RELATIONS.drawn[i], at.id)));
     expect(mine.size).toBeGreaterThan(0);
 
     await hoverMarker(page, at);

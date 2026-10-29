@@ -21,7 +21,7 @@ import {
 // The layer order the spec sorts by, spelled out here rather than read back out
 // of the page, so a reordering of KIND_ORDER in the implementation fails a test
 // instead of silently redefining what "sorted by layer" means.
-const LAYER_ORDER = ['project', 'team', 'commons', 'framework'];
+const LAYER_ORDER = ['project', 'team', 'cluster', 'commons', 'framework'];
 
 /** The corpus as the page actually loaded it.
  *
@@ -37,19 +37,19 @@ const LAYER_ORDER = ['project', 'team', 'commons', 'framework'];
  *  `NOGEO`, and above all not `state`: an expectation taken from the page's own
  *  derived figures cannot catch the page deriving them wrongly. Two rules are
  *  reimplemented here rather than borrowed, both stated in the spec: an entity
- *  is placed when it has both coordinates (§3.1.4), and the four layers are
+ *  is placed when it has both coordinates (§3.1.4), and the layers are
  *  registered projects, commons, teams, frameworks — which is also the order
  *  renderNoGeo() lists the off-map ones in. */
 function corpus(page) {
   return page.evaluate(() => {
     const D = window.HAI_DATA;
-    const LAYERS = [['PROJECTS', 'project'], ['COMMONS', 'commons'], ['TEAMS', 'team'], ['FRAMEWORKS', 'framework']];
+    const LAYERS = [['PROJECTS', 'project'], ['CLUSTERS', 'cluster'], ['COMMONS', 'commons'], ['TEAMS', 'team'], ['FRAMEWORKS', 'framework']];
     const all = [];
     for (const [key, kind] of LAYERS) {
       for (const d of D[key]) all.push({ id: d.id, kind, name: d.name, placed: d.lat != null && d.lon != null });
     }
     const tally = (list) => {
-      const n = { project: 0, team: 0, commons: 0, framework: 0 };
+      const n = { project: 0, team: 0, cluster: 0, commons: 0, framework: 0 };
       for (const e of list) n[e.kind]++;
       return n;
     };
@@ -82,7 +82,7 @@ const nogeoTitle = (n, total) => `${n} of ${total} ${n === 1 ? 'matches' : 'matc
  *  leaving them testing nothing. */
 function payloadEntry(page, id) {
   return page.evaluate((x) => {
-    const KIND = { PROJECTS: 'project', COMMONS: 'commons', TEAMS: 'team', FRAMEWORKS: 'framework' };
+    const KIND = { PROJECTS: 'project', CLUSTERS: 'cluster', COMMONS: 'commons', TEAMS: 'team', FRAMEWORKS: 'framework' };
     for (const key of Object.keys(KIND)) {
       const d = window.HAI_DATA[key].find((e) => e.id === x);
       if (d) return { id: x, kind: KIND[key], name: d.name, placed: d.lat != null && d.lon != null };
@@ -212,7 +212,7 @@ test.describe('§9.3 the feed lists what is in view', () => {
     expect(new Set(rows.map((r) => r.id))).toEqual(new Set(c.placedIds));
   });
 
-  test('§9.3 sorted by layer first, in the four layers\' own order', async ({ page }) => {
+  test('§9.3 sorted by layer first, in the layers\' own order', async ({ page }) => {
     await openMap(page);
     const rows = await feedRows(page);
     const kinds = await page.evaluate((ids) => ids.map((id) => byId[id].kind), rows.map((r) => r.id));
@@ -225,7 +225,7 @@ test.describe('§9.3 the feed lists what is in view', () => {
     await openMap(page);
     const r = await page.evaluate(() => {
       const ids = [...document.querySelectorAll('#fd-list .fd-item')].map((e) => e.dataset.id);
-      const ORDER = { project: 0, team: 1, commons: 2, framework: 3 };
+      const ORDER = { project: 0, team: 1, cluster: 2, commons: 3, framework: 4 };
       const set = ids.map((id) => byId[id]);
       const byLocale = [...set].sort((a, b) =>
         (ORDER[a.kind] - ORDER[b.kind]) || a.d.name.localeCompare(b.d.name, LANG)).map((it) => it.id);
@@ -345,7 +345,7 @@ test.describe('§9.3 the feed lists what is in view', () => {
       // impossible and drops it from view altogether.
       const softByRule = (() => {
         const yr = (v) => { const m = /^(\d{4})/.exec(String(v == null ? '' : v)); return m ? +m[1] : null; };
-        const KEYS = ['PROJECTS', 'COMMONS', 'TEAMS', 'FRAMEWORKS'];
+        const KEYS = ['PROJECTS', 'CLUSTERS', 'COMMONS', 'TEAMS', 'FRAMEWORKS'];
         let n = 0;
         for (const key of KEYS) for (const d of window.HAI_DATA[key]) {
           if (d.lat == null || d.lon == null) continue;          // no marker, never in view
@@ -693,7 +693,7 @@ test.describe('§9.3 entities with no coordinates', () => {
     const s = await snapshot(page);
     // "In view" means "has a marker inside the stage" (§9.1). An off-map entity
     // has no marker, so it can be listed without being counted — and the count
-    // stays the number the four tiles sum to.
+    // stays the number the tiles sum to.
     expect(h.count).toBe(s.inView);
     expect(rows).toHaveLength(s.inView + 1);
     // Which in-view reading that is, derived from the payload rather than taken
@@ -797,7 +797,7 @@ test.describe('§9.3 the header and its remedies', () => {
     await expectHeaderReconciles(page, 'zoomed in 3×');
   });
 
-  test('§9.3 #fd-count is the in-view reading, the same one the four tiles sum to (§9.1)', async ({ page }) => {
+  test('§9.3 #fd-count is the in-view reading, the same one the tiles sum to (§9.1)', async ({ page }) => {
     await openMap(page);
     for (const factor of [1, 2, 4]) {
       if (factor !== 1) await zoomBy(page, factor);
@@ -818,7 +818,7 @@ test.describe('§9.3 the header and its remedies', () => {
     await page.evaluate(() => setYears(2015, 2020));
     await settleCounts(page);
     await expectHeaderReconciles(page, 'commons only, 2015–2020');
-    await setLayers(page, ['project', 'team', 'commons', 'framework']);
+    await setLayers(page, ['project', 'team', 'cluster', 'commons', 'framework']);
     await settleCounts(page);
     await zoomBy(page, 5);
     await expectHeaderReconciles(page, 'all layers, 2015–2020, zoomed 5×');

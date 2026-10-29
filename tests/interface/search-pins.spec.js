@@ -25,7 +25,7 @@
 // upstream regeneration; the shape of the table is what is normative, not the
 // figures." A caption, a meta line or a hit count is therefore rebuilt from the
 // payload and then compared as an exact value; the only constants are the
-// rules themselves (§11's eight-per-layer cap, §3.2's four layers) and §12's
+// rules themselves (§11's eight-per-layer cap, §3.2's layers) and §12's
 // interface vocabulary.
 import { test, expect } from '@playwright/test';
 import { openMap, snapshot, setLayers, setPeriod, settleCounts, tiles, layerRows,
@@ -133,7 +133,7 @@ const reference = (page, query) => page.evaluate((q) => {
   const D = window.HAI_DATA;
   const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const nq = norm(q.trim());
-  const LAYERS = [['project', D.PROJECTS], ['team', D.TEAMS], ['commons', D.COMMONS], ['framework', D.FRAMEWORKS]];
+  const LAYERS = [['project', D.PROJECTS], ['team', D.TEAMS], ['cluster', D.CLUSTERS], ['commons', D.COMMONS], ['framework', D.FRAMEWORKS]];
   return LAYERS.map(([kind, arr]) => {
     const own = [], aff = [];
     for (const d of arr) {
@@ -184,7 +184,7 @@ const toastText = (page) => page.evaluate(() => {
  *  from the page's `neighbors` map. */
 const myMapExpectation = (page, ids) => page.evaluate((pins) => {
   const D = window.HAI_DATA;
-  const known = new Set([...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS].map((d) => d.id));
+  const known = new Set([...D.PROJECTS, ...D.CLUSTERS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS].map((d) => d.id));
   const nb = new Map();
   const link = (a, b) => {
     if (!known.has(a) || !known.has(b)) return;
@@ -192,7 +192,7 @@ const myMapExpectation = (page, ids) => page.evaluate((pins) => {
     if (!nb.has(b)) nb.set(b, new Set());
     nb.get(a).add(b); nb.get(b).add(a);
   };
-  D.EDGES.forEach((e) => { if (known.has(e.project)) link(e.project, e.team); });
+  D.EDGES.forEach((e) => { const s = e.project || e.cluster; if (known.has(s)) link(s, e.team); });
   [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
     (a.createdBy || []).forEach((u) => link(u, a.id));
     (a.usedBy || []).forEach((u) => link(a.id, u));
@@ -268,7 +268,7 @@ async function printSheet(page) {
 }
 
 const payloadTotals = (page) => page.evaluate(() => ({
-  project: window.HAI_DATA.PROJECTS.length,
+  project: window.HAI_DATA.PROJECTS.length, cluster: window.HAI_DATA.CLUSTERS.length,
   team: window.HAI_DATA.TEAMS.length,
   commons: window.HAI_DATA.COMMONS.length,
   framework: window.HAI_DATA.FRAMEWORKS.length,
@@ -279,14 +279,14 @@ const payloadTotals = (page) => page.evaluate(() => ({
  *  own `byId`, which is built by the code under test. */
 const entity = (page, id) => page.evaluate((x) => {
   const D = window.HAI_DATA;
-  return [...D.PROJECTS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS].find((d) => d.id === x) || null;
+  return [...D.PROJECTS, ...D.CLUSTERS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS].find((d) => d.id === x) || null;
 }, id);
 
 /** Which of §3.2's four arrays the payload files an id under — asked of the
  *  data, not of `byId[id].kind`. */
 const kindOf = (page, id) => page.evaluate((x) => {
   const D = window.HAI_DATA;
-  for (const [kind, arr] of [['project', D.PROJECTS], ['team', D.TEAMS],
+  for (const [kind, arr] of [['project', D.PROJECTS], ['team', D.TEAMS], ['cluster', D.CLUSTERS],
     ['commons', D.COMMONS], ['framework', D.FRAMEWORKS]])
     if (arr.some((d) => d.id === x)) return kind;
   return null;
@@ -305,12 +305,12 @@ const rowMeta = (d, via = null) =>
 const printMeta = (d) =>
   '— ' + [d.city, d.country].filter(Boolean).join(', ') + (d.when ? ' · ' + d.when : '');
 
-/** §11's eight-per-layer ceiling, and §3.2's four layers under the labels §12
+/** §11's eight-per-layer ceiling, and §3.2's layers under the labels §12
  *  gives them in English. Rules and vocabulary rather than figures: these are
  *  the only numbers and names in this file that do not move with the data. */
 const CAP = 8;
-const LAYER_ORDER = ['project', 'team', 'commons', 'framework'];
-const LAYER_LABEL = { project: 'Projects & programmes', team: 'Teams', commons: 'Commons', framework: 'Frameworks' };
+const LAYER_ORDER = ['project', 'team', 'cluster', 'commons', 'framework'];
+const LAYER_LABEL = { project: 'Projects & programmes', team: 'Teams', cluster: 'Clusters', commons: 'Commons', framework: 'Frameworks' };
 
 /** A fixture chosen by its shape: a placed entity with exactly `degree`
  *  neighbours in the payload's own edge lists, all of them placed too, so the
@@ -319,14 +319,14 @@ const LAYER_LABEL = { project: 'Projects & programmes', team: 'Teams', commons: 
  *  to keep its degree is how a regeneration voids such a test quietly. */
 const pinWith = (page, degree) => page.evaluate((want) => {
   const D = window.HAI_DATA;
-  const all = [...D.PROJECTS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
+  const all = [...D.PROJECTS, ...D.CLUSTERS, ...D.COMMONS, ...D.TEAMS, ...D.FRAMEWORKS];
   const known = new Map(all.map((d) => [d.id, d]));
   const nb = new Map(all.map((d) => [d.id, new Set()]));
   const link = (a, b) => {
     if (!known.has(a) || !known.has(b)) return;
     nb.get(a).add(b); nb.get(b).add(a);
   };
-  D.EDGES.forEach((e) => link(e.project, e.team));
+  D.EDGES.forEach((e) => link(e.project || e.cluster, e.team));
   [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
     (a.createdBy || []).forEach((u) => link(u, a.id));
     (a.usedBy || []).forEach((u) => link(a.id, u));
@@ -432,7 +432,7 @@ test.describe('§11 search — matching', () => {
     const matched = ref.flatMap((g) => g.own.concat(g.aff));
     // Guards the fixture: the city is still in the payload, and still written
     // with the ö. Without that both queries would agree on an empty list.
-    const written = await page.evaluate(() => [...window.HAI_DATA.PROJECTS, ...window.HAI_DATA.TEAMS,
+    const written = await page.evaluate(() => [...window.HAI_DATA.PROJECTS, ...window.HAI_DATA.CLUSTERS, ...window.HAI_DATA.TEAMS,
       ...window.HAI_DATA.COMMONS, ...window.HAI_DATA.FRAMEWORKS]
       .filter((d) => /göteborg/i.test(d.city || '')).map((d) => d.id));
     expect(written.length).toBeGreaterThan(0);
@@ -459,24 +459,26 @@ test.describe('§11 search — matching', () => {
   });
 
   test('§11 it does not reach into descriptions — name, city and affiliation only', async ({ page }) => {
-    // The widening stops at the affiliation. "biology" appears in a project's
-    // description and in no name, city or affiliation anywhere in the payload,
-    // so a hit here would mean the match had quietly grown a fourth field — and
-    // with it a ranking rule the spec does not define.
+    // The widening stops at the affiliation. "physiological" appears in several
+    // project descriptions and in no name, city or affiliation anywhere in the
+    // payload, so a hit here would mean the match had quietly grown a fourth
+    // field — and with it a ranking rule the spec does not define. (The probe
+    // was "biology" until the October 2026 review rewrote the one description
+    // that carried it.)
     await openMap(page);
     const probe = await page.evaluate(() => {
       const D = window.HAI_DATA;
-      const all = [...D.PROJECTS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS];
+      const all = [...D.PROJECTS, ...D.CLUSTERS, ...D.TEAMS, ...D.COMMONS, ...D.FRAMEWORKS];
       const f = (s) => String(s == null ? '' : s).toLowerCase();
       return {
-        inDesc: all.filter((d) => f(d.desc_en || d.desc).includes('biology')).map((d) => d.id),
+        inDesc: all.filter((d) => f(d.desc_en || d.desc).includes('physiological')).map((d) => d.id),
         inFields: all.filter((d) => [d.name, d.city, (d.affiliation || {}).org,
-          (d.affiliation || {}).parent].some((v) => f(v).includes('biology'))).map((d) => d.id),
+          (d.affiliation || {}).parent].some((v) => f(v).includes('physiological'))).map((d) => d.id),
       };
     });
     expect(probe.inDesc.length).toBeGreaterThan(0);   // the word is in the corpus…
     expect(probe.inFields).toEqual([]);               // …and in none of the matched fields
-    await type(page, 'biology');
+    await type(page, 'physiological');
     await dropOpen(page);
     expect(await rows(page)).toEqual([]);
     await expect(page.locator('#search-drop .sd-empty')).toHaveText('No matches');
@@ -514,11 +516,11 @@ test.describe('§11 search — matching', () => {
 test.describe('§11 search — grouping and the eight-per-layer cap', () => {
   test('§11 results are grouped by layer, in layer order, under the layer label', async ({ page }) => {
     await openMap(page);
-    await type(page, 'er');                    // hits all four layers
+    await type(page, 'er');                    // hits every layer
     await dropOpen(page);
     const g = await groups(page);
     const ref = await reference(page, 'er');
-    // The fixture must still reach all four of §3.2's layers, or "in layer
+    // The fixture must still reach every one of §3.2's layers, or "in layer
     // order" is a claim about a shorter list than the test means it to be.
     expect(ref.map((x) => x.kind)).toEqual(LAYER_ORDER);
     expect(g.map((x) => x.label)).toEqual(ref.map((x) => LAYER_LABEL[x.kind]));
@@ -530,13 +532,17 @@ test.describe('§11 search — grouping and the eight-per-layer cap', () => {
     await type(page, 'er');
     await dropOpen(page);
     const ref = await reference(page, 'er');
-    // The fixture must actually exercise the cap on every layer, or the test
-    // would pass on an implementation with no cap at all.
+    // The fixture must actually exercise the cap, or the test would pass on an
+    // implementation with no cap at all: every layer has more hits than the
+    // cap except the clusters, which hold six cards and so show all of theirs
+    // (the next test's subject).
     expect(ref.map((x) => x.kind)).toEqual(LAYER_ORDER);
-    for (const g of ref) expect(g.own.length + g.aff.length).toBeGreaterThan(CAP);
+    const over = ref.filter((x) => x.own.length + x.aff.length > CAP).map((x) => x.kind);
+    expect(over).toEqual(LAYER_ORDER.filter((k) => k !== 'cluster'));
     const g = await groups(page);
-    expect(g.map((x) => x.ids.length)).toEqual(ref.map(() => CAP));
-    expect((await rows(page)).length).toBe(ref.length * CAP);
+    expect(g.map((x) => x.ids.length))
+      .toEqual(ref.map((x) => Math.min(CAP, x.own.length + x.aff.length)));
+    expect((await rows(page)).length).toBe(g.reduce((n, x) => n + x.ids.length, 0));
   });
 
   test('§11 a layer under the cap shows all of its hits', async ({ page }) => {
@@ -1030,7 +1036,7 @@ test.describe('§11 pins — My map', () => {
     await openMap(page);
     const before = (await snapshot(page)).matchCount;
     const totals = await payloadTotals(page);
-    expect(before).toBe(totals.project + totals.team + totals.commons + totals.framework);
+    expect(before).toBe(totals.project + totals.team + totals.cluster + totals.commons + totals.framework);
     await pinFromCard(page, REVERE);
     await page.click('#mymap-btn');
     await settleCounts(page);
@@ -1063,8 +1069,8 @@ test.describe('§11 pins — My map', () => {
     expect(s.pins).toBe(0);
     expect(s.matchCount).toBe(0);
     await expect(page.locator('body')).toHaveClass(/mymap-on/);
-    expect((await tiles(page)).map((x) => x.count)).toEqual([0, 0, 0, 0]);
-    expect((await layerRows(page)).map((r) => r.count)).toEqual([0, 0, 0, 0]);
+    expect((await tiles(page)).map((x) => x.count)).toEqual([0, 0, 0, 0, 0]);
+    expect((await layerRows(page)).map((r) => r.count)).toEqual([0, 0, 0, 0, 0]);
     // §9.2's caption still describes the mode rather than the filters it replaced.
     expect(await caption(page)).toBe('in view · 0 on your map');
     await expect(page.locator('#fd-count')).toHaveText('0');
@@ -1088,7 +1094,7 @@ test.describe('§11 pins — My map', () => {
     const totals = await payloadTotals(page);
     expect((await snapshot(page)).myMap).toBe(false);
     expect((await snapshot(page)).matchCount)
-      .toBe(totals.project + totals.team + totals.commons + totals.framework);
+      .toBe(totals.project + totals.team + totals.cluster + totals.commons + totals.framework);
   });
 
   test('§11 the map-side pill mirrors the pin count and still works with the sidebar collapsed', async ({ page }) => {
@@ -1397,12 +1403,12 @@ test.describe('§13 deep links', () => {
     // so a stale link degrades to a sensible view instead of an empty map."
     // `dom=` has that guard; `lay=` does not — it assigns
     // `layers[k] = lay.split(',').includes(k)` for every layer, so a fragment
-    // carrying only unrecognised codes switches all four layers off and the map
+    // carrying only unrecognised codes switches every layer off and the map
     // goes blank. Asserting today's behaviour, not blessing it.
     await openMap(page, { hash: '#lay=teams,projets' });   // plausible stale spellings
     await settleCounts(page);
     const s = await fullState(page);
-    expect(s.layers).toEqual({ project: false, team: false, commons: false, framework: false });
+    expect(s.layers).toEqual({ project: false, team: false, cluster: false, commons: false, framework: false });
     expect(s.matchCount).toBe(0);
   });
 
@@ -1410,7 +1416,7 @@ test.describe('§13 deep links', () => {
     await openMap(page, { hash: '#lay=team,not-a-layer' });
     await settleCounts(page);
     expect((await fullState(page)).layers)
-      .toEqual({ project: false, team: true, commons: false, framework: false });
+      .toEqual({ project: false, team: true, cluster: false, commons: false, framework: false });
     const totals = await payloadTotals(page);
     expect((await snapshot(page)).matchCount).toBe(totals.team);
   });
@@ -1423,7 +1429,7 @@ test.describe('§13 deep links', () => {
     const totals = await payloadTotals(page);
     await settleCounts(page);
     expect((await snapshot(page)).matchCount)
-      .toBe(totals.project + totals.team + totals.commons + totals.framework);
+      .toBe(totals.project + totals.team + totals.cluster + totals.commons + totals.framework);
   });
 
   test('§13 a non-numeric yr= is ignored', async ({ page }) => {
@@ -1526,12 +1532,13 @@ test.describe('§11 print', () => {
     expect(sheet.groups.map((g) => g.heading)).toEqual([
       `Projects & programmes (${totals.project})`,
       `Teams (${totals.team})`,
+      `Clusters (${totals.cluster})`,
       `Commons (${totals.commons})`,
       `Frameworks (${totals.framework})`,
     ]);
     expect(sheet.groups.map((g) => g.items.length))
-      .toEqual([totals.project, totals.team, totals.commons, totals.framework]);
-    expect(sheet.total).toBe(totals.project + totals.team + totals.commons + totals.framework);
+      .toEqual([totals.project, totals.team, totals.cluster, totals.commons, totals.framework]);
+    expect(sheet.total).toBe(totals.project + totals.team + totals.cluster + totals.commons + totals.framework);
     expect(sheet.sub.startsWith('Starting views · ')).toBe(true);
   });
 
@@ -1830,7 +1837,7 @@ test.describe('§13 private mode — storage that throws', () => {
     await expect(page.locator('#welcome')).toHaveClass(/open/);
     const totals = await payloadTotals(page);
     expect((await snapshot(page)).matchCount)
-      .toBe(totals.project + totals.team + totals.commons + totals.framework);
+      .toBe(totals.project + totals.team + totals.cluster + totals.commons + totals.framework);
     expect((await snapshot(page)).pins).toBe(0);
   });
 

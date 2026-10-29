@@ -144,7 +144,7 @@ const textOf = (page, sel) => page.locator(sel).first().textContent();
 const facts = (page) => page.evaluate(() => {
   const D = window.HAI_DATA;
   // kind → the payload array it is registered from: §3.2's table, in KINDS order.
-  const SRC = { project: 'PROJECTS', team: 'TEAMS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
+  const SRC = { project: 'PROJECTS', team: 'TEAMS', cluster: 'CLUSTERS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
   const all = KINDS.flatMap((k) => D[SRC[k]]);
   const placed = (e) => e.lat != null && e.lon != null;
   const geo = {};
@@ -154,7 +154,7 @@ const facts = (page) => page.evaluate(() => {
   // are placed. Counted here from DATA.EDGES and the createdBy/usedBy lists
   // rather than read off the page's own `edges` array.
   let links = 0;
-  D.EDGES.forEach((e) => { if (geo[e.project] && geo[e.team]) links++; });
+  D.EDGES.forEach((e) => { const s = e.project || e.cluster; if (geo[s] && geo[e.team]) links++; });
   [...D.COMMONS, ...D.FRAMEWORKS].forEach((a) => {
     (a.createdBy || []).forEach((u) => { if (geo[u] && geo[a.id]) links++; });
     (a.usedBy || []).forEach((u) => { if (geo[u] && geo[a.id]) links++; });
@@ -190,7 +190,7 @@ const facts = (page) => page.evaluate(() => {
  *  splitting it by layer, so a mistake in the layer mapping cannot hide. */
 const facetByLayer = (page, dom) => page.evaluate((d) => {
   const D = window.HAI_DATA;
-  const SRC = { project: 'PROJECTS', team: 'TEAMS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
+  const SRC = { project: 'PROJECTS', team: 'TEAMS', cluster: 'CLUSTERS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
   const doms = (e) => (e.domains && e.domains.length) ? e.domains : [e.domain];
   const hit = (e) => doms(e).includes(d);
   return {
@@ -208,7 +208,7 @@ const facetByLayer = (page, dom) => page.evaluate((d) => {
  *  (domain, layer) order wins, so the choice is stable for a given payload. */
 const singleMatchPair = (page) => page.evaluate(() => {
   const D = window.HAI_DATA;
-  const SRC = { project: 'PROJECTS', team: 'TEAMS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
+  const SRC = { project: 'PROJECTS', team: 'TEAMS', cluster: 'CLUSTERS', commons: 'COMMONS', framework: 'FRAMEWORKS' };
   const doms = (e) => (e.domains && e.domains.length) ? e.domains : [e.domain];
   for (const dom of ALL_DOMS)
     for (const kind of KINDS) {
@@ -225,8 +225,8 @@ const singleMatchPair = (page) => page.evaluate(() => {
 // read straight out of the payload, so the expected split is derived from the
 // data rather than from the tally the page just computed.
 const placelessByDomain = (page, dom) => page.evaluate((d) => {
-  const n = { project: 0, team: 0, commons: 0, framework: 0 };
-  const LAYER = { PROJECTS: 'project', TEAMS: 'team', COMMONS: 'commons', FRAMEWORKS: 'framework' };
+  const n = { project: 0, team: 0, cluster: 0, commons: 0, framework: 0 };
+  const LAYER = { PROJECTS: 'project', TEAMS: 'team', CLUSTERS: 'cluster', COMMONS: 'commons', FRAMEWORKS: 'framework' };
   Object.entries(LAYER).forEach(([key, kind]) => window.HAI_DATA[key].forEach((e) => {
     const doms = (e.domains && e.domains.length) ? e.domains : [e.domain];
     if (doms.includes(d) && (e.lat == null || e.lon == null)) n[kind]++;
@@ -328,7 +328,8 @@ test.describe('§16 invariant 8 — both languages, every key', () => {
     }));
     const { fr, en } = await i18n(page);
     const all = Object.values(families).flat();
-    expect(families.rel).toEqual(['rel.created', 'rel.createdBy', 'rel.projects', 'rel.teams', 'rel.usedBy', 'rel.uses']);
+    expect(families.rel).toEqual(['rel.clusters', 'rel.created', 'rel.createdBy', 'rel.members',
+      'rel.projects', 'rel.teams', 'rel.usedBy', 'rel.uses']);
     expect(families.tour).toHaveLength(8);
     expect(all.filter((k) => !(k in fr))).toEqual([]);
     expect(all.filter((k) => !(k in en))).toEqual([]);
@@ -458,7 +459,7 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
   test('§12 layer rows keep their counts and swap their labels', async ({ page }) => {
     await withCard(page);
     expect((await layerRows(page)).map((r) => r.label))
-      .toEqual(['Projects & programmes', 'Teams', 'Commons', 'Frameworks']);
+      .toEqual(['Projects & programmes', 'Teams', 'Clusters', 'Commons', 'Frameworks']);
     // Narrow the domain axis before reading the counts. Unfiltered, a facet
     // count *is* the corpus total, so "the counts came back unchanged" would
     // hold just as well for a row that had stopped counting and gone back to
@@ -470,16 +471,17 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     await onlyDomain(page, 'aviation');
     await settleCounts(page);
     const want = av.byLayer;
-    expect(want.reduce((a, n) => a + n, 0), 'the four layers partition the domain')
+    expect(want.reduce((a, n) => a + n, 0), 'the layers partition the domain')
       .toBe(av.total);
-    // Falsifiable only while every layer holds some aviation and not all of it:
-    // at 0 the row could have stopped counting, and at the layer total it could
-    // have reverted to TOTALS — the regression invariant 13 names.
-    expect(want.filter((n, i) => n > 0 && n < f.layerTotals[i])).toHaveLength(f.layerTotals.length);
+    // Falsifiable only while a layer holds some aviation and not all of it: at
+    // 0 the row could have stopped counting, and at the layer total it could
+    // have reverted to TOTALS — the regression invariant 13 names. Every layer
+    // qualifies but the clusters, which hold no aviation at all.
+    expect(f.kinds.filter((k, i) => !(want[i] > 0 && want[i] < f.layerTotals[i]))).toEqual(['cluster']);
     expect((await layerRows(page)).map((r) => r.count)).toEqual(want);
     await switchLang(page, 'fr');
     expect((await layerRows(page)).map((r) => r.label))
-      .toEqual(['Projets & programmes', 'Équipes', 'Communs', 'Cadres']);
+      .toEqual(['Projets & programmes', 'Équipes', 'Clusters', 'Communs', 'Cadres']);
     // renderLayerRows() rebuilds the DOM from scratch; the facet counts must
     // survive that — language is not a filter change — and they must come back
     // as the narrowed figures, not as the totals the fresh markup would carry.
@@ -500,8 +502,9 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     await settleCounts(page);
     // Both numbers in the sentence are derived: the narrowed one from the
     // payload's aviation population, the corpus one from the layer's own array.
-    // The sentence only exists while it has narrowed, hence the guard.
-    expect(av.byLayer.filter((n, i) => n > 0 && n < f.layerTotals[i])).toHaveLength(f.layerTotals.length);
+    // The sentence only exists while it has narrowed, hence the guard. No
+    // cluster works on aviation, so that row narrows all the way to "0 of 6".
+    expect(av.byLayer.filter((n, i) => n < f.layerTotals[i])).toHaveLength(f.layerTotals.length);
     const titles = async () => (await layerRows(page)).map((r) => r.title);
     // A layer holding placeless entities says so instead, in both languages —
     // the split is the sentence that has to be translated there.
@@ -527,10 +530,10 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
 
   test('§12 header tiles and their reconciliation titles', async ({ page }) => {
     await withCard(page);
-    expect((await tiles(page)).map((t) => t.label)).toEqual(['Projects', 'Teams', 'Commons', 'Frameworks']);
+    expect((await tiles(page)).map((t) => t.label)).toEqual(['Projects', 'Teams', 'Clusters', 'Commons', 'Frameworks']);
     expect((await tiles(page))[0].title).toMatch(/^\d+ in view · \d+ match(es)? the filters$/);
     await switchLang(page, 'fr');
-    expect((await tiles(page)).map((t) => t.label)).toEqual(['Projets', 'Équipes', 'Communs', 'Cadres']);
+    expect((await tiles(page)).map((t) => t.label)).toEqual(['Projets', 'Équipes', 'Clusters', 'Communs', 'Cadres']);
     expect((await tiles(page))[0].title).toMatch(/^\d+ dans la vue · \d+ correspond(ent)? aux filtres$/);
   });
 
@@ -560,22 +563,22 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     await switchLang(page, 'fr');
     const after = await snapshot(page);
     expect(after.domains).toEqual(['aviation']);
-    expect(after.layers).toEqual({ project: true, team: true, commons: false, framework: false });
+    expect(after.layers).toEqual({ project: true, team: true, cluster: false, commons: false, framework: false });
     expect(after.focusId).toBe('ai4realnet');
     expect(after.matchCount).toBe(before.matchCount);
     expect(await page.locator('#domain-groups input[data-dom="aviation"]').isChecked()).toBe(true);
     expect(await page.locator('#domain-groups input[data-dom="energy"]').isChecked()).toBe(false);
-    expect((await layerRows(page)).map((r) => r.on)).toEqual([true, true, false, false]);
+    expect((await layerRows(page)).map((r) => r.on)).toEqual([true, true, false, false, false]);
   });
 
   test('§12 the legend', async ({ page }) => {
     await withCard(page);
     expect(await page.locator('#legend-rows').allTextContents())
-      .toEqual(['Projects & programmesTeamsCommonsFrameworks']);
+      .toEqual(['Projects & programmesTeamsClustersCommonsFrameworks']);
     expect(await textOf(page, '#legend summary')).toBe('Legend');
     await switchLang(page, 'fr');
     expect(await page.locator('#legend-rows').allTextContents())
-      .toEqual(['Projets & programmesÉquipesCommunsCadres']);
+      .toEqual(['Projets & programmesÉquipesClustersCommunsCadres']);
     expect(await textOf(page, '#legend summary')).toBe('Légende');
   });
 
@@ -840,7 +843,7 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // Hidden is not absent: reopening must not reveal a stale English panel.
     expect(await textOf(page, '#f-layers .sb-h')).toBe('Couches');
     expect((await layerRows(page)).map((r) => r.label))
-      .toEqual(['Projets & programmes', 'Équipes', 'Communs', 'Cadres']);
+      .toEqual(['Projets & programmes', 'Équipes', 'Clusters', 'Communs', 'Cadres']);
   });
 
   test('§12 toasts speak the current language', async ({ page }) => {
@@ -960,7 +963,7 @@ test.describe('§12 the content switches too', () => {
     await openMap(page, { lang: 'en' });
     const pick = await page.evaluate(() => {
       const D = window.HAI_DATA;
-      const all = ['PROJECTS', 'TEAMS', 'COMMONS', 'FRAMEWORKS'].flatMap((l) => D[l]);
+      const all = ['PROJECTS', 'CLUSTERS', 'TEAMS', 'COMMONS', 'FRAMEWORKS'].flatMap((l) => D[l]);
       const hit = all.filter((e) => e.desc && !('desc_fr' in e) && !('desc_en' in e))
         .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
       return hit ? { id: hit.id, desc: hit.desc } : null;
@@ -1016,8 +1019,16 @@ test.describe('§12 the content switches too', () => {
     // vocabulary is expected to come past this line. It shrank by one here:
     // `jurisdiction.global` was never in the vocabulary the framework schema
     // documents, the data repository now rejects it, and the generator's label
-    // for it went with the eight entities that used to carry it.
-    expect(audit.entries).toBe(66);
+    // for it went with the eight entities that used to carry it. It then grew by
+    // two: `kind.horizon_2020` and `kind.eu_other`, so that a Horizon 2020 grant
+    // or a Digital Europe one is no longer labelled Horizon Europe. And by two
+    // more: `role.third_party` and `role.observer`, the consortium roles of the
+    // data repository's project schema that had no label, once the October 2026
+    // review aligned 115 consortium lines on CORDIS's linked third parties. And
+    // by four more: `kind.association`, `kind.network` and `kind.project_cluster`,
+    // the kinds of the clusters layer, and `role.founder` for a cluster's
+    // founding members.
+    expect(audit.entries).toBe(74);
     expect(audit.missing).toEqual([]);
   });
 
@@ -1042,11 +1053,11 @@ test.describe('§12 the content switches too', () => {
 
   test('§12 vocabulary values the generator never labelled render de-underscored in both languages', async ({ page }) => {
     // SPEC-DEVIATION: §12 says every controlled vocabulary value has both
-    // labels in DATA.TAXO. Seven values used by the payload have none, so
+    // labels in DATA.TAXO. Six values used by the payload have none, so
     // taxo() falls through to §17's documented de-underscored key — which means
-    // a French reader sees English words ("third party", "restricted",
-    // "commercial"). It degrades rather than breaks, as §17 promises, but the
-    // §12 claim is not true of the data as generated.
+    // a French reader sees English words ("restricted", "commercial"). It
+    // degrades rather than breaks, as §17 promises, but the §12 claim is not
+    // true of the data as generated.
     await openMap(page);
     const gaps = await page.evaluate(() => {
       const used = {};
@@ -1067,7 +1078,6 @@ test.describe('§12 the content switches too', () => {
     expect(gaps).toEqual([
       'access.commercial', 'access.restricted',
       'jurisdiction.DE', 'jurisdiction.DK', 'jurisdiction.NL', 'jurisdiction.UK',
-      'role.third_party',
     ]);
     // Every one of those gaps, not just the three spot-checked below, has to
     // degrade the way §17 promises: the de-underscored key, and the same string
@@ -1082,10 +1092,10 @@ test.describe('§12 the content switches too', () => {
     expect(fallback.en).toEqual(fallback.want);
     // And what the reader gets for them is identical in both languages.
     const rendered = await page.evaluate(() => {
-      const at = (l) => { LANG = l; return [taxo('role', 'third_party'), taxo('access', 'restricted'), taxo('jurisdiction', 'UK')]; };
+      const at = (l) => { LANG = l; return [taxo('access', 'commercial'), taxo('access', 'restricted'), taxo('jurisdiction', 'UK')]; };
       return { fr: at('fr'), en: at('en') };
     });
-    expect(rendered.fr).toEqual(['third party', 'restricted', 'UK']);
+    expect(rendered.fr).toEqual(['commercial', 'restricted', 'UK']);
     expect(rendered.en).toEqual(rendered.fr);
   });
 
@@ -1417,7 +1427,7 @@ test.describe('§12 locale-aware collation and number formatting', () => {
     await openMap(page, { lang: 'en' });
     await zoomBy(page, 0.5);
     const res = await page.evaluate(() => {
-      const order = { project: 0, team: 1, commons: 2, framework: 3 };
+      const order = { project: 0, team: 1, cluster: 2, commons: 3, framework: 4 };
       const names = [...state.inView].map((id) => byId[id]);
       const locale = [...names].sort((a, b) => (order[a.kind] - order[b.kind]) || a.d.name.localeCompare(b.d.name, LANG))
         .map((it) => it.d.name);

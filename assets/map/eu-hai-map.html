@@ -97,10 +97,11 @@
      into a single "Resources", a headline figure matching no layer row: with
      frameworks switched off, "Commons 25" sat two centimetres above
      "Resources 24" and read as a contradiction rather than as the two different
-     measurements they are (§9.1–9.2). Countries is not a layer and has no control,
-     so it leads the caption below instead of taking a fifth tile — five tiles
-     at this width clip "FRAMEWORKS". */
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:12px}
+     measurements they are (§9.1–9.2). Five layers make five tiles, and five equal
+     columns at this width clip "FRAMEWORKS", so each column is as wide as its own
+     label and the room left over is shared out. Countries is not a layer and has
+     no control, so it leads the caption below instead of taking a sixth tile. */
+  .stats{display:grid;grid-template-columns:repeat(5,auto);gap:3px;margin-top:12px}
   .stats div{background:var(--surface-alt);border:1px solid var(--rule);border-radius:7px;padding:7px 1px;text-align:center;min-width:0}
   .stats strong{display:block;font-family:var(--serif);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
   .stats span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:0;color:var(--ink-faint);margin-top:2px;
@@ -325,6 +326,10 @@
   .rel-row .glyph{flex:none;width:18px;height:18px;display:grid;place-items:center}
   .rel-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rel-row .mt{flex:none;font-size:10px;color:var(--ink-faint)}
+  .rel-row .nmc{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+  .rel-row .nmc .nm{align-self:stretch}
+  .rel-row .lvl{flex:none;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);
+    border:1px solid var(--rule-strong);border-radius:999px;padding:1px 6px;white-space:nowrap}
 
   /* ---------- feed (entities in view) ---------- */
   #feed{display:none;flex-direction:column;height:100vh;overflow:hidden;background:var(--surface);
@@ -493,13 +498,14 @@
         </svg>
         <div>
           <h1 class="sb-title" data-i18n="title">Collaboration humain–IA en Europe</h1>
-          <p class="sb-lede" data-i18n="lede">Qui travaille sur la décision humain–IA dans les systèmes critiques — équipes, projets, communs et cadres, et les liens entre eux.</p>
+          <p class="sb-lede" data-i18n="lede">Qui travaille sur la décision humain–IA dans les systèmes critiques — équipes, projets, clusters, communs et cadres, et les liens entre eux.</p>
           <p class="sb-collab"><span data-i18n="collab">Une carte collaborative : il manque quelque chose ?</span> <button type="button" class="link-btn" id="sb-contribute" data-i18n="contribute">Proposez-le avec le chat</button></p>
         </div>
       </div>
       <div class="stats" aria-live="polite">
         <div><strong id="st-project">—</strong><span data-i18n="stProjects">Projets</span></div>
         <div><strong id="st-team">—</strong><span data-i18n="stTeams">Équipes</span></div>
+        <div><strong id="st-cluster">—</strong><span data-i18n="stClusters">Clusters</span></div>
         <div><strong id="st-commons">—</strong><span data-i18n="stCommons">Communs</span></div>
         <div><strong id="st-framework">—</strong><span data-i18n="stFrameworks">Cadres</span></div>
       </div>
@@ -539,7 +545,7 @@
           <span class="lbl" data-i18n="linksLbl">Afficher tous les liens</span>
           <span class="sw"></span>
         </button>
-        <p class="note" data-i18n="linksNote">Les liens consortium et d'usage s'affichent automatiquement autour d'une fiche ouverte. Ce réglage dessine le maillage entier.</p>
+        <p class="note" data-i18n="linksNote">Les liens consortium et d'usage s'affichent automatiquement autour d'une fiche ouverte. Ce réglage dessine le maillage entier, à raison d'un trait par organisation.</p>
       </section>
 
       <section class="sb-section" id="f-nogeo" hidden>
@@ -708,7 +714,8 @@ const DOM_GROUPS = [
   { key:'infra',      doms:['compute','cluster','simulation'] },
 ];
 const ALL_DOMS = DOM_GROUPS.flatMap(g => g.doms);
-const KINDS = ['project','team','commons','framework'];
+const KINDS = ['project','team','cluster','commons','framework'];
+const perKind = v => Object.fromEntries(KINDS.map(k => [k, v]));
 const CAPITALS = [
   ['Paris',48.857,2.352],['London',51.507,-0.128],['Berlin',52.52,13.405],['Madrid',40.417,-3.703],
   ['Roma',41.902,12.496],['Wien',48.208,16.373],['Warszawa',52.23,21.011],['Stockholm',59.329,18.069],
@@ -719,26 +726,27 @@ const CAPITALS = [
 const I18N = {
   fr: {
     title:'Collaboration humain–IA en Europe',
-    lede:'Qui travaille sur la décision humain–IA dans les systèmes critiques — équipes, projets, communs et cadres, et les liens entre eux.',
+    lede:'Qui travaille sur la décision humain–IA dans les systèmes critiques — équipes, projets, clusters, communs et cadres, et les liens entre eux.',
     searchPh:'Rechercher une équipe, un projet, une ville…', searchEmpty:'Aucun résultat',
-    stProjects:'Projets', stTeams:'Équipes', stCommons:'Communs', stFrameworks:'Cadres',
+    stProjects:'Projets', stTeams:'Équipes', stClusters:'Clusters', stCommons:'Communs', stFrameworks:'Cadres',
     stCountriesN:n=>`${n} pays`,
     stTile:(v,m)=>`${v} dans la vue · ${m} ${m>1?'correspondent':'correspond'} aux filtres`,
     presetsTitle:'Vues de départ', layersTitle:'Couches', domainsTitle:'Domaines', reset:'Réinitialiser',
     all:'Tout', none:'Aucun',
     'grp.industrial':'Domaines industriels', 'grp.research':'Axes de recherche', 'grp.infra':'Infrastructures de recherche',
     linksTitle:'Liens', linksLbl:'Afficher tous les liens', linksPill:'Liens',
-    linksNote:'Les liens consortium et d\u2019usage s\u2019affichent automatiquement autour d\u2019une fiche ouverte. Ce réglage dessine le maillage entier.',
+    linksNote:'Les liens consortium et d\u2019usage s\u2019affichent automatiquement autour d\u2019une fiche ouverte. Ce réglage dessine le maillage entier, à raison d\u2019un trait par organisation.',
     legendTitle:'Légende', legendPie:'Couleur = domaine · parts de tarte = multi-domaines.', attribData:'données',
     legendNote:'Un marqueur en parts de tarte couvre plusieurs domaines : il reste visible tant que l\u2019un d\u2019eux est coché.',
     myMapTitle:'Ma carte', myMapView:'Voir ma carte', myMapViewOff:'Toute la carte',
     myMapEmpty:'Épinglez des fiches (★) pour composer votre propre cartographie — elle est conservée sur cet appareil.',
     copyLink:'Copier le lien', printList:'Imprimer la liste', linkCopied:'Lien copié — il restaure vos épingles et la vue en cours.',
     helpTitle:'Aide', introBtn:'Revoir l\u2019introduction', tourBtn:'Visite guidée', filtersBtn:'Filtres',
-    'kind.project':'Projet / programme', 'kind.team':'Équipe', 'kind.commons':'Commun — données & plateformes', 'kind.framework':'Cadre méthodologique',
-    'kinds.project':'Projets & programmes', 'kinds.team':'Équipes', 'kinds.commons':'Communs', 'kinds.framework':'Cadres',
+    'kind.project':'Projet / programme', 'kind.team':'Équipe', 'kind.cluster':'Cluster — association ou réseau', 'kind.commons':'Commun — données & plateformes', 'kind.framework':'Cadre méthodologique',
+    'kinds.project':'Projets & programmes', 'kinds.team':'Équipes', 'kinds.cluster':'Clusters', 'kinds.commons':'Communs', 'kinds.framework':'Cadres',
     'wl.project':'Projets financés — Horizon Europe, SESAR, programmes nationaux.',
     'wl.team':'Laboratoires, R&D industrielle, équipes d\u2019opérateurs.',
+    'wl.cluster':'Associations, réseaux et clusters qui fédèrent équipes et projets.',
     'wl.commons':'Jeux de données, benchmarks, simulateurs, plateformes ouvertes.',
     'wl.framework':'Standards, réglementations, méthodes de référence.',
     'wl.links':'Liens', 'wl.linksDesc':'Qui siège dans quel consortium, qui crée ou utilise quoi.',
@@ -750,14 +758,18 @@ const I18N = {
     'preset.health':'Santé', 'preset.human':'Facteurs humains & XAI', 'preset.sim':'Simulation & infrastructures',
     visit:'Visiter le site ↗', pin:'☆ Épingler', unpin:'★ Épinglé', back:'Retour', close:'Fermer',
     'rel.teams':'Équipes du consortium', 'rel.projects':'Projets & programmes', 'rel.uses':'S\u2019appuie sur',
+    'rel.members':'Équipes membres', 'rel.clusters':'Membre de',
+    orgTag:'via l\u2019organisation',
+    orgTagSrc:o=>`${o} participe par une unité qui n\u2019a pas de fiche ; cette fiche lui appartient.`,
+    orgTagTeam:o=>`${o}, l\u2019organisation de cette équipe, participe — pas forcément l\u2019équipe elle-même.`,
     'rel.created':'A créé', 'rel.createdBy':'Créé par', 'rel.usedBy':'Utilisé par',
     noDesc:'Description à venir.',
-    'f.affiliation':'Rattachement', 'f.parent':'Tutelle', 'f.jurisdiction':'Portée', 'f.issuer':'Émetteur',
+    'f.organisation':'Organisation', 'f.membership':'Adhérents', 'f.affiliation':'Rattachement', 'f.parent':'Tutelle', 'f.jurisdiction':'Portée', 'f.issuer':'Émetteur',
     'f.legal':'Statut juridique', 'f.adopted':'Adoption', 'f.license':'Licence', 'f.maintainer':'Mainteneur',
     'f.repo':'Dépôt', 'f.size':'Diffusion', 'f.kind':'Type', 'f.operator':'Opérateur', 'f.access':'Accès',
     'f.capacity':'Capacité', 'f.source':'Source', 'f.call':'Appel', 'f.grant':'Convention',
     'f.budget':'Budget', 'f.fundingPage':'Page de financement', 'f.official':'Texte officiel', 'f.docs':'Documentation',
-    'sec.focus':'Axes de recherche', 'sec.timeline':'Calendrier', 'sec.consortium':'Consortium',
+    'sec.focus':'Axes de recherche', 'sec.timeline':'Calendrier', 'sec.consortium':'Consortium', 'sec.members':'Membres',
     'sec.funding':'Financement', 'sec.demos':'Démonstrateurs', 'sec.delivs':'Livrables',
     'sec.infra':'Infrastructure', 'sec.facilities':'Plateformes hébergées', 'sec.applies':'Champ d\u2019application',
     'sec.refs':'S\u2019appuie sur', 'sec.papers':'Publications', 'sec.links':'Autres liens',
@@ -793,7 +805,7 @@ const I18N = {
     asOf:date=>`Données à jour au ${date} — le curseur de période s’arrête à cette année.`,
     nogeoTitle:'Hors carte', nogeoNote:'Normes internationales et ressources sans localisation : pas de marqueur, mais une fiche complète.',
     tPrev:'Précédent', tNext:'Suivant', tDone:'Terminer', tStep:(i,n)=>`Étape ${i} / ${n}`,
-    'tour.1t':'Filtres & couches', 'tour.1b':'Le panneau latéral contrôle ce que montre la carte : quatre couches d\u2019entités, dix-sept domaines, des vues de départ toutes prêtes — et la recherche.',
+    'tour.1t':'Filtres & couches', 'tour.1b':'Le panneau latéral contrôle ce que montre la carte : cinq couches d\u2019entités, dix-sept domaines, des vues de départ toutes prêtes — et la recherche.',
     'tour.2t':'La carte', 'tour.2b':'Molette pour zoomer, glisser pour se déplacer. Chaque marqueur est une entité ; sa forme dit sa couche, sa couleur son domaine. Cliquez pour ouvrir la fiche.',
     'tour.3t':'De proche en proche', 'tour.3b':'Une fiche ouverte met en évidence son voisinage — consortiums, usages — et liste les entités liées, cliquables. Le fil d\u2019Ariane garde votre parcours.',
     'tour.4t':'Votre cartographie', 'tour.4b':'Épinglez (★) ce qui vous intéresse : « Ma carte » n\u2019affiche plus que vos épingles et leurs liens, à copier en lien partageable ou à imprimer.',
@@ -805,9 +817,9 @@ const I18N = {
   },
   en: {
     title:'Human–AI Collaboration in Europe',
-    lede:'Who works on human–AI decision-making in critical systems — teams, projects, commons and frameworks, and the links between them.',
+    lede:'Who works on human–AI decision-making in critical systems — teams, projects, clusters, commons and frameworks, and the links between them.',
     searchPh:'Search a team, a project, a city…', searchEmpty:'No matches',
-    stProjects:'Projects', stTeams:'Teams', stCommons:'Commons', stFrameworks:'Frameworks',
+    stProjects:'Projects', stTeams:'Teams', stClusters:'Clusters', stCommons:'Commons', stFrameworks:'Frameworks',
     stCountriesN:n=>`${n} ${n===1?'country':'countries'}`,
     // Verb agreement: "1 matches", "25 match".
     stTile:(v,m)=>`${v} in view · ${m} ${m===1?'matches':'match'} the filters`,
@@ -815,17 +827,18 @@ const I18N = {
     all:'All', none:'None',
     'grp.industrial':'Industrial domains', 'grp.research':'Research focus', 'grp.infra':'Research infrastructure',
     linksTitle:'Links', linksLbl:'Show all links', linksPill:'Links',
-    linksNote:'Consortium and usage links appear automatically around an open card. This switch draws the whole mesh.',
+    linksNote:'Consortium and usage links appear automatically around an open card. This switch draws the whole mesh, one line per organisation.',
     legendTitle:'Legend', legendPie:'Colour = domain · pie slices = multi-domain.', attribData:'data',
     legendNote:'A pie-slice marker spans several domains: it stays visible while any of them is ticked.',
     myMapTitle:'My map', myMapView:'View my map', myMapViewOff:'Whole map',
     myMapEmpty:'Pin cards (★) to compose your own cartography — it is kept on this device.',
     copyLink:'Copy link', printList:'Print the list', linkCopied:'Link copied — it restores your pins and the current view.',
     helpTitle:'Help', introBtn:'Replay the intro', tourBtn:'Guided tour', filtersBtn:'Filters',
-    'kind.project':'Project / programme', 'kind.team':'Team', 'kind.commons':'Commons — data & platforms', 'kind.framework':'Methodological framework',
-    'kinds.project':'Projects & programmes', 'kinds.team':'Teams', 'kinds.commons':'Commons', 'kinds.framework':'Frameworks',
+    'kind.project':'Project / programme', 'kind.team':'Team', 'kind.cluster':'Cluster — association or network', 'kind.commons':'Commons — data & platforms', 'kind.framework':'Methodological framework',
+    'kinds.project':'Projects & programmes', 'kinds.team':'Teams', 'kinds.cluster':'Clusters', 'kinds.commons':'Commons', 'kinds.framework':'Frameworks',
     'wl.project':'Funded projects — Horizon Europe, SESAR, national programmes.',
     'wl.team':'Research labs, industrial R&D, operator teams.',
+    'wl.cluster':'Associations, networks and clusters that bring teams and projects together.',
     'wl.commons':'Open datasets, benchmarks, simulators, platforms.',
     'wl.framework':'Standards, regulations, reference methods.',
     'wl.links':'Links', 'wl.linksDesc':'Who sits in which consortium, who creates or uses what.',
@@ -837,14 +850,18 @@ const I18N = {
     'preset.health':'Health', 'preset.human':'Human factors & XAI', 'preset.sim':'Simulation & infrastructure',
     visit:'Visit website ↗', pin:'☆ Pin', unpin:'★ Pinned', back:'Back', close:'Close',
     'rel.teams':'Consortium teams', 'rel.projects':'Projects & programmes', 'rel.uses':'Builds on',
+    'rel.members':'Member teams', 'rel.clusters':'Member of',
+    orgTag:'via its organisation',
+    orgTagSrc:o=>`${o} takes part through a unit that has no card of its own; this card belongs to it.`,
+    orgTagTeam:o=>`${o}, this team\u2019s organisation, takes part — not necessarily this team itself.`,
     'rel.created':'Created', 'rel.createdBy':'Created by', 'rel.usedBy':'Used by',
     noDesc:'Description to come.',
-    'f.affiliation':'Affiliation', 'f.parent':'Parent body', 'f.jurisdiction':'Jurisdiction', 'f.issuer':'Issuing body',
+    'f.organisation':'Organisation', 'f.membership':'Membership', 'f.affiliation':'Affiliation', 'f.parent':'Parent body', 'f.jurisdiction':'Jurisdiction', 'f.issuer':'Issuing body',
     'f.legal':'Legal status', 'f.adopted':'Adopted', 'f.license':'Licence', 'f.maintainer':'Maintainer',
     'f.repo':'Repository', 'f.size':'Reach', 'f.kind':'Kind', 'f.operator':'Operator', 'f.access':'Access',
     'f.capacity':'Capacity', 'f.source':'Source', 'f.call':'Call', 'f.grant':'Grant',
     'f.budget':'Budget', 'f.fundingPage':'Funding page', 'f.official':'Official text', 'f.docs':'Documentation',
-    'sec.focus':'Focus areas', 'sec.timeline':'Timeline', 'sec.consortium':'Consortium',
+    'sec.focus':'Focus areas', 'sec.timeline':'Timeline', 'sec.consortium':'Consortium', 'sec.members':'Members',
     'sec.funding':'Funding', 'sec.demos':'Demonstrators', 'sec.delivs':'Deliverables',
     'sec.infra':'Infrastructure', 'sec.facilities':'Facilities hosted', 'sec.applies':'Applies to',
     'sec.refs':'Builds on', 'sec.papers':'Publications', 'sec.links':'Other links',
@@ -879,7 +896,7 @@ const I18N = {
     asOf:date=>`Data current as of ${date} — the period slider stops at that year.`,
     nogeoTitle:'Off the map', nogeoNote:'International standards and resources with no location: no marker, but a full card.',
     tPrev:'Previous', tNext:'Next', tDone:'Done', tStep:(i,n)=>`Step ${i} / ${n}`,
-    'tour.1t':'Filters & layers', 'tour.1b':'The side panel controls what the map shows: four entity layers, seventeen domains, ready-made starting views — and search.',
+    'tour.1t':'Filters & layers', 'tour.1b':'The side panel controls what the map shows: five entity layers, seventeen domains, ready-made starting views — and search.',
     'tour.2t':'The map', 'tour.2b':'Scroll to zoom, drag to pan. Every marker is an entity; its shape tells the layer, its colour the domain. Click to open the card.',
     'tour.3t':'Hop by hop', 'tour.3b':'An open card highlights its neighbourhood — consortia, usage — and lists linked entities you can click through. The breadcrumb keeps your trail.',
     'tour.4t':'Your cartography', 'tour.4b':'Pin (★) what matters to you: “My map” shows only your pins and their links, ready to share as a link or print.',
@@ -912,7 +929,7 @@ let LANG = initialLang();
 const t = k => { const v = I18N[LANG][k]; return v==null ? (I18N.en[k] ?? k) : v; };
 const state = {
   domains: new Set(ALL_DOMS),
-  layers: { project:true, team:true, commons:true, framework:true },
+  layers: perKind(true),
   years: null, // {a,b,undated} — filled once the data bounds are known
   feed:false, inView:new Set(), inFilter:new Set(),
   matchCount:0, offMapMatch:0, offScreen:0, keptOpen:0,
@@ -933,7 +950,8 @@ function jitter(list){
     g.forEach((it,i)=>{ const a = 2*Math.PI*i/g.length; it.lat += r*Math.sin(a); it.lon += r*Math.cos(a); });
   });
 }
-jitter([...DATA.PROJECTS, ...DATA.COMMONS]); jitter(DATA.TEAMS); jitter(DATA.FRAMEWORKS);
+DATA.CLUSTERS = DATA.CLUSTERS || [];
+jitter([...DATA.PROJECTS, ...DATA.CLUSTERS, ...DATA.COMMONS]); jitter(DATA.TEAMS); jitter(DATA.FRAMEWORKS);
 
 const D2R = Math.PI/180, LAM0 = GEO.LAM0*D2R, PHI1 = GEO.PHI1*D2R;
 function project(lon,lat){
@@ -961,8 +979,8 @@ function reg(arr, kind){ arr.forEach(d => {
   const it = { d, kind, domains, X, Y, id:d.id, geo, y0, y1, dated, vague:(!dated || !!d.dateHost) };
   items.push(it); byId[d.id] = it;
 }); }
-reg(DATA.PROJECTS,'project'); reg(DATA.COMMONS,'commons'); reg(DATA.TEAMS,'team'); reg(DATA.FRAMEWORKS,'framework');
-const TOTALS = { project:DATA.PROJECTS.length, team:DATA.TEAMS.length, commons:DATA.COMMONS.length, framework:DATA.FRAMEWORKS.length };
+reg(DATA.PROJECTS,'project'); reg(DATA.CLUSTERS,'cluster'); reg(DATA.COMMONS,'commons'); reg(DATA.TEAMS,'team'); reg(DATA.FRAMEWORKS,'framework');
+const TOTALS = { project:DATA.PROJECTS.length, team:DATA.TEAMS.length, cluster:DATA.CLUSTERS.length, commons:DATA.COMMONS.length, framework:DATA.FRAMEWORKS.length };
 
 // ---------- period bounds ----------
 const YEARS = items.flatMap(it => [it.y0, it.y1]).filter(y => y!=null);
@@ -1017,18 +1035,37 @@ function periodState(it){
 // adjacency
 const neighbors = new Map(); // id -> Set(id)
 function link(a,b){ if(!byId[a]||!byId[b]) return; if(!neighbors.has(a)) neighbors.set(a,new Set()); if(!neighbors.has(b)) neighbors.set(b,new Set()); neighbors.get(a).add(b); neighbors.get(b).add(a); }
-const edges = []; // {a,b,color,dash}
+const edges = []; // {a,b,color,dash,grouped?,alt?,shared?}
 // Adjacency is always recorded (the cards navigate through it); geometry only
-// exists when both ends are placed on the map.
+// exists when both ends are placed on the map. Returns the line's index, or -1.
 function relate(a, b, style){
-  if (!byId[a] || !byId[b]) return;
+  if (!byId[a] || !byId[b]) return -1;
   link(a, b);
-  if (byId[a].geo && byId[b].geo) edges.push({a, b, ...style});
+  if (!(byId[a].geo && byId[b].geo)) return -1;
+  edges.push({a, b, ...style});
+  return edges.length - 1;
 }
+// A project or a cluster is linked to team cards, and the map shows one line
+// per organisation. Every link gets its path, grouped by source and
+// organisation: the data names the card that heads a group in the others'
+// `via`. refresh() then shows one path per group — the head's when both its
+// ends are on screen, else the first of the group's that is, and the focused
+// card's own path when the focus belongs to the group. Each path of a group
+// answers for all of its cards, so pointing at any of them lights the one shown.
+const EDGE_SET = new Set(), ORG_EDGE = new Set(), lineGroups = {};
+const edgeSrc = e => e.project || e.cluster;
 DATA.EDGES.forEach(e => {
-  const p = byId[e.project]; if(!p) return;
-  relate(e.project, e.team, {color:COLORS[p.d.domain]||'#999', dash:null});
+  const s = edgeSrc(e), p = byId[s]; if (!p || !byId[e.team]) return;
+  EDGE_SET.add(s+'|'+e.team); EDGE_SET.add(e.team+'|'+s);
+  if (e.org) ORG_EDGE.add(s+'|'+e.team);
+  const key = s+'|'+(e.via || e.team);
+  const G = lineGroups[key] = lineGroups[key] || { members:[], lines:[] };
+  G.members.push(e.team);
+  const i = relate(s, e.team, {color:COLORS[p.d.domain]||'#999', dash:null, grouped:true, alt:!!e.via});
+  if (i >= 0){ if (e.via) G.lines.push(i); else G.lines.unshift(i); }
 });
+Object.values(lineGroups).forEach(G => G.lines.forEach(i => { edges[i].shared = G.members; }));
+const onLine = (e, id) => e.a===id || e.b===id || !!(e.shared && e.shared.includes(id));
 [...DATA.COMMONS, ...DATA.FRAMEWORKS].forEach(asset => {
   (asset.createdBy||[]).forEach(uid => relate(uid, asset.id, {color:COLORS[asset.domain]||'#888', dash:null, strong:true}));
   (asset.usedBy||[]).forEach(uid => relate(asset.id, uid, {color:COLORS[asset.domain]||'#888', dash:'4 4'}));
@@ -1038,6 +1075,37 @@ const nOf = id => neighbors.get(id) || new Set();
 // ---------- svg helpers ----------
 const svgNS = 'http://www.w3.org/2000/svg';
 const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Pointy-top hexagon of circumradius r, vertices clockwise from the top.
+function hexPoints(r){
+  return Array.from({length:6}, (_,i)=>{ const a = Math.PI/3*i - Math.PI/2; return [r*Math.cos(a), r*Math.sin(a)]; });
+}
+// The part of a convex polygon between two verticals x0 ≤ x ≤ x1.
+function clipBand(poly, x0, x1){
+  const cut = (P, inside, X) => { const out = [];
+    P.forEach((a,i)=>{ const b = P[(i+1)%P.length], ia = inside(a[0]), ib = inside(b[0]);
+      if (ia) out.push(a);
+      if (ia !== ib) out.push([X, a[1] + (X-a[0])/(b[0]-a[0])*(b[1]-a[1])]); });
+    return out; };
+  return cut(cut(poly, x=>x>=x0, x0), x=>x<=x1, x1);
+}
+const ptsAttr = P => P.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' ');
+const polyArea = P => Math.abs(P.reduce((s,p,i)=>{ const q = P[(i+1)%P.length]; return s + p[0]*q[1] - q[0]*p[1]; }, 0))/2;
+// The x positions that cut a convex polygon into n vertical bands of equal
+// area — equal widths would give a hexagon's middle band the most ink.
+function equalAreaCuts(poly, n){
+  const xs = poly.map(p=>p[0]), x0 = Math.min(...xs), x1 = Math.max(...xs), total = polyArea(poly);
+  const cuts = [x0];
+  for (let k = 1; k < n; k++){
+    let lo = cuts[k-1], hi = x1;
+    for (let it = 0; it < 40; it++){
+      const mid = (lo+hi)/2;
+      if (polyArea(clipBand(poly, x0, mid)) < total*k/n) lo = mid; else hi = mid;
+    }
+    cuts.push((lo+hi)/2);
+  }
+  cuts.push(x1);
+  return cuts;
+}
 function shapeSvg(domains, kind, r, halo){
   // returns inner svg markup centered on 0,0
   let s = '';
@@ -1051,6 +1119,19 @@ function shapeSvg(domains, kind, r, halo){
       const bw = w/domains.length;
       s += `<g>` + domains.map((d,i)=>`<rect x="${(-r+i*bw).toFixed(2)}" y="${-r}" width="${bw.toFixed(2)}" height="${w}" fill="${COLORS[d]||'#999'}"></rect>`).join('') +
         `<rect x="${-r}" y="${-r}" width="${w}" height="${w}" rx="2.5" fill="none" stroke="${stroke}" stroke-width="1.4"></rect></g>`;
+    }
+    return s;
+  }
+  if (kind==='cluster'){
+    // A hexagon: an association or a cluster gathers the others around it.
+    // Several domains are vertical bands, cut to the hexagon's outline.
+    const hex = hexPoints(r*1.08);
+    if (domains.length===1){
+      s += `<polygon points="${ptsAttr(hex)}" fill="${COLORS[domains[0]]||'#999'}" stroke="${stroke}" stroke-width="1.4"></polygon>`;
+    } else {
+      const cuts = equalAreaCuts(hex, domains.length);
+      s += `<g>` + domains.map((d,i)=>`<polygon points="${ptsAttr(clipBand(hex, cuts[i], cuts[i+1]))}" fill="${COLORS[d]||'#999'}"></polygon>`).join('') +
+        `<polygon points="${ptsAttr(hex)}" fill="none" stroke="${stroke}" stroke-width="1.4"></polygon></g>`;
     }
     return s;
   }
@@ -1070,12 +1151,12 @@ function shapeSvg(domains, kind, r, halo){
 }
 function glyphHtml(kind, size){
   const doms = kind==='project' ? ['energy','aviation','multi'] : null;
-  const map = { project:{r:7,d:['multi']}, team:{r:4,d:['multi']}, commons:{r:6,d:['multi']}, framework:{r:5.5,d:['multi']} };
+  const map = { project:{r:7,d:['multi']}, team:{r:4,d:['multi']}, cluster:{r:6.2,d:['multi']}, commons:{r:6,d:['multi']}, framework:{r:5.5,d:['multi']} };
   const c = map[kind]; const s = size||18;
   const inner = shapeSvg(kind==='project'&&doms?doms:c.d, kind, c.r, false);
   return `<svg width="${s}" height="${s}" viewBox="-9 -9 18 18">${inner}</svg>`;
 }
-const MK_R = { project:8.5, commons:7.5, team:4.5, framework:6 };
+const MK_R = { project:8.5, cluster:7, commons:7.5, team:4.5, framework:6 };
 
 // ---------- build static map ----------
 const svg = document.getElementById('map');
@@ -1106,7 +1187,7 @@ const edgeEls = edges.map(e=>{
   return p;
 });
 // markers (order: teams under, then commons, frameworks, projects on top)
-const drawOrder = ['team','commons','framework','project'];
+const drawOrder = ['team','commons','framework','cluster','project'];
 const sorted = items.filter(it=>it.geo).sort((a,b)=>drawOrder.indexOf(a.kind)-drawOrder.indexOf(b.kind));
 gMarkers.innerHTML = sorted.map(it=>{
   const r = MK_R[it.kind];
@@ -1292,11 +1373,21 @@ function refresh(){
     el.classList.toggle('pinned', state.pins.has(it.id));
   });
   hotEdges = [];
+  // One line per organisation (§4.3): of each group's paths, the one to show.
+  const active = new Set();
+  const placedBoth = j => vis.has(edges[j].a) && vis.has(edges[j].b);
+  Object.values(lineGroups).forEach(G => {
+    const own = focus && G.members.includes(focus)
+      ? G.lines.find(j => edges[j].b === focus && placedBoth(j)) : undefined;
+    const pick = own != null ? own : G.lines.find(placedBoth);
+    if (pick != null) active.add(pick);
+  });
   edges.forEach((e,i)=>{
     const el = edgeEls[i];
-    const both = vis.has(e.a) && vis.has(e.b);
-    const hot = focus && (e.a===focus || e.b===focus) && both;
-    const show = hot || (both && state.links && (!state.myMap || state.pins.has(e.a) || state.pins.has(e.b)));
+    const both = vis.has(e.a) && vis.has(e.b) && (!e.grouped || active.has(i));
+    const hot = focus && onLine(e, focus) && both;
+    const show = hot || (both && state.links && (!state.myMap || state.pins.has(e.a) || state.pins.has(e.b)
+      || (e.shared||[]).some(x=>state.pins.has(x))));
     el.classList.toggle('on', !!show);
     if (!show) return;
     if (hot){ hotEdges.push(i); return; }              // styled together, below
@@ -1363,12 +1454,12 @@ function renderLayerRows(){
 // — a count that fell to zero the moment you switched the layer off would be
 // useless for deciding whether to switch it back on.
 function updateLayerCounts(){
-  const n = { project:0, team:0, commons:0, framework:0 };
+  const n = perKind(0);
   // Of those, the ones that will never carry a marker (§3.1 point 4): the
   // international standards and the one non-EU commons that have no
   // coordinates. They match the filters and they have cards, but the map
   // cannot show them.
-  const off = { project:0, team:0, commons:0, framework:0 };
+  const off = perKind(0);
   scopeItems('layer').forEach(it=>{ n[it.kind]++; if (!it.geo) off[it.kind]++; });
   document.querySelectorAll('.layer-row[data-layer]').forEach(b=>{
     const k = b.dataset.layer, el = b.querySelector('.cnt');
@@ -1479,9 +1570,11 @@ function kindOf(id){ return byId[id] ? byId[id].kind : null; }
 function relSections(it){
   const secs = [];
   const push = (key, ids) => { const list = ids.filter(x=>byId[x]); if (list.length) secs.push({key, ids:list}); };
-  if (it.kind==='project' || it.kind==='team'){
-    const cons = [...nOf(it.id)].filter(n => DATA.EDGES.some(e => (e.project===it.id&&e.team===n)||(e.team===it.id&&e.project===n)));
-    push(it.kind==='project' ? 'rel.teams' : 'rel.projects', cons);
+  if (it.kind==='project' || it.kind==='team' || it.kind==='cluster'){
+    const linked = kind => [...nOf(it.id)].filter(n => byId[n] && byId[n].kind===kind && EDGE_SET.has(it.id+'|'+n));
+    if (it.kind==='project') push('rel.teams', linked('team'));
+    if (it.kind==='cluster') push('rel.members', linked('team'));
+    if (it.kind==='team'){ push('rel.projects', linked('project')); push('rel.clusters', linked('cluster')); }
     const created = [], uses = [];
     [...DATA.COMMONS, ...DATA.FRAMEWORKS].forEach(a=>{
       if ((a.createdBy||[]).includes(it.id)) created.push(a.id);
@@ -1583,6 +1676,21 @@ function provHtml(p){
   return `<p class="dt-prov">${esc(bits.join(' · '))}${p.src?`<br><span class="src">${esc(t('provSrc'))} ${esc(p.src)}</span>`:''}</p>`;
 }
 
+// The organisation a team card belongs to: data/organisations.yml, else its
+// own affiliation, else the card itself.
+function orgName(team){
+  const d = byId[team] ? byId[team].d : {};
+  return (d.organisation && d.organisation.name) || (d.affiliation && d.affiliation.org) || d.name || team;
+}
+// An organisation-level link: the team card stands in for its organisation,
+// which takes part through a unit that has no card of its own. Said on the row,
+// so the reader does not take the card's own lab for the partner.
+function orgLevelNote(it, other){
+  const team = it.kind==='team' ? it.id : other.id, src = it.kind==='team' ? other.id : it.id;
+  if (!ORG_EDGE.has(src+'|'+team)) return '';
+  return t(it.kind==='team' ? 'orgTagTeam' : 'orgTagSrc')(orgName(team));
+}
+
 // One card body for both the floating panel and the feed.
 function cardHtml(it){
   const id = it.id;
@@ -1596,7 +1704,10 @@ function cardHtml(it){
   const tags = [spec, d.status ? taxo('status', d.status) : '',
                 d.tier ? taxo('tier', d.tier) : ''].filter(Boolean);
 
+  const org = d.organisation, aff = d.affiliation || {};
   const identity = facts([
+    org && org.name !== aff.org && org.name !== aff.parent
+      ? [t('f.organisation'), org.url ? extUrl(org.url, org.name) : esc(org.name)] : null,
     d.affiliation && d.affiliation.org && d.affiliation.org !== d.name
       ? [t('f.affiliation'), d.affiliation.url ? extUrl(d.affiliation.url, d.affiliation.org) : esc(d.affiliation.org)] : null,
     d.affiliation && d.affiliation.parent ? [t('f.parent'), esc(d.affiliation.parent)] : null,
@@ -1607,7 +1718,7 @@ function cardHtml(it){
     d.license ? [t('f.license'), esc(d.license)] : null,
     d.maintainer ? [t('f.maintainer'), d.maintainer.url ? extUrl(d.maintainer.url, d.maintainer.org) : esc(d.maintainer.org)] : null,
     d.repo && d.repo !== d.url ? [t('f.repo'), extUrl(d.repo)] : null,
-    d.size ? [t('f.size'), esc(d.size)] : null,
+    d.size ? [t(it.kind==='cluster' ? 'f.membership' : 'f.size'), esc(d.size)] : null,
   ]);
 
   const fundingSec = fn ? dtSec(t('sec.funding'), facts([
@@ -1647,6 +1758,7 @@ function cardHtml(it){
     ${dtSec(t('sec.focus'), chips(d.focus, 'focus'))}
     ${dtSec(t('sec.timeline'), timelineHtml(tl, d))}
     ${dtSec(t('sec.consortium'), consortiumHtml(d.consortium))}
+    ${dtSec(t('sec.members'), consortiumHtml(d.members))}
     ${fundingSec}
     ${infraSec}
     ${dtSec(t('sec.demos'), itemsHtml(d.demos, 'label'))}
@@ -1658,10 +1770,10 @@ function cardHtml(it){
     ${linksSec}
     ${secs.map(s=>`
       <section class="dt-sec"><h4>${esc(t(s.key))} <em>${s.ids.length}</em></h4>
-        ${s.ids.map(x=>{ const o = byId[x]; return `
-          <button class="rel-row" data-open="${esc(x)}">
+        ${s.ids.map(x=>{ const o = byId[x], lvl = orgLevelNote(it, o); return `
+          <button class="rel-row" data-open="${esc(x)}"${lvl?` title="${esc(lvl)}"`:''}>
             <span class="glyph"><svg width="16" height="16" viewBox="-9 -9 18 18">${shapeSvg(o.domains,o.kind,o.kind==='team'?4.5:6,false)}</svg></span>
-            <span class="nm">${esc(o.d.name)}</span>
+            <span class="nmc"><span class="nm" title="${esc(o.d.name)}">${esc(o.d.name)}</span>${lvl?`<span class="lvl" aria-label="${esc(lvl)}">${esc(t('orgTag'))}</span>`:''}</span>
             <span class="mt">${esc([o.d.city,o.d.country].filter(Boolean).join(', '))}</span>
           </button>`; }).join('')}
       </section>`).join('')}
@@ -1729,7 +1841,7 @@ gMarkers.addEventListener('pointerout', e=>{
 });
 
 // ---------- in-view counts & feed ----------
-const KIND_ORDER = { project:0, team:1, commons:2, framework:3 };
+const KIND_ORDER = { project:0, team:1, cluster:2, commons:3, framework:4 };
 function updateInView(vis, matched){
   const [w,h] = stageSize(); const pad = 10;
   const unmeasured = w < 2 || h < 2;          // hidden pane / print: count every placed marker
@@ -1756,7 +1868,7 @@ function updateInView(vis, matched){
   state.offScreen = placed - state.inView.size;
 }
 function renderStats(){
-  const n = { project:0, team:0, commons:0, framework:0 }; const ctry = new Set();
+  const n = perKind(0); const ctry = new Set();
   state.inView.forEach(id=>{ const it = byId[id];
     n[it.kind]++;
     if (it.d.country) ctry.add(it.d.country); });
@@ -1764,7 +1876,7 @@ function renderStats(){
   // the layer row above it: the caption's "11 off the map" is a single figure
   // spread across two layers, and a reader comparing "Commons 25" with "24"
   // should not have to work out which of the eleven were commons.
-  const m = { project:0, team:0, commons:0, framework:0 };
+  const m = perKind(0);
   state.inFilter.forEach(id=>{ m[byId[id].kind]++; });
   KINDS.forEach(k=>{
     const el = document.getElementById('st-'+k), tile = el.parentNode;
@@ -1820,7 +1932,7 @@ function styleHotEdges(){
     const e = edges[i], el = edgeEls[i];
     const far = Math.min(1, (e.len||0) / 600);
     let op = baseOp * (1 - 0.4*far), w = baseW;
-    if (peekId && (e.a===peekId || e.b===peekId)){ op = 0.95; w = baseW + 0.9; }
+    if (peekId && onLine(e, peekId)){ op = 0.95; w = baseW + 0.9; }
     else if (peekId) op *= 0.15;                       // one relationship at a time
     el.setAttribute('stroke-opacity', op.toFixed(3));
     el.setAttribute('stroke-width', w.toFixed(2));

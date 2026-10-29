@@ -439,7 +439,7 @@ class DateQuality(unittest.TestCase):
         # which is what makes it catch a pattern narrowed in a way no invented
         # example happens to cover.
         conf_seen = host_seen = 0
-        for layer in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS"):
+        for layer in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS"):
             for o in PAYLOAD[layer]:
                 note = {"provenance": {"source": (o.get("prov") or {}).get("src") or ""}}
                 want = {k: o[k] for k in ("dateConf", "dateHost") if k in o}
@@ -499,7 +499,7 @@ class DateQuality(unittest.TestCase):
             {"dateConf": "high"})
         high_admissions = [
             o["id"]
-            for layer in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS")
+            for layer in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS")
             for o in PAYLOAD[layer]
             for m in [MOD.DATE_NOTE.search((o.get("prov") or {}).get("src") or "")]
             if m and m.group(1) == "high" and MOD.HOST_YEAR.search(m.group(2))
@@ -748,16 +748,18 @@ class TaxoPayload(unittest.TestCase):
             self.assertEqual(list(self.taxo[group]), list(table), group)
 
     def test_the_values_left_untranslated_are_the_known_handful(self):
-        # Six labels are identical in both languages because the French term is
-        # the English one (Cobots, Horizon Europe, a benchmark). Freezing the
-        # list means a seventh — a forgotten translation — shows up as a failure
-        # rather than as English text in the French interface (§12).
+        # Eight labels are identical in both languages because the French term is
+        # the English one (Cobots, Horizon Europe, Horizon 2020, a benchmark, an
+        # association). Freezing the list means a ninth — a forgotten translation —
+        # shows up as a failure rather than as English text in the French
+        # interface (§12).
         same = sorted((g, k) for g, table in self.taxo.items()
                       for k, e in table.items() if e["en"] == e["fr"])
         self.assertEqual(same, [
             ("focus", "cobots"), ("focus", "manufacturing"),
-            ("jurisdiction", "international"), ("kind", "benchmark"),
-            ("kind", "horizon_europe"), ("type", "infrastructure"),
+            ("jurisdiction", "international"), ("kind", "association"), ("kind", "benchmark"),
+            ("kind", "horizon_2020"), ("kind", "horizon_europe"),
+            ("type", "infrastructure"),
         ])
 
     def test_the_payload_is_json_serialisable_and_stable(self):
@@ -795,7 +797,7 @@ class TaxoPayload(unittest.TestCase):
         # back as a defaultdict, or pre-filled from the corpus, would still
         # answer "not in" for an invented string while quietly inventing a
         # label for these — which is the only way this claim can break.
-        for group, value in (("role", "third_party"), ("access", "restricted")):
+        for group, value in (("access", "commercial"), ("access", "restricted")):
             with self.assertRaises(KeyError, msg=f"{group}.{value}"):
                 self.taxo[group][value]
 
@@ -809,16 +811,19 @@ class TaxoPayload(unittest.TestCase):
 
     def test_controlled_values_the_committed_payload_uses_without_a_label(self):
         # SPEC-DEVIATION: §3.4 and §12 claim every controlled vocabulary value
-        # has both labels, but the committed payload carries seven that are not
+        # has both labels, but the committed payload carries six that are not
         # in any TAXO table. They survive — the page de-underscores them, which
         # is the documented degradation — but they reach a French reader in
-        # English ("third party", "restricted"), and the four jurisdictions are
+        # English ("commercial", "restricted"), and the four jurisdictions are
         # country codes rather than vocabulary values at all. Snapshot of the
-        # current payload; update it when the tables catch up.
+        # current payload; update it when the tables catch up. The role table
+        # caught up first: `third_party` went from 12 consortium lines to 115
+        # when the October 2026 review aligned roles on CORDIS, so it now has
+        # its labels.
         fields = [("type", "type"), ("kind", "kind"), ("status", "status"),
                   ("tier", "tier"), ("legal", "legal"), ("jurisdiction", "jurisdiction")]
         missing = set()
-        for layer in ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS"):
+        for layer in ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS"):
             for o in PAYLOAD[layer]:
                 for group, field in fields:
                     v = o.get(field)
@@ -842,13 +847,12 @@ class TaxoPayload(unittest.TestCase):
             ("access", "commercial"), ("access", "restricted"),
             ("jurisdiction", "DE"), ("jurisdiction", "DK"),
             ("jurisdiction", "NL"), ("jurisdiction", "UK"),
-            ("role", "third_party"),
         ])
         # Each of them still reads as text under the documented fallback.
         self.assertEqual(
             {v: v.replace("_", " ") for _, v in sorted(missing)},
             {"commercial": "commercial", "restricted": "restricted", "DE": "DE",
-             "DK": "DK", "NL": "NL", "UK": "UK", "third_party": "third party"})
+             "DK": "DK", "NL": "NL", "UK": "UK"})
 
     def test_3_4_SPEC_DEVIATION_both_languages_are_hand_written_and_taxonomy_yml_is_never_read(self):
         # SPEC-DEVIATION: §3.4 says "English comes from `data/taxonomy.yml`;
@@ -870,9 +874,10 @@ class TaxoPayload(unittest.TestCase):
         # Every YAML path the generator names: the per-layer glob, edges.yml
         # and the two description files. No vocabulary file among them.
         self.assertEqual(sorted(set(re.findall(r'"([^"\s]*\.yml)"', src))),
-                         ["*.yml", "descriptions.{lang}.yml", "edges.yml"])
+                         ["*.yml", "descriptions.{lang}.yml", "edges.yml", "organisations.yml"])
         self.assertEqual(re.findall(r'load_layer\(root, "(\w+)"\)', src),
-                         ["teams", "projects", "infrastructure", "frameworks", "commons"])
+                         ["teams", "projects", "infrastructure", "frameworks", "commons",
+                          "clusters"])
         # And a checkout that does carry a taxonomy.yml is ignored: the emitted
         # block keeps the generator's English label, not the file's.
         tmp = Path(tempfile.mkdtemp())
@@ -905,9 +910,9 @@ class DataAsOf(unittest.TestCase):
             FRAMEWORKS=[{"prov": {"upd": "2024-12-31"}}])
         self.assertEqual(MOD.data_as_of(data), "2026-09-03")
 
-    LAYERS = ("PROJECTS", "COMMONS", "TEAMS", "FRAMEWORKS")
+    LAYERS = ("PROJECTS", "CLUSTERS", "COMMONS", "TEAMS", "FRAMEWORKS")
 
-    def test_every_one_of_the_four_entity_layers_is_consulted(self):
+    def test_every_one_of_the_five_entity_layers_is_consulted(self):
         # §3.5 says "every entity in every layer". In the committed corpus the
         # most recent touch sits in TEAMS and COMMONS, so dropping PROJECTS or
         # FRAMEWORKS from the loop changes nothing today — not the payload
@@ -1097,14 +1102,16 @@ class ResolveSource(unittest.TestCase):
 # the list of ids, whichever layer it is.
 SUMMARY_FIXTURE = {
     "projects":   [("p1", 30, True), ("p2", 45, False)],
+    "clusters":   [("k1", 40, True), ("k2", 55, False), ("k3", 65, True)],
     "commons":    [("c1", 90, False)],
     "teams":      [("t1", 60, True), ("t2", 0, True), ("t3", 75, False)],
     "frameworks": [("f1", 20, False), ("f2", 25, True),
                    ("f3", 35, True), ("f4", 50, True)],
 }
-SUMMARY_COUNTS = {"PROJECTS": 2, "COMMONS": 1, "TEAMS": 3, "FRAMEWORKS": 4, "EDGES": 1}
+SUMMARY_COUNTS = {"PROJECTS": 2, "CLUSTERS": 3, "COMMONS": 1, "TEAMS": 3, "FRAMEWORKS": 4,
+                  "EDGES": 2}
 # In the order main() walks the layers, which is not the order it prints them.
-SUMMARY_GEOLESS = ["p2", "c1", "t3", "f1"]
+SUMMARY_GEOLESS = ["p2", "k2", "c1", "t3", "f1"]
 # f4's English description, authored in data/i18n/descriptions.en.yml and
 # longer than any `desc` in the fixture: main() reads `desc_en or desc`, and
 # the longest thing on the map sits in the last layer its loop reaches.
@@ -1157,6 +1164,7 @@ class Main(unittest.TestCase):
             encoding="utf-8")
         (root / "data" / "edges.yml").write_text(
             "- project: p1\n  team: t1\n"               # kept
+            "- cluster: k1\n  team: t1\n"               # kept: a cluster's member
             "- project: p1\n  team: no-such-team\n"     # dropped: unknown team
             "- project: f4\n  team: t1\n",              # dropped: not a project
             encoding="utf-8")
@@ -1198,7 +1206,7 @@ class Main(unittest.TestCase):
         self.assertEqual(
             [l for l in lines if re.match(r"^  [a-z]+ +\d+$", l)],
             [f"  {name.lower():<11} {SUMMARY_COUNTS[name]}"
-             for name in ("PROJECTS", "TEAMS", "COMMONS", "FRAMEWORKS", "EDGES")])
+             for name in ("PROJECTS", "CLUSTERS", "TEAMS", "COMMONS", "FRAMEWORKS", "EDGES")])
         for name, count in SUMMARY_COUNTS.items():
             self.assertEqual(len(data[name]), count, name)
 

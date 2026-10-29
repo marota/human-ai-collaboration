@@ -65,8 +65,8 @@
       refCheck: 'Vérifier la référence', refChecking: 'Lecture de la page…',
       refSkip: 'Continuer sans référence',
       layerAsk: 'Quelle couche ?',
-      layer: { project: 'Projet / programme', team: 'Équipe', commons: 'Commun',
-        framework: 'Cadre' },
+      layer: { project: 'Projet / programme', team: 'Équipe', cluster: 'Cluster / association',
+        commons: 'Commun', framework: 'Cadre' },
       draftGo: 'Rédiger la fiche', draftWait: 'Rédaction de la fiche par le modèle local — '
         + 'comptez une à deux minutes.',
       draftRetry: 'Rédiger à nouveau',
@@ -125,8 +125,8 @@
       refCheck: 'Check the reference', refChecking: 'Reading the page…',
       refSkip: 'Carry on without a reference',
       layerAsk: 'Which layer?',
-      layer: { project: 'Project / programme', team: 'Team', commons: 'Commons',
-        framework: 'Framework' },
+      layer: { project: 'Project / programme', team: 'Team', cluster: 'Cluster / association',
+        commons: 'Commons', framework: 'Framework' },
       draftGo: 'Draft the card', draftWait: 'The local model is drafting the card — '
         + 'give it a minute or two.',
       draftRetry: 'Draft it again',
@@ -578,7 +578,9 @@
   }
 
   // ---------- the proposal ----------
-  const LAYERS = ['project', 'team', 'commons', 'framework'];
+  const LAYERS = ['project', 'team', 'cluster', 'commons', 'framework'];
+  // Role suggestions for an organisation row whose field names no roles of its own.
+  const ROLE_HINTS = ['coordinator', 'partner', 'member', 'operator', 'funder'];
 
   function startProposal(ev) {
     const mode = ev.mode === 'fix' ? 'fix' : 'add';
@@ -728,16 +730,21 @@
         placeholder="id, id">${names ? `<div class="ch-help">${esc(names)}</div>` : ''}`;
     } else if (f.kind === 'orgs') {
       const rows = (Array.isArray(value) ? value : []);
+      // Each field suggests its own roles: a cluster's members founded it or
+      // joined it, and offering them a consortium's roles invites an error.
+      const roles = f.vocab && f.vocab.length ? f.vocab : ROLE_HINTS;
       control = `<div class="ch-rows" data-field="${esc(f.path)}" data-orgs="1">`
         + rows.concat([{}]).map((row, i) => `<div class="ch-orgrow">
             <input type="text" data-k="org" value="${esc(row.org || '')}"
               placeholder="${esc(w('org'))}">
             <input type="text" data-k="role" value="${esc(row.role || '')}"
-              placeholder="${esc(w('role'))}" list="chf-roles">
+              placeholder="${esc(w('role'))}" list="${id}-roles">
             <input type="text" data-k="country" value="${esc(row.country || '')}"
               placeholder="${esc(w('country'))}" maxlength="2">
             <button type="button" data-drop="${i}" aria-label="${esc(w('remove'))}"
-              >${i < rows.length ? '×' : ''}</button></div>`).join('') + '</div>';
+              >${i < rows.length ? '×' : ''}</button></div>`).join('') + '</div>'
+        + `<datalist id="${id}-roles">${roles.map((r) =>
+          `<option value="${esc(r)}">`).join('')}</datalist>`;
     } else {
       const type = f.kind === 'url' ? 'url' : f.kind === 'number' ? 'number' : 'text';
       control = `<input type="${type}" id="${id}" data-field="${esc(f.path)}"
@@ -774,8 +781,6 @@
     const d = el(`<p>${esc(w('formIntro'))}</p>
       ${diffTable}
       <div class="ch-fields">${main.map(draw).join('')}</div>
-      <datalist id="chf-roles">${['coordinator', 'partner', 'member', 'operator', 'funder']
-        .map((r) => `<option value="${r}">`).join('')}</datalist>
       ${extra.length ? `<details class="ch-fold"><summary>${esc(w('more'))}</summary>
         <div class="ch-fields" style="margin-top:8px">${extra.map(draw).join('')}</div>
       </details>` : ''}

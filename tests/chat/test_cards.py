@@ -13,9 +13,12 @@ assertable from a committed payload alone.
 from __future__ import annotations
 
 import datetime as dt
+import json
+import os
 import unittest
+from pathlib import Path
 
-from tests._harness import DATA_JS, load_generator
+from tests._harness import DATA_JS, load_generator, load_payload
 
 CHAT = None
 GEN = load_generator()
@@ -29,6 +32,41 @@ def setUpModule() -> None:
 
 def corpus():
     return CHAT.hai_data.load(DATA_JS)
+
+
+def upstream_schema(name):
+    """A JSON Schema from the eu-hai-collab-map checkout, when there is one here.
+
+    Looked for where the generator looks for the checkout ($EU_HAI_MAP_REPO,
+    then the usual places), so a test that needs it runs wherever the map can
+    be built and is skipped, saying so, everywhere else.
+    """
+    roots = [Path(os.environ["EU_HAI_MAP_REPO"]).expanduser()] \
+        if os.environ.get("EU_HAI_MAP_REPO") else []
+    for root in roots + list(GEN.CANDIDATE_SOURCES):
+        path = root / "schemas" / name
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    return None
+
+
+def cluster_card():
+    """A whole cluster card, with every value YAML 1.1 likes to misread."""
+    return {
+        "id": "example-water-cluster",
+        "name": "Example Water Cluster",
+        "kind": "project_cluster",
+        "status": "active",
+        "homepage": "https://example.org/cluster",
+        "location": {"country": "NO", "city": "Oslo", "lat": 59.91, "lon": 10.75},
+        "timeline": {"start": "2019"},
+        "members": [{"org": "Example University", "role": "founder", "country": "NO"},
+                    {"org": "Example Utility", "role": "member", "country": "DE"}],
+        "size_indicator": "180",
+        "description": "A cluster of funded projects on decision support for water networks.",
+        "provenance": {"added_by": "someone", "source": "https://example.org/cluster",
+                       "confidence": "medium"},
+    }
 
 
 class VocabularyStaysInStepWithTheGenerator(unittest.TestCase):
@@ -51,6 +89,20 @@ class VocabularyStaysInStepWithTheGenerator(unittest.TestCase):
         self.assertEqual(sorted(CHAT.cards.STATUSES), sorted(GEN.TAXO["status"]))
         self.assertTrue(set(CHAT.cards.TEAM_TYPES) <= set(GEN.TAXO["kind"])
                         | set(GEN.TAXO["type"]))
+
+    def test_the_cluster_vocabularies(self):
+        self.assertEqual(CHAT.cards.KINDS["cluster"], ("association", "network", "project_cluster"))
+        self.assertEqual(CHAT.cards.CLUSTER_ROLES, ("founder", "member"))
+        on_map = {e["kind"] for e in load_payload()["CLUSTERS"] if e.get("kind")}
+        self.assertTrue(on_map <= set(CHAT.cards.KINDS["cluster"]), on_map)
+
+    def test_the_cluster_vocabularies_are_the_data_repository_s(self):
+        schema = upstream_schema("cluster.schema.json")
+        if schema is None:
+            self.skipTest("no eu-hai-collab-map checkout with schemas/cluster.schema.json")
+        self.assertEqual(list(CHAT.cards.KINDS["cluster"]), schema["properties"]["kind"]["enum"])
+        roles = schema["properties"]["members"]["items"]["properties"]["role"]["enum"]
+        self.assertEqual(list(CHAT.cards.CLUSTER_ROLES), [r for r in roles if r is not None])
 
 
 class TheFieldTableDrivesTheForm(unittest.TestCase):
@@ -194,6 +246,57 @@ class ChecksWhatUpstreamWouldCheck(unittest.TestCase):
         self.assertIn("consortium", self.paths(
             CHAT.cards.validate("project", card, self.corpus, "add", "en")))
 
+    def test_the_project_schema_roles_third_party_and_observer_are_accepted(self):
+        # The data repository's project schema allows both, and since the
+        # October 2026 review a CORDIS linked third party is written
+        # `third_party` on 115 consortium lines. Refusing them here would turn
+        # every correction to one of those projects into an error the
+        # contributor cannot fix from the form.
+        card = {"id": "x-project", "name": "X", "status": "active",
+                "homepage": "https://example.org", "timeline": {"start": "2024"},
+                "description": "A project about operator decision support in grids.",
+                "provenance": {"added_by": "a", "source": "b", "confidence": "low"},
+                "consortium": [{"org": "A", "role": "coordinator", "country": "FR"},
+                               {"org": "B", "role": "third_party", "country": "DE"},
+                               {"org": "C", "role": "observer", "country": "BE"}]}
+        self.assertNotIn("consortium", self.paths(
+            CHAT.cards.validate("project", card, self.corpus, "add", "en")))
+
+    def test_a_complete_cluster_card_passes(self):
+        card = CHAT.cards.fill_defaults("cluster", cluster_card(), self.corpus)
+        self.assertTrue(self.check(card, layer="cluster").ok)
+
+    def test_a_cluster_member_may_be_a_founder(self):
+        card = cluster_card()
+        card["members"] = [{"org": "Example University", "role": "founder", "country": "FI"}]
+        self.assertNotIn("members", self.paths(self.check(card, layer="cluster")))
+
+    def test_a_cluster_member_is_no_coordinator(self):
+        # A cluster's members founded it or joined it; a consortium's roles
+        # are refused, with the message that names the cluster's own.
+        card = cluster_card()
+        card["members"] = [{"org": "Example University", "role": "coordinator"}]
+        errors = [e for e in self.check(card, layer="cluster").errors if e["path"] == "members"]
+        self.assertEqual([e["message"] for e in errors], [CHAT.cards._MSG["role_cluster"][0]])
+        self.assertIn("founder/member", errors[0]["message"])
+        fr = self.check(card, lang="fr", layer="cluster").errors
+        self.assertIn(CHAT.cards._MSG["role_cluster"][1], [e["message"] for e in fr])
+
+    def test_an_organisation_row_s_country_is_two_capitals(self):
+        for layer, key in (("cluster", "members"), ("project", "consortium")):
+            for bad in ("no", "Norway", "N0"):
+                card = cluster_card() if layer == "cluster" else {
+                    "id": "x-project", "name": "X", "status": "active",
+                    "homepage": "https://example.org", "timeline": {"start": "2024"},
+                    "description": "A project about operator decision support in grids.",
+                    "provenance": {"added_by": "a", "source": "b", "confidence": "low"}}
+                card[key] = [{"org": "A", "country": bad}]
+                with self.subTest(layer=layer, country=bad):
+                    errors = [e for e in self.check(card, layer=layer).errors
+                              if e["path"] == key]
+                    self.assertEqual([e["message"] for e in errors],
+                                     [CHAT.cards._MSG["country"][0]])
+
 
 class WarnsWhereAMaintainerWould(unittest.TestCase):
     @classmethod
@@ -262,6 +365,12 @@ class FillsInWhatItCanCompute(unittest.TestCase):
         card = CHAT.cards.fill_defaults("team", {"name": "New Lab"}, self.corpus)
         self.assertEqual(card["provenance"]["confidence"], "low")
 
+    def test_a_cluster_s_homepage_is_top_level_as_its_schema_has_it(self):
+        card = CHAT.cards.fill_defaults("cluster", {"name": "New Cluster"}, self.corpus,
+                                        {"url": "https://example.org", "confirms": True})
+        self.assertEqual(card["homepage"], "https://example.org")
+        self.assertNotIn("links", card)
+
     def test_what_the_contributor_wrote_is_never_overwritten(self):
         card = CHAT.cards.fill_defaults(
             "team", {"name": "New Lab", "id": "my-own-slug",
@@ -291,6 +400,65 @@ class ReadsACardBackForCorrection(unittest.TestCase):
         self.assertIn("homepage", values)
         self.assertNotIn("links", values)
         self.assertTrue(values["consortium"][0]["org"])
+
+    def test_a_cluster_comes_back_with_its_kind_and_a_top_level_homepage(self):
+        # The layer used to overwrite the payload's kind, so a correction to a
+        # cluster had an empty required Kind, and its YAML no `kind` at all.
+        raw = next(e for e in load_payload()["CLUSTERS"] if e["id"] == "adra")
+        values = CHAT.cards.current_values("cluster", self.corpus.by_id["adra"])
+        self.assertEqual(values["kind"], "association")
+        self.assertEqual(values["kind"], raw["kind"])
+        self.assertEqual(values["homepage"], raw["url"])
+        self.assertNotIn("links", values)
+        if raw.get("size"):
+            self.assertEqual(values["size_indicator"], raw["size"])
+        else:
+            self.assertNotIn("size_indicator", values)
+
+    def test_a_cluster_s_membership_and_members_come_back(self):
+        clusters = load_payload()["CLUSTERS"]
+        sized = [e for e in clusters if e.get("size")]
+        self.assertTrue(sized, "some cluster on the map records its membership")
+        for raw in sized:
+            values = CHAT.cards.current_values("cluster", self.corpus.by_id[raw["id"]])
+            self.assertEqual(values["size_indicator"], raw["size"], raw["id"])
+        for raw in (e for e in clusters if e.get("members")):
+            values = CHAT.cards.current_values("cluster", self.corpus.by_id[raw["id"]])
+            self.assertEqual([m["org"] for m in values["members"]],
+                             [m["org"] for m in raw["members"]], raw["id"])
+
+    def test_every_layer_with_a_kind_reads_its_own_back(self):
+        payload = load_payload()
+        for const, layer in (("PROJECTS", "project"), ("CLUSTERS", "cluster"),
+                             ("COMMONS", "commons"), ("FRAMEWORKS", "framework")):
+            with self.subTest(layer):
+                raws = [e for e in payload[const] if e.get("kind") in CHAT.cards.KINDS[layer]]
+                self.assertTrue(raws)
+                for raw in raws:
+                    values = CHAT.cards.current_values(layer, self.corpus.by_id[raw["id"]])
+                    self.assertEqual(values.get("kind"), raw["kind"], raw["id"])
+        # A team has a type, not a kind, and is never handed one.
+        team = next(e for e in self.corpus.entities if e["kind"] == "team")
+        self.assertNotIn("kind", CHAT.cards.current_values("team", team))
+
+    def test_a_team_s_type_and_a_commons_size_come_back(self):
+        # Both forms ask for these, and both are on the card the reader saw; a
+        # correction that started without them had a blank required Type.
+        payload = load_payload()
+        for raw in payload["TEAMS"][:20]:
+            values = CHAT.cards.current_values("team", self.corpus.by_id[raw["id"]])
+            self.assertEqual(values.get("type"), raw.get("type") or None, raw["id"])
+        sized = [e for e in payload["COMMONS"] if e.get("size")]
+        self.assertTrue(sized, "some commons on the map records its size")
+        for raw in sized:
+            values = CHAT.cards.current_values("commons", self.corpus.by_id[raw["id"]])
+            self.assertEqual(values["size_indicator"], raw["size"], raw["id"])
+
+    def test_a_cluster_read_back_passes_its_own_checks(self):
+        for e in (e for e in self.corpus.entities if e["kind"] == "cluster"):
+            values = CHAT.cards.current_values("cluster", e)
+            report = CHAT.cards.validate("cluster", values, self.corpus, "fix", "en")
+            self.assertTrue(report.ok, (e["id"], report.errors))
 
     def test_a_diff_names_only_what_moved(self):
         before = CHAT.cards.current_values("team", self.corpus.by_id["rte-rd-grid-ai"])
@@ -367,6 +535,57 @@ class WritesYamlThatReadsLikeTheRepository(unittest.TestCase):
         self.assertEqual(loaded["location"]["lat"], 52.0)
         self.assertEqual(loaded["focus_areas"], ["decision_support"])
         self.assertIn("Second paragraph.", loaded["description"])
+
+    def test_a_string_yaml_would_read_as_something_else_is_quoted(self):
+        # Written plain, a year is an int, a date a date, Norway's code a
+        # boolean and "null" nothing — each one fails a schema that asks for a
+        # string.
+        import yaml
+        for value in ("2019", "2026-10-28", "NO", "no", "Yes", "off", "TRUE", "null", "y",
+                      "180", "1.5", "1_000", "0x1F", "1e5", "Lab "):
+            with self.subTest(value):
+                text = CHAT.cards.to_yaml({"id": "x", "name": value}, "team")
+                self.assertEqual(yaml.safe_load(text)["name"], value)
+        # …and one that reads back as itself stays plain, so the file keeps the
+        # look of the hand-written ones beside it.
+        for value in ("NL", "Delft", "2018-12", "research_lab", "CC-BY-4.0"):
+            self.assertIn(f"name: {value}\n",
+                          CHAT.cards.to_yaml({"id": "x", "name": value}, "team"))
+
+    def cluster_yaml(self):
+        import yaml
+        card = CHAT.cards.fill_defaults("cluster", cluster_card(), corpus())
+        return yaml.safe_load(CHAT.cards.to_yaml(card, "cluster"))
+
+    def test_a_cluster_card_comes_back_with_strings_where_its_schema_wants_them(self):
+        loaded = self.cluster_yaml()
+        self.assertEqual(loaded["timeline"]["start"], "2019")
+        self.assertEqual(loaded["provenance"]["added_on"], dt.date.today().isoformat())
+        self.assertEqual(loaded["location"]["country"], "NO")
+        self.assertEqual([m["country"] for m in loaded["members"]], ["NO", "DE"])
+        self.assertEqual(loaded["size_indicator"], "180")
+        self.assertEqual(loaded["location"]["lat"], 59.91)
+
+    def test_a_cluster_card_validates_against_the_data_repository_s_schema(self):
+        schema = upstream_schema("cluster.schema.json")
+        if schema is None:
+            self.skipTest("no eu-hai-collab-map checkout with schemas/cluster.schema.json")
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("jsonschema is not installed")
+        validator = jsonschema.Draft202012Validator(
+            schema, format_checker=jsonschema.FormatChecker())
+        errors = [f"{'.'.join(map(str, e.absolute_path))}: {e.message}"
+                  for e in validator.iter_errors(self.cluster_yaml())]
+        self.assertEqual(errors, [])
+
+    def test_a_cluster_s_members_are_written_where_the_template_has_them(self):
+        text = CHAT.cards.to_yaml(cluster_card(), "cluster")
+        order = [line.split(":")[0] for line in text.splitlines()
+                 if line and not line.startswith((" ", "-"))]
+        self.assertLess(order.index("members"), order.index("timeline"))
+        self.assertEqual(order[-2:], ["description", "provenance"])
 
 
 if __name__ == "__main__":

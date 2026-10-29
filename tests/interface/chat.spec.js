@@ -27,7 +27,7 @@ const HEALTH = {
   data: { as_of: '2026-09-03', counts: { project: 111, team: 268, commons: 25, framework: 45, links: 299 }, source: 'assets/map/hai-data.js' },
   model: { url: 'http://127.0.0.1:11434', chat_model: 'test-model', draft_model: 'test-drafter', reachable: true, models: ['test-model'], missing: [], ok: true },
   github: { repo: 'marota/human-ai-collaboration', data_repo: 'marota/eu-hai-collab-map', ok: true, account: 'marota', dry_run: true },
-  layers: ['project', 'team', 'commons', 'framework'],
+  layers: ['project', 'team', 'cluster', 'commons', 'framework'],
 };
 
 const FIELDS = [
