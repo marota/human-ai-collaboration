@@ -863,12 +863,17 @@ test.describe('§4.2 the jitter pass', () => {
     // global pass — which would separate them — cannot happen unnoticed. The
     // pair is looked up in the payload rather than named, so a regeneration
     // that moves one of them re-picks another instead of voiding the test.
+    // The pair has to share the coordinates themselves, not just the 1/100°
+    // cell: since the phase 2 review put team pins on their own addresses, most
+    // team/project neighbours in one cell sit slightly apart and project a
+    // fraction of a unit from each other — alone in their groups all the same,
+    // but not coincident.
     await openMap(page);
-    const cell = (m) => m.rawLat.toFixed(2) + ',' + m.rawLon.toFixed(2);
+    const same = (a, b) => a.rawLat === b.rawLat && a.rawLon === b.rawLon;
     const lone = PLACED.filter((m) => m.groupSize === 1);
     const found = lone
       .filter((m) => m.kind === 'team')
-      .map((t) => [t, lone.find((o) => o.kind !== 'team' && cell(o) === cell(t))])
+      .map((t) => [t, lone.find((o) => o.kind !== 'team' && same(o, t))])
       .find(([, o]) => o);
     expect(found, 'no two layer groups share a cell, so nothing can overlap').not.toBe(undefined);
     const pair = found.map((m) => m.id);
@@ -2621,10 +2626,17 @@ test.describe('§4.4 the gestures on the stage', () => {
     expect(mid.dragging, 'the grabbing cursor is on for the whole gesture').toBe(true);
     // Each move is measured from where the finger went down, not from the last
     // move: 60 then 120, not 60 then 180.
-    expect(mid.x - before.x).toBeCloseTo(60, 6);
-    expect(mid.y - before.y).toBeCloseTo(-40, 6);
-    expect(after.x - before.x, 'the pan follows the pointer, one canvas unit per pixel').toBeCloseTo(120, 6);
-    expect(after.y - before.y).toBeCloseTo(-80, 6);
+    // Three decimals, not six: Chromium carries pointer coordinates as 32-bit
+    // floats, so a delta between two fractional positions (the marker centre
+    // pickForGesture() returns, plus 60 or minus 40) can be off by one float32
+    // step — 2⁻¹⁵ ≈ 0.00003 px at a few hundred pixels, under 2⁻¹³ anywhere on
+    // a stage narrower than 2048 px. Which marker gets picked moves with the
+    // data, so whether that step shows up does too. A thousandth of a pixel
+    // still tells a pan of 120 from one of 180 or of 120 × k.
+    expect(mid.x - before.x).toBeCloseTo(60, 3);
+    expect(mid.y - before.y).toBeCloseTo(-40, 3);
+    expect(after.x - before.x, 'the pan follows the pointer, one canvas unit per pixel').toBeCloseTo(120, 3);
+    expect(after.y - before.y).toBeCloseTo(-80, 3);
     expect(after.k, 'a drag is not a zoom').toBe(before.k);
     // And the gesture is put away: a drag that leaves dragStart set keeps
     // panning on every later move with no button held.

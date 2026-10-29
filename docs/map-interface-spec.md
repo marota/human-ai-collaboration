@@ -743,15 +743,16 @@ flatten them:
   nothing about when a decades-old institute began.
 - **Researched.** A handful were resolved individually: PowSyBl 2018, Italgas
   2017 (not the 1837 company), Energinet 2023, Vitens 2010, Inserm AI Health
-  2021-12, Thames Water 2026, IFAC TC 4.1 1981.
+  2021-12, Thames Water 2026-03, IFAC TC 4.1 1981, and ČEPS, whose card now
+  describes its ARTIC dispatch project, 2019.
 - **Judged from the nature of the entry.** Standing institutes and university
   departments are pre-2020 with near-certainty; a named modern programme inside
-  an old institution is not. Three remain genuinely open — ČEPS Grid AI &
-  Ethics, Transelectrica Smart Grid / SCADA, Uisce Éireann Leakage AI — and are
-  treated as pre-2020, which may be wrong for them.
+  an old institution is not. Two remain genuinely open — Transelectrica Smart
+  Grid / SCADA and Uisce Éireann Leakage AI — and are treated as pre-2020, which
+  may be wrong for them.
 
 **The 1945 floor.** A handful of corporate laboratories and universities predate
-it — Philips 1914, the ASEA and Siemens laboratories 1916, Radboud 1923 — and
+it — Siemens 1905, Philips 1914, the ASEA laboratory 1916, Radboud 1923 — and
 stretching the axis to the oldest founding year would make the useful range
 unusable. The axis stops at 1945; those entities stay included in any range that
 reaches the floor.

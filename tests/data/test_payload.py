@@ -414,8 +414,8 @@ class RequiredFields(unittest.TestCase):
         # placeholder — which is only true while `desc` is always populated.
         missing = sorted(o["id"] for o in all_entities()
                          if not (o.get("desc_en") and o.get("desc_fr")))
-        # Three teams are still untranslated upstream; they fall back to `desc`.
-        self.assertEqual(missing, ["epri-europe", "polimi-airlab-rl", "uva-illc"])
+        # Every entity is translated upstream.
+        self.assertEqual(missing, [])
         for o in all_entities():
             with self.subTest(id=o["id"]):
                 self.assertTrue(o.get("desc_en") or o.get("desc"))
@@ -1272,8 +1272,8 @@ class PerLayerFields(unittest.TestCase):
         # `extUrl()` wraps whatever it is given in an `<a href>`, so a value that
         # is not a URL becomes a link to a relative path that does not exist. §3.3
         # states the dead-link guarantee only for `consortium[].ref`, and these
-        # six values are the places it does not reach: three bibliographic
-        # citations in `links.papers` (papers with no DOI URL upstream) and three
+        # five values are the places it does not reach: three bibliographic
+        # citations in `links.papers` (papers with no DOI URL upstream) and two
         # bare social handles. Pinned rather than fixed, so a regression widens
         # the set and fails here.
         offenders = []
@@ -1286,7 +1286,6 @@ class PerLayerFields(unittest.TestCase):
                 if not re.match(r"^https?://", paper):
                     offenders.append((o["id"], "papers"))
         self.assertEqual(sorted(offenders), [
-            ("dfki-trustworthy-ai", "linkedin"),
             ("dfki-trustworthy-ai", "twitter"),
             ("ellis-society", "twitter"),
             ("meaningful-human-control", "papers"),
@@ -1374,11 +1373,12 @@ class PerLayerFields(unittest.TestCase):
                 m = gen.DATE_NOTE.search(probe)
                 self.assertIsNotNone(m)
                 self.assertEqual(m.group(1), level)
+        # A later review appends its own note; the last one is the current one.
         notes = {}
         for o in all_entities():
-            m = gen.DATE_NOTE.search(o["prov"].get("src", ""))
-            if m:
-                notes[o["id"]] = (m.group(1), m.group(2).strip())
+            found = list(gen.DATE_NOTE.finditer(o["prov"].get("src", "")))
+            if found:
+                notes[o["id"]] = (found[-1].group(1), found[-1].group(2).strip())
         self.assertEqual(sorted(notes),
                          sorted(o["id"] for o in all_entities() if "dateConf" in o))
         self.assertEqual({i: c for i, (c, _) in notes.items()},

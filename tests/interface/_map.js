@@ -33,6 +33,34 @@ export async function openMap(page, { lang = 'en', hash = '', storage = null } =
   return page;
 }
 
+/** Reduce one entity to the bare-`desc` shape before the page boots: its
+ *  `desc_en` and `desc_fr` are dropped and its `desc` is kept. §12's fallback
+ *  chain (`desc_<LANG> || desc`) exists for that shape, and since the phase 2
+ *  review of the team cards every entity in the payload is translated, so the
+ *  tests about the fallback build the case instead of finding it. Same
+ *  technique as integrity.spec.js's hostile entities: a setter on
+ *  `window.HAI_DATA` catches the payload between hai-data.js and the inline
+ *  script, so `byId`, the card, the feed and the print sheet all see the
+ *  reduced entity from boot. The subject is the lowest id among `layers` (the
+ *  payload's own array names) that carries a `desc`; tests find it again by
+ *  that shape rather than by name. An init script, so it survives a reload.
+ *  Call it before openMap(). */
+export async function bareDesc(page, layers = ['PROJECTS', 'CLUSTERS', 'COMMONS', 'TEAMS', 'FRAMEWORKS']) {
+  await page.addInitScript((keys) => {
+    let real;
+    Object.defineProperty(window, 'HAI_DATA', {
+      configurable: true,
+      get() { return real; },
+      set(v) {
+        real = v;
+        const hit = keys.flatMap((k) => v[k]).filter((e) => e.desc)
+          .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+        if (hit) { delete hit.desc_en; delete hit.desc_fr; }
+      },
+    });
+  }, layers);
+}
+
 /** The page's own state object, plus the derived figures the spec talks about. */
 export function snapshot(page) {
   return page.evaluate(() => ({

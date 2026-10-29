@@ -23,7 +23,7 @@
 import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, layerRows, caption, setLayers, settleCounts,
-  zoomBy, fitAll, expectCountersReconcile, MAP_PATH,
+  zoomBy, fitAll, expectCountersReconcile, MAP_PATH, bareDesc,
 } from './_map.js';
 
 // ---------------------------------------------------------------- local helpers
@@ -955,11 +955,12 @@ test.describe('§12 the content switches too', () => {
   });
 
   test('§12 an entity with no desc_fr/desc_en falls back to desc in both languages', async ({ page }) => {
-    // A handful of entities carry only the undifferentiated `desc`; the card must
-    // show it rather than the "description to come" placeholder. The subject is
-    // chosen by that property, lowest id first, rather than named: a regeneration
-    // that finally translates this one should move the test to the next such
-    // entity, not leave it asserting nothing.
+    // An entity that carries only the undifferentiated `desc` must show it rather
+    // than the "description to come" placeholder. The payload has none left —
+    // the phase 2 review translated the last three — so bareDesc() builds one at
+    // boot, and on the reload below. The subject is still found by that
+    // property, lowest id first, rather than named.
+    await bareDesc(page);
     await openMap(page, { lang: 'en' });
     const pick = await page.evaluate(() => {
       const D = window.HAI_DATA;
@@ -968,7 +969,7 @@ test.describe('§12 the content switches too', () => {
         .sort((a, b) => (a.id < b.id ? -1 : 1))[0];
       return hit ? { id: hit.id, desc: hit.desc } : null;
     });
-    expect(pick, 'the payload must still hold an entity with only `desc`').not.toBeNull();
+    expect(pick, 'bareDesc() must have left an entity with only `desc`').not.toBeNull();
     // Deep-link to whichever entity that is. The page reads #e= once, at boot,
     // and a goto that differs from the current URL only in its fragment is a
     // same-document navigation — so the reload is what makes the deep link run.
