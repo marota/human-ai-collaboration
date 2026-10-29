@@ -991,13 +991,29 @@ test.describe('§6 My map replaces the axes', () => {
     const vague = await page.evaluate((x) => window.__oracle.vagueOf(x), ids);
     const years = await page.evaluate((x) => window.__oracle.histYearsOf(x), ids);
     expect(await undatedCount(page)).toBe(vague);
-    expect((await histBars(page)).map((b) => b.y)).toEqual(years);
+    const bars = await histBars(page);
+    expect(bars.map((b) => b.y)).toEqual(years);
     // Both figures are guarded as well as compared: an oracle that drifted to zero bars and
     // a zero count would agree with a page that had stopped computing either of them. The
     // pin itself dates from its host, which is where the unknown start comes from.
     expect(vague).toBeGreaterThan(0);
     expect(years.length).toBeGreaterThan(0);
-    expect(years.length).toBeLessThan((await bounds(page)).YMAX - (await bounds(page)).YMIN + 1);
+    // The years alone used to tell the pin set from the corpus, because they covered less
+    // of the axis. They no longer do: the phase 2 review dated the pin from its host's 1902,
+    // under the floor and still running, so its bars span the whole axis just as the
+    // corpus's do. The heights still differ, so they are what is compared — §6.1's own
+    // arithmetic (each year's share of the filtered peak, floored at 1.1 of the 19-unit
+    // band, as the two normalisation tests above pin) — and the guard is that the corpus
+    // would have drawn a different curve.
+    const heightsOf = (counts) => {
+      const peak = Math.max(...counts.map((c) => c.n));
+      return counts.map((c) => [c.y, Math.max(1.1, (c.n / peak) * 19).toFixed(2)]);
+    };
+    const want = heightsOf(await page.evaluate((x) => window.__oracle.histCountsOf(x), ids));
+    expect(bars.map((b) => [b.y, b.h])).toEqual(want);
+    const corpus = heightsOf(await page.evaluate(() =>
+      window.__oracle.histCountsOf(window.__oracle.pass({ skip: 'period' }))));
+    expect(want).not.toEqual(corpus);
   });
 
   test('§6 a pin whose entity has left the data is ignored rather than counted', async ({ page }) => {

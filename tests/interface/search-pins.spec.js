@@ -29,7 +29,7 @@
 // interface vocabulary.
 import { test, expect } from '@playwright/test';
 import { openMap, snapshot, setLayers, setPeriod, settleCounts, tiles, layerRows,
-  caption, expectCountersReconcile, MAP_PATH } from './_map.js';
+  caption, expectCountersReconcile, MAP_PATH, bareDesc } from './_map.js';
 
 // ---------------------------------------------------------------- local rig
 
@@ -359,8 +359,8 @@ async function narrowed(page) {
 //   chalmers-revere — an ordinary placed team, for the tests that need some
 //                pin and do not care which. The two that are about "pins and
 //                their neighbours" choose theirs by degree (`pinWith`), and
-//                the one about §12's description fallback chooses the team
-//                that has that shape.
+//                the one about §12's description fallback builds the team
+//                that has that shape (`bareDesc`) and chooses it by it.
 const DLR = 'dlr-gsoc';
 const REVERE = 'chalmers-revere';
 const SAE = 'sae-j3016';
@@ -597,12 +597,18 @@ test.describe('§11 search — ranking carries the affiliation widening', () => 
     await dropOpen(page);
     const ref = await reference(page, 'universit');
     const teams = ref.find((g) => g.kind === 'team');
-    // The bug the spec describes only exists when affiliation matches outnumber
-    // own-name matches and the own-name ones already fill the slots. That shape
-    // is what the fixture is for, so it is read off the payload rather than
-    // pinned to the two figures it happened to have on the day.
-    expect(teams.aff.length).toBeGreaterThan(teams.own.length);
+    // The bug the spec describes only exists when the own-name matches already
+    // fill the slots and a list left in corpus order would let parent matches
+    // into them. That shape is what the fixture is for, so it is read off the
+    // payload rather than pinned to the figures it happened to have on the day.
+    // (It used to be guarded as "more affiliation matches than own-name ones";
+    // the phase 2 review renamed teams after their universities and the two
+    // counts drew level, but the corpus-order cut still admits parent matches,
+    // which is the condition that matters.)
     expect(teams.own.length).toBeGreaterThanOrEqual(CAP);
+    const corpusOrder = await page.evaluate(() => window.HAI_DATA.TEAMS.map((t) => t.id));
+    const unranked = corpusOrder.filter((id) => teams.own.includes(id) || teams.aff.includes(id)).slice(0, CAP);
+    expect(unranked.filter((id) => teams.aff.includes(id)).length).toBeGreaterThan(0);
 
     const shown = (await groups(page)).find((g) => g.label === LAYER_LABEL.team).ids;
     expect(shown).toEqual(teams.own.slice(0, CAP));        // exact order: stable sort
@@ -628,10 +634,15 @@ test.describe('§11 search — ranking carries the affiliation widening', () => 
   });
 
   test('§11 within one rank the order is the corpus order — the sort is stable', async ({ page }) => {
+    // 'zentrum' alone used to be the query; the phase 2 review spelled out more
+    // affiliations in full (the other DLR institutes, DKFZ, Forschungszentrum
+    // Jülich, TZW), which takes it to nine teams — past the cap. The DLR's full
+    // name is narrower and has the same shape: affiliation-only, under the cap.
+    const q = 'deutsches zentrum';
     await openMap(page);
-    await type(page, 'zentrum');              // teams, every one affiliation-only
+    await type(page, q);                      // teams, every one affiliation-only
     await dropOpen(page);
-    const ref = await reference(page, 'zentrum');
+    const ref = await reference(page, q);
     const teams = ref.find((g) => g.kind === 'team');
     expect(teams.own).toEqual([]);
     // More than one row, or there is no order to be stable about; no more than
@@ -1588,17 +1599,20 @@ test.describe('§11 print', () => {
   });
 
   test('§11 an entry whose description has only a bare desc still prints one', async ({ page }) => {
-    // §11 says the sheet carries descriptions; a few teams in the payload have
-    // a bare `desc` and no language key at all (§12's fallback chain). The
+    // §11 says the sheet carries descriptions; a team with a bare `desc` and no
+    // language key at all is the case §12's fallback chain exists for. The
     // sheet renders `desc_<LANG> || desc`, and dropping the second half empties
     // the paragraph for exactly those — invisible to every other print test,
-    // because every other fixture carries a language key. The subject here is
-    // that shape, so the team is chosen by it instead of being named.
+    // because every other fixture carries a language key. The payload has no
+    // such team since the phase 2 review translated the last ones, so
+    // bareDesc() builds one at boot; the subject is then chosen by that shape
+    // instead of being named.
+    await bareDesc(page, ['TEAMS']);
     await openMap(page);
     const bare = await page.evaluate(() => window.HAI_DATA.TEAMS
       .filter((t) => t.desc && t.desc_en == null && t.desc_fr == null)
       .map((t) => ({ id: t.id, name: t.name, desc: t.desc })));
-    expect(bare.length).toBeGreaterThan(0);     // the shape is still in the payload
+    expect(bare.length).toBeGreaterThan(0);     // bareDesc() built the shape
     const d = bare[0];
     expect(d.desc.length).toBeGreaterThan(0);
     await pinFromCard(page, d.id);
@@ -1866,9 +1880,14 @@ test.describe('§13 private mode — storage that throws', () => {
     page.on('pageerror', (e) => crashes.push(String(e)));
     await openRaw(page, { init: deny, lang: 'en' });
     await page.click('#w-explore');
-    await type(page, 'deutsches zentrum');
+    // The query reaches every DLR institute, not just the fixture, so the list
+    // is held to the payload's own match set rather than to one row.
+    const q = 'deutsches zentrum';
+    await type(page, q);
     await dropOpen(page);
-    expect((await rows(page)).map((r) => r.id)).toEqual([DLR]);
+    const ids = (await rows(page)).map((r) => r.id);
+    expect(ids).toEqual((await reference(page, q)).flatMap((g) => g.shown.map((h) => h.id)));
+    expect(ids).toContain(DLR);
     await page.click(`#search-drop [data-open="${DLR}"]`);
     expect((await snapshot(page)).focusId).toBe(DLR);
     await stubClipboard(page);

@@ -9,7 +9,7 @@
 // deliberately *not* filtered, which looks like the stale-count bug §9.1
 // forbids and must never be "fixed" into one. Those tests say so out loud.
 import { test, expect } from '@playwright/test';
-import { openMap, snapshot, openViaSearch } from './_map.js';
+import { openMap, snapshot, openViaSearch, bareDesc } from './_map.js';
 
 // ---------------------------------------------------------------- fixtures
 // §3.2 is explicit that the figures are not the claim: "Counts are a snapshot
@@ -1101,6 +1101,9 @@ test.describe('invariant 7 — descriptions are never truncated', () => {
   });
 
   test('§8/§12 a description that exists only under `desc` is used in both languages', async ({ page }) => {
+    // Every entity in the payload is translated now, so the shape is built at
+    // boot (see bareDesc() in _map.js) and then found by property as before.
+    await bareDesc(page);
     await openMap(page);
     const row = any(await corpus(page), r => r.descOnly,
       'carries its description only under `desc`, in neither language');

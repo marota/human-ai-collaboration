@@ -244,7 +244,10 @@ test.describe('§10 the axis', () => {
     // The set is not pinned by size — §3.2 — but §10.3 names four of its members
     // outright, and the floor rule is only load-bearing because the corpus really
     // does reach back behind it. Those four, with their years, are the claim.
-    const named = { 'philips-research': 1914, 'abb-cr': 1916, 'siemens-ct': 1916, radboud: 1923 };
+    // Siemens is pinned at the payload's 1905, not the spec's 1916: the phase 2
+    // review of the team cards re-dated it (and moved it to Garching), and the
+    // spec's sentence has not caught up. Either year is behind the floor.
+    const named = { 'philips-research': 1914, 'abb-cr': 1916, 'siemens-ct': 1905, radboud: 1923 };
     expect(Object.fromEntries(old.filter((r) => r.id in named).map((r) => [r.id, r.y0])))
       .toEqual(named);
     await setPeriod(page, FLOOR, FLOOR);
@@ -535,12 +538,17 @@ test.describe('§10.1 unknown start', () => {
   test('§10.1 a host founded in 2020 or later is out at 2019 — which is why the soft set is short of the vague set', async ({ page }) => {
     await openMap(page);
     const { rows } = await payload(page);
-    // Picked by the property that matters rather than by id: an entity whose
-    // host year is exactly PRESENT_FROM sits one year above the band, so the
-    // lower bound bites a year before the "certainly present" rule would
-    // rescue it. (Maynooth's AISG is that entity today.)
-    const atPresent = rows.find((r) => isVague(r) && r.y0 === PRESENT);
-    expect([atPresent.host, atPresent.y0]).toEqual([true, PRESENT]);
+    // Picked by the property that matters rather than by id: the vague entity
+    // with the earliest host year at or after PRESENT_FROM. At exactly 2020 it
+    // sits one year above the band, so the lower bound bites a year before the
+    // "certainly present" rule would rescue it. Maynooth's AISG was that entity
+    // until the phase 2 review re-dated it to its university's 1997; none is at
+    // 2020 now, and the nearest (Cando Image, 2024) is barred at 2019 all the
+    // same — which is the claim the title makes.
+    const atPresent = rows.filter((r) => isVague(r) && r.y0 != null && r.y0 >= PRESENT)
+      .sort((x, y) => x.y0 - y.y0)[0];
+    expect(atPresent, 'a vague entity whose host dates from 2020 or later').toBeTruthy();
+    expect(atPresent.host).toBe(true);
     await setPeriod(page, FLOOR, 2019);
     const states = await statesFromPage(page);
     expect(states[atPresent.id], atPresent.id).toBe('out');
@@ -603,7 +611,9 @@ test.describe('§10.1 unknown start', () => {
     await fitAll(page);
     const { rows } = await payload(page);
     const tno = rows.find((r) => r.id === 'tno-hmt');
-    expect(tno.place).toBe('The Hague, NL');
+    // Soesterberg since the phase 2 review (it read The Hague before) — the
+    // TNO site whose 1949 §10.2 gives as this entity's host year.
+    expect(tno.place).toBe('Soesterberg, NL');
     // Solid: the row reads as any other row does.
     expect(await page.textContent('.fd-item[data-id="tno-hmt"] .mt')).toBe(tno.place);
     await setPeriod(page, FLOOR, 2019);
@@ -853,7 +863,9 @@ test.describe('§10.2 what counts as an unknown start', () => {
     // the map must not flatten a researched date back into "unknown start".
     const researched = {
       powsybl: '2018', italgas: '2017', energinet: '2023', vitens: '2010',
-      'inserm-ai': '2021-12', 'thames-water': '2026',
+      // Thames Water reads 2026-03: the phase 2 review narrowed §10.3's 2026 to
+      // the month. Same year, still its own date.
+      'inserm-ai': '2021-12', 'thames-water': '2026-03',
       'ifac-tc41-human-machine-systems': '1981',
     };
     for (const [id, start] of Object.entries(researched)) {
@@ -869,10 +881,15 @@ test.describe('§10.2 what counts as an unknown start', () => {
     // Italgas 2017 is "not the 1837 company" — a researched date that the floor
     // would otherwise have had to stretch for.
     expect(row('italgas').y0).toBe(2017);
+    // The contrast needs one of the three open ones whose host year is under
+    // 2016. That was ČEPS (1998) until the phase 2 review bounded it at 2019,
+    // which puts 2016 before its host and so, rightly, out; Transelectrica's
+    // 2000 bound keeps the comparison.
+    expect(row('transelectrica-smartgrid').y0).toBeLessThan(2016);
     await setPeriod(page, FLOOR, 2016);
     const states = await statesFromPage(page);
     expect(states['italgas']).toBe('out');            // its own date, applied strictly
-    expect(states['ceps-ics']).toBe('soft');          // a bound, applied softly
+    expect(states['transelectrica-smartgrid']).toBe('soft');   // a bound, applied softly
   });
 
   test('§10.2 a host year is a lower bound, not a start: 1950 leaves TNO possible, not present', async ({ page }) => {
