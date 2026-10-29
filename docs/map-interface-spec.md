@@ -162,7 +162,8 @@ known entity, so the card never renders a dead link.
 
 `EDGES` entries join a project (`project`) or a cluster (`cluster`) to a team
 (`team`), with `org: true` for a link at organisation level and `via` for a card
-that shares its organisation's line (§4.3).
+that shares its organisation's line (§4.3). A project's `team` may also name a
+cluster, when an association is itself a partner of the project.
 
 ### 3.4 Vocabulary
 
@@ -462,8 +463,9 @@ Section order, each omitted when empty:
 12. Infrastructure — kind, operator, access model, capacity
 13. Demonstrators · Deliverables · Facilities hosted · Applies to · Builds on ·
     Publications · Other links
-14. Related entities — consortium teams, member teams, projects, clusters a team
-    is a member of, created, builds on, used by; a row linked at organisation
+14. Related entities — consortium teams, consortium clusters, member teams,
+    projects (of a team, or of a cluster that is a partner), clusters a team is
+    a member of, created, builds on, used by; a row linked at organisation
     level is tagged "via its organisation"
 15. Provenance — who added the entry, when, at what confidence, from what source
 

@@ -525,15 +525,18 @@ class CrossReferences(unittest.TestCase):
         # `DATA.EDGES.forEach` bails out silently on an unknown source
         # (`if (!p) return`) and `relate()` bails out on an unknown team, so a
         # broken reference costs a link with no error anywhere.
+        # A project may also end on a cluster: an association that is itself a
+        # partner. A cluster ends on a team only.
         sources = {"project": ids_of("PROJECTS"), "cluster": ids_of("CLUSTERS")}
-        teams = ids_of("TEAMS")
+        teams = set(ids_of("TEAMS"))
+        ends = {"project": teams | set(ids_of("CLUSTERS")), "cluster": teams}
         for e in PAYLOAD["EDGES"]:
             with self.subTest(edge=e):
                 self.assertLessEqual(set(e), {"project", "cluster", "team", "org", "via"})
                 kinds = [k for k in sources if k in e]
                 self.assertEqual(len(kinds), 1, "one source, a project or a cluster")
                 self.assertIn(e[kinds[0]], sources[kinds[0]])
-                self.assertIn(e["team"], teams)
+                self.assertIn(e["team"], ends[kinds[0]])
                 if "org" in e:
                     self.assertIs(e["org"], True)
 
@@ -563,7 +566,7 @@ class CrossReferences(unittest.TestCase):
         # `via`: the card whose line it shares, which belongs to the same
         # organisation, is linked to the same source and draws a line itself.
         teams = {o["id"]: o for o in PAYLOAD["TEAMS"]}
-        org_of = lambda tid: (teams[tid].get("organisation") or {}).get("id") or tid
+        org_of = lambda tid: ((teams.get(tid) or {}).get("organisation") or {}).get("id") or tid
         drawn = {edge_pair(e) for e in PAYLOAD["EDGES"] if not e.get("via")}
         per_org = Counter((src, org_of(team)) for src, team in drawn)
         self.assertEqual(sorted(k for k, n in per_org.items() if n > 1), [])

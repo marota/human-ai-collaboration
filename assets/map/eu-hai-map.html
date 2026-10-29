@@ -758,7 +758,7 @@ const I18N = {
     'preset.health':'Santé', 'preset.human':'Facteurs humains & XAI', 'preset.sim':'Simulation & infrastructures',
     visit:'Visiter le site ↗', pin:'☆ Épingler', unpin:'★ Épinglé', back:'Retour', close:'Fermer',
     'rel.teams':'Équipes du consortium', 'rel.projects':'Projets & programmes', 'rel.uses':'S\u2019appuie sur',
-    'rel.members':'Équipes membres', 'rel.clusters':'Membre de',
+    'rel.members':'Équipes membres', 'rel.clusters':'Membre de', 'rel.partnerClusters':'Clusters du consortium',
     orgTag:'via l\u2019organisation',
     orgTagSrc:o=>`${o} participe par une unité qui n\u2019a pas de fiche ; cette fiche lui appartient.`,
     orgTagTeam:o=>`${o}, l\u2019organisation de cette équipe, participe — pas forcément l\u2019équipe elle-même.`,
@@ -850,7 +850,7 @@ const I18N = {
     'preset.health':'Health', 'preset.human':'Human factors & XAI', 'preset.sim':'Simulation & infrastructure',
     visit:'Visit website ↗', pin:'☆ Pin', unpin:'★ Pinned', back:'Back', close:'Close',
     'rel.teams':'Consortium teams', 'rel.projects':'Projects & programmes', 'rel.uses':'Builds on',
-    'rel.members':'Member teams', 'rel.clusters':'Member of',
+    'rel.members':'Member teams', 'rel.clusters':'Member of', 'rel.partnerClusters':'Consortium clusters',
     orgTag:'via its organisation',
     orgTagSrc:o=>`${o} takes part through a unit that has no card of its own; this card belongs to it.`,
     orgTagTeam:o=>`${o}, this team\u2019s organisation, takes part — not necessarily this team itself.`,
@@ -1572,8 +1572,8 @@ function relSections(it){
   const push = (key, ids) => { const list = ids.filter(x=>byId[x]); if (list.length) secs.push({key, ids:list}); };
   if (it.kind==='project' || it.kind==='team' || it.kind==='cluster'){
     const linked = kind => [...nOf(it.id)].filter(n => byId[n] && byId[n].kind===kind && EDGE_SET.has(it.id+'|'+n));
-    if (it.kind==='project') push('rel.teams', linked('team'));
-    if (it.kind==='cluster') push('rel.members', linked('team'));
+    if (it.kind==='project'){ push('rel.teams', linked('team')); push('rel.partnerClusters', linked('cluster')); }
+    if (it.kind==='cluster'){ push('rel.members', linked('team')); push('rel.projects', linked('project')); }
     if (it.kind==='team'){ push('rel.projects', linked('project')); push('rel.clusters', linked('cluster')); }
     const created = [], uses = [];
     [...DATA.COMMONS, ...DATA.FRAMEWORKS].forEach(a=>{
