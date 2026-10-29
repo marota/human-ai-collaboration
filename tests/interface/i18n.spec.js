@@ -329,7 +329,7 @@ test.describe('§16 invariant 8 — both languages, every key', () => {
     const { fr, en } = await i18n(page);
     const all = Object.values(families).flat();
     expect(families.rel).toEqual(['rel.clusters', 'rel.created', 'rel.createdBy', 'rel.members',
-      'rel.projects', 'rel.teams', 'rel.usedBy', 'rel.uses']);
+      'rel.partnerClusters', 'rel.projects', 'rel.teams', 'rel.usedBy', 'rel.uses']);
     expect(families.tour).toHaveLength(8);
     expect(all.filter((k) => !(k in fr))).toEqual([]);
     expect(all.filter((k) => !(k in en))).toEqual([]);

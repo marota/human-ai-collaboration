@@ -854,7 +854,7 @@ test.describe('§10.2 what counts as an unknown start', () => {
     const researched = {
       powsybl: '2018', italgas: '2017', energinet: '2023', vitens: '2010',
       'inserm-ai': '2021-12', 'thames-water': '2026',
-      'ifac-tc41-human-machine-systems': '1982',
+      'ifac-tc41-human-machine-systems': '1981',
     };
     for (const [id, start] of Object.entries(researched)) {
       const r = row(id);

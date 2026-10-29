@@ -414,9 +414,8 @@ class RequiredFields(unittest.TestCase):
         # placeholder — which is only true while `desc` is always populated.
         missing = sorted(o["id"] for o in all_entities()
                          if not (o.get("desc_en") and o.get("desc_fr")))
-        # Four teams are still untranslated upstream; they fall back to `desc`.
-        self.assertEqual(missing, ["epri-europe", "flatland-association",
-                                   "polimi-airlab-rl", "uva-illc"])
+        # Three teams are still untranslated upstream; they fall back to `desc`.
+        self.assertEqual(missing, ["epri-europe", "polimi-airlab-rl", "uva-illc"])
         for o in all_entities():
             with self.subTest(id=o["id"]):
                 self.assertTrue(o.get("desc_en") or o.get("desc"))
@@ -1273,8 +1272,8 @@ class PerLayerFields(unittest.TestCase):
         # `extUrl()` wraps whatever it is given in an `<a href>`, so a value that
         # is not a URL becomes a link to a relative path that does not exist. §3.3
         # states the dead-link guarantee only for `consortium[].ref`, and these
-        # eight values are the places it does not reach: three bibliographic
-        # citations in `links.papers` (papers with no DOI URL upstream) and five
+        # six values are the places it does not reach: three bibliographic
+        # citations in `links.papers` (papers with no DOI URL upstream) and three
         # bare social handles. Pinned rather than fixed, so a regression widens
         # the set and fails here.
         offenders = []
@@ -1290,8 +1289,6 @@ class PerLayerFields(unittest.TestCase):
             ("dfki-trustworthy-ai", "linkedin"),
             ("dfki-trustworthy-ai", "twitter"),
             ("ellis-society", "twitter"),
-            ("lf-energy", "linkedin"),
-            ("lf-energy", "twitter"),
             ("meaningful-human-control", "papers"),
             ("ten-challenges-team-player", "papers"),
             ("trust-in-automation-lee-see", "papers"),
