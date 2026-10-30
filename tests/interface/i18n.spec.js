@@ -1054,7 +1054,7 @@ test.describe('§12 the content switches too', () => {
 
   test('§12 vocabulary values the generator never labelled render de-underscored in both languages', async ({ page }) => {
     // SPEC-DEVIATION: §12 says every controlled vocabulary value has both
-    // labels in DATA.TAXO. Six values used by the payload have none, so
+    // labels in DATA.TAXO. Five values used by the payload have none, so
     // taxo() falls through to §17's documented de-underscored key — which means
     // a French reader sees English words ("restricted", "commercial"). It
     // degrades rather than breaks, as §17 promises, but the §12 claim is not
@@ -1078,7 +1078,7 @@ test.describe('§12 the content switches too', () => {
     });
     expect(gaps).toEqual([
       'access.commercial', 'access.restricted',
-      'jurisdiction.DE', 'jurisdiction.DK', 'jurisdiction.NL', 'jurisdiction.UK',
+      'jurisdiction.DE', 'jurisdiction.FR', 'jurisdiction.UK',
     ]);
     // Every one of those gaps, not just the three spot-checked below, has to
     // degrade the way §17 promises: the de-underscored key, and the same string

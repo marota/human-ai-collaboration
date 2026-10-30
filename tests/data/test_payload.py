@@ -849,7 +849,7 @@ class Vocabulary(unittest.TestCase):
                     for g in ("access", "jurisdiction", "role")}
         self.assertEqual(unmapped, {
             "access": ["commercial", "restricted"],
-            "jurisdiction": ["DE", "DK", "NL", "UK"],
+            "jurisdiction": ["DE", "FR", "UK"],
             "role": [],
         })
 
@@ -1272,10 +1272,11 @@ class PerLayerFields(unittest.TestCase):
         # `extUrl()` wraps whatever it is given in an `<a href>`, so a value that
         # is not a URL becomes a link to a relative path that does not exist. §3.3
         # states the dead-link guarantee only for `consortium[].ref`, and these
-        # five values are the places it does not reach: three bibliographic
-        # citations in `links.papers` (papers with no DOI URL upstream) and two
-        # bare social handles. Pinned rather than fixed, so a regression widens
-        # the set and fails here.
+        # four values are the places it does not reach: three bibliographic
+        # citations in `links.papers` (papers with no DOI URL upstream) and one
+        # bare social handle (ellis-society's became a URL in the 2026-10
+        # review). Pinned rather than fixed, so a regression widens the set and
+        # fails here.
         offenders = []
         for o in all_entities():
             lk = o.get("links") or {}
@@ -1287,7 +1288,6 @@ class PerLayerFields(unittest.TestCase):
                     offenders.append((o["id"], "papers"))
         self.assertEqual(sorted(offenders), [
             ("dfki-trustworthy-ai", "twitter"),
-            ("ellis-society", "twitter"),
             ("meaningful-human-control", "papers"),
             ("ten-challenges-team-player", "papers"),
             ("trust-in-automation-lee-see", "papers"),
