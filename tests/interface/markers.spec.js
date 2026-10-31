@@ -2810,4 +2810,47 @@ test.describe('§4.4 the gestures on the stage', () => {
     expect(r.end).toMatchObject({ ptrs: 0, dragStart: null, dragging: false });
     await settleCounts(page);
   });
+
+  test('§4.4 the finger left after a pinch pans from the zoomed view, whichever finger lifted first', async ({ page }) => {
+    // On a phone the two fingers of a pinch almost never lift together, and
+    // the one left on the glass keeps moving a little. That move used to pan
+    // from dragStart, the first finger's touch-down with the view from before
+    // the zoom: the map took the old offset at the new scale and jumped
+    // towards the top-left of the canvas, the Atlantic off Ireland, as a reader
+    // reported on 31 October 2026. The finger left has to carry on from the
+    // view the pinch produced, so it moves the map by its own delta, at the
+    // pinch's scale, and nothing else.
+    //
+    // Both orders are run: the first finger down is the one dragStart
+    // remembered, so lifting it and lifting the other fail differently.
+    await openMap(page);
+    const at = await pickForGesture(page, { l: 220, r: 90 });
+    for (const lifted of [1, 2]) {
+      await page.evaluate(() => fitView(false));
+      const r = await page.evaluate(([mx, my, up]) => {
+        const svg = document.getElementById('map');
+        const ev = (type, pointerId, cx, cy, buttons) => svg.dispatchEvent(new PointerEvent(type, {
+          pointerId, pointerType: 'touch', isPrimary: pointerId === 1, bubbles: true, cancelable: true,
+          clientX: cx, clientY: cy, button: 0, buttons,
+        }));
+        const pos = { 1: [mx - 50, my], 2: [mx + 50, my] };
+        ev('pointerdown', 1, ...pos[1], 1);
+        ev('pointerdown', 2, ...pos[2], 1);
+        pos[1] = [mx - 150, my];
+        ev('pointermove', 1, ...pos[1], 1);
+        const pinched = { x: view.x, y: view.y, k: view.k };
+        ev('pointerup', up, ...pos[up], 0);
+        const kept = up === 1 ? 2 : 1;
+        ev('pointermove', kept, pos[kept][0] + 12, pos[kept][1] + 7, 1);
+        const panned = { x: view.x, y: view.y, k: view.k };
+        ev('pointerup', kept, pos[kept][0] + 12, pos[kept][1] + 7, 0);
+        return { pinched, panned };
+      }, [at.x, at.y, lifted]);
+      const label = `finger ${lifted} lifted first`;
+      expect(r.panned.k, `${label}: the pan keeps the pinch's zoom`).toBe(r.pinched.k);
+      expect(r.panned.x - r.pinched.x, `${label}: the map moves by the finger's own x delta`).toBeCloseTo(12, 6);
+      expect(r.panned.y - r.pinched.y, `${label}: and by its own y delta`).toBeCloseTo(7, 6);
+    }
+    await settleCounts(page);
+  });
 });

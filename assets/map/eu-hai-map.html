@@ -1259,13 +1259,24 @@ svg.addEventListener('pointerdown', e=>{ try{ svg.setPointerCapture(e.pointerId)
 svg.addEventListener('pointermove', e=>{
   if (!ptrs.has(e.pointerId)) return;
   ptrs.set(e.pointerId,[e.clientX,e.clientY]);
+  if (ptrs.size>2) return;   // a third finger holds the map still
   if (ptrs.size===2){ const a=[...ptrs.values()]; const d = Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);
     const rect = svg.getBoundingClientRect();
     zoomAt((a[0][0]+a[1][0])/2-rect.left,(a[0][1]+a[1][1])/2-rect.top, d/(pinchD||d)); pinchD = d; moved = 10; return; }
   if (dragStart){ const dx=e.clientX-dragStart.x, dy=e.clientY-dragStart.y; moved = Math.max(moved, Math.abs(dx)+Math.abs(dy));
     view.x = dragStart.vx+dx; view.y = dragStart.vy+dy; applyView(); }
 });
-function endPtr(e){ ptrs.delete(e.pointerId); if (ptrs.size===0){ dragStart=null; svg.classList.remove('dragging'); } }
+function endPtr(e){ ptrs.delete(e.pointerId);
+  if (ptrs.size===0){ dragStart=null; svg.classList.remove('dragging'); return; }
+  // A finger lifted mid-gesture: the rest carry on from the view as it now
+  // stands. The finger left after a pinch pans from where it is; panning from
+  // the first touch-down put back the offset from before the zoom, at the new
+  // scale, and threw the map towards its top-left corner. Two fingers left of
+  // three re-measure their own span.
+  const a = [...ptrs.values()];
+  if (a.length===1) dragStart = {x:a[0][0],y:a[0][1],vx:view.x,vy:view.y};
+  else if (a.length===2) pinchD = Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);
+}
 svg.addEventListener('pointerup', e=>{
   const wasTap = ptrs.size===1 && moved<=4 && e.button===0;
   endPtr(e);
