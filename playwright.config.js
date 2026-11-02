@@ -9,6 +9,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // Playwright's default — half the logical cores, so 2 on a four-core GitHub
+  // runner — is left alone on purpose. Raising it to 4 was tried and was worse
+  // on both counts: the suite went from 11.2 to 13.7 minutes, because four
+  // Chromium instances on four vCPUs contend rather than parallelise, and the
+  // clock-driven toast test started losing its race on the busier machine.
+  // Sharding across runners is the way to make this faster, not oversubscribing
+  // one of them.
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   // Two concurrent `playwright test` invocations in one checkout otherwise share
   // this directory and delete each other's traces mid-write, which surfaces as

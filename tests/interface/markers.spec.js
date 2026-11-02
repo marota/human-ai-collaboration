@@ -2527,73 +2527,165 @@ test.describe('§4.4 the gestures on the stage', () => {
     expect(after.focus).toBe(null);
   });
 
-  test('§4.4 a double-click on a marker zooms too: the pointer capture carries the event past the .mk guard', async ({ page }) => {
-    // SPEC-DEVIATION. The dblclick handler opens with `if
-    // (e.target.closest('.mk')) return;` — an exemption so that double-clicking
-    // a marker opens its card without also yanking the view. The guard is
-    // written correctly and can never fire: the pointerdown handler calls
-    // `svg.setPointerCapture(e.pointerId)`, and pointer capture retargets every
-    // later event of that pointer — pointerup, click and dblclick among them —
-    // to the capturing element. By the time the dblclick is dispatched its
-    // target is `#map` itself, never a marker. (The pointerup handler is
-    // written around this: it ignores `e.target` and asks
-    // document.elementFromPoint() instead.)
-    //
-    // What a reader gets today is both: the card opens, and the map zooms 1.7×
-    // about the click as if on open water. From the default fit view the
-    // zoomAt() also cancels the flight still in progress, so the selection
-    // settles near k₀ × 2.074 and never reaches §7's "minimum of k₀ × 3.2" —
-    // and the entity it flew for is left off-centre. The arithmetic below is
-    // pinned on a view where that race cannot decide the answer: the entity is
-    // already open and already parked exactly where flyTo() would leave it, so
-    // the flight the double-click triggers is a no-op and the only thing left
-    // moving is the zoom under test.
-    await openMap(page);
-    const parked = await page.evaluate(() => {
-      const st = document.getElementById('stage').getBoundingClientRect();
-      const [w, h] = stageSize();
-      for (const id in mkEls) {
-        const it = byId[id], k = k0 * 3.2;
-        setView({ k, x: w / 2 - it.X * k, y: h / 2 - it.Y * k }, false);   // flyTo()'s own target
-        openEntity(id, { fly: false });
-        const cx = st.left + w / 2, cy = st.top + h / 2;
-        const hit = document.elementFromPoint(cx, cy);
-        const mk = hit && hit.closest ? hit.closest('.mk') : null;
-        if (mk && mk.dataset.id === id) return { id, cx, cy, x: view.x, y: view.y, k: view.k };
-      }
-      return null;
-    });
-    expect(parked, 'no marker is the topmost thing at the centre of its own flight').not.toBe(null);
-    await settleCounts(page);
-    await page.mouse.dblclick(parked.cx, parked.cy);
-    await waitForK(page, parked.k);
-    await settleCounts(page);
-    const after = await viewOf(page);
-    expect(after.focus, 'the card does open').toBe(parked.id);
-    expect(after.k, 'and the marker is zoomed exactly as open water would be').toBeCloseTo(parked.k * 1.7, 9);
-    expect(after.k / after.k0, '§4.4 has no k₀ × 5.44 rung').toBeCloseTo(3.2 * 1.7, 9);
-    // The clicked point is still the fixed point, so the marker stays centred —
-    // the reader is left looking at the right place at the wrong scale.
-    const centred = await page.evaluate((id) => {
-      const [w, h] = stageSize(); const it = byId[id];
-      return { sx: view.x + it.X * view.k, sy: view.y + it.Y * view.k, cx: w / 2, cy: h / 2 };
-    }, parked.id);
-    expect(centred.sx).toBeCloseTo(centred.cx, 3);
-    expect(centred.sy).toBeCloseTo(centred.cy, 3);
+  /** A double-click as a hand makes one: two separate clicks, `gap` ms apart.
+   *  mouse.dblclick() fires both clicks in the same instant, which is the one
+   *  timing at which flyTo() has not yet moved anything, so on its own it can
+   *  only ever test the easy case. The gap is the subject here, not a wait for
+   *  the page to catch up. */
+  async function handDblclick(page, x, y, gap) {
+    await page.mouse.move(x, y);
+    await page.mouse.down(); await page.mouse.up();
+    if (gap) await page.waitForTimeout(gap);
+    await page.mouse.down({ clickCount: 2 }); await page.mouse.up({ clickCount: 2 });
+  }
 
-    // The other half of the deviation: the guard itself is sound. Dispatch a
-    // dblclick whose target really is inside the marker — the one thing the
-    // pointer capture prevents a real gesture from producing — and the view is
-    // left alone. So this is a wiring fault, not a missing branch.
-    const guard = await page.evaluate((id) => {
-      const el = mkEls[id], r = el.getBoundingClientRect();
-      const was = { x: view.x, y: view.y, k: view.k };
-      el.querySelector('circle').dispatchEvent(new MouseEvent('dblclick', {
-        bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
-      }));
-      return { was, now: { x: view.x, y: view.y, k: view.k } };
-    }, parked.id);
-    expect(guard.now, 'the exemption works when the event target is the marker').toEqual(guard.was);
+  /** The page has seen `n` dblclick events. Playwright resolves mouse.up()
+   *  when the event is sent, not when the page has run it; without this a
+   *  zoom that has not happened *yet* would pass for one that never will. */
+  const countDblclicks = (page) => page.evaluate(() => {
+    window.__dbl = 0;
+    addEventListener('dblclick', () => { window.__dbl++; }, true);
+  });
+  const sawDblclicks = (page, n) => page.waitForFunction((k) => window.__dbl === k, n);
+
+  /** Until the view stops moving: three samples in a row, 40 ms apart, with
+   *  the same view. Not three animation frames — an ease-in-out flight barely
+   *  moves in its first frames, and headless Chromium can hand consecutive
+   *  frames the same timestamp, so a frame-based check declared a flight at
+   *  rest 41 ms in, at k₀ × 1.24. */
+  async function viewAtRest(page) {
+    let prev = null, still = 0;
+    await expect.poll(async () => {
+      const v = await page.evaluate(() => [view.k, view.x, view.y]);
+      still = prev && v.every((n, i) => n === prev[i]) ? still + 1 : 0;
+      prev = v;
+      return still;
+    }, { intervals: [40], timeout: 5000 }).toBeGreaterThanOrEqual(3);
+  }
+
+  /** A marker a real click reaches, far enough from the stage centre that
+   *  flyTo() visibly carries it away — the condition under which the second
+   *  click of a hand's double-click misses it. */
+  const offCentreMarker = (page) => page.evaluate(() => {
+    const st = document.getElementById('stage').getBoundingClientRect();
+    const cx = st.left + st.width / 2, cy = st.top + st.height / 2;
+    let best = null;
+    for (const id in mkEls) {
+      const el = mkEls[id];
+      if (el.style.display === 'none') continue;
+      const b = el.getBoundingClientRect();
+      const x = b.left + b.width / 2, y = b.top + b.height / 2;
+      if (x < st.left + 60 || x > st.right - 60 || y < st.top + 60 || y > st.bottom - 60) continue;
+      const hit = document.elementFromPoint(x, y);
+      if (!hit || hit.closest('.mk') !== el) continue;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d > 180 && (!best || d > best.d)) best = { id, x, y, d };
+    }
+    return best;
+  });
+
+  const centredOn = (page, id) => page.evaluate((wanted) => {
+    const [w, h] = stageSize(); const it = byId[wanted];
+    return { sx: view.x + it.X * view.k, sy: view.y + it.Y * view.k, cx: w / 2, cy: h / 2 };
+  }, id);
+
+  test('§7 a double-click on a marker opens it, at any human pace — no zoom, no open-then-close', async ({ page }) => {
+    // Two faults compounded here, and only the second showed in a real hand's
+    // double-click. The dblclick handler exempted markers by reading e.target,
+    // which the pointer capture taken on pointerdown always retargets to the
+    // svg, so a double-click on a marker zoomed as if on open water. And the
+    // first click starts flyTo(), which carries the marker out from under the
+    // pointer: 120 ms later the second click landed on open map and closed the
+    // card the first one had opened. The reader was left with no card at all,
+    // on a map zoomed one rung for no reason. mouse.dblclick() fires both
+    // clicks at once, so only the 0 ms row below ever saw the first fault.
+    await openMap(page);
+    await countDblclicks(page);
+    const target = await offCentreMarker(page);
+    expect(target, 'no marker a click can reach is far from the centre').not.toBe(null);
+    let seen = 0;
+    for (const gap of [0, 120, 250, 400]) {
+      // Each round starts cold: card shut, view fitted, no remembered tap.
+      await page.evaluate(() => { closeDetail(); fitView(false); markerTap = null; });
+      await settleCounts(page);
+      await handDblclick(page, target.x, target.y, gap);
+      await sawDblclicks(page, ++seen);
+      await viewAtRest(page);
+      const v = await viewOf(page);
+      expect(v.focus, `${gap} ms: the card the first click opened is still open`).toBe(target.id);
+      expect(v.k / v.k0, `${gap} ms: the flight lands on §7's scale, not a rung above it`)
+        .toBeCloseTo(3.2, 9);
+      const c = await centredOn(page, target.id);
+      expect(c.sx, `${gap} ms: and centred, because no zoom cut the flight short`).toBeCloseTo(c.cx, 3);
+      expect(c.sy).toBeCloseTo(c.cy, 3);
+    }
+  });
+
+  test('§7 with reduced motion the flight is instant, and the second click still does not close the card', async ({ page }) => {
+    // The hardest case for the second click: with no animation the marker is
+    // gone from under the pointer before the first click has finished, so even
+    // mouse.dblclick()'s same-instant second click lands on whatever the flight
+    // left there.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openMap(page);
+    await countDblclicks(page);
+    const target = await offCentreMarker(page);
+    await handDblclick(page, target.x, target.y, 0);
+    await sawDblclicks(page, 1);
+    const v = await viewOf(page);
+    expect(v.focus).toBe(target.id);
+    expect(v.k / v.k0).toBeCloseTo(3.2, 9);
+    const under = await page.evaluate(({ x, y, id }) => {
+      const hit = document.elementFromPoint(x, y);
+      const mk = hit && hit.closest ? hit.closest('.mk') : null;
+      return mk ? mk.dataset.id : 'open map';
+    }, target);
+    expect(under, 'the marker really did leave the pointer before the second click').not.toBe(target.id);
+  });
+
+  test('§7 the double-click window is short and narrow: a later or a distant tap is its own tap', async ({ page }) => {
+    // The second half of a double-click is recognised by time and place alone,
+    // so the window must not swallow an ordinary tap. Reduced motion keeps the
+    // view still between taps, so what lies under each point can be read
+    // before it is tapped.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openMap(page);
+    const target = await offCentreMarker(page);
+    // What a tap at a point would reach: a marker, open map, or something
+    // else on top of the stage (a control), where neither claim can be made.
+    const what = (p) => page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      const mk = hit && hit.closest ? hit.closest('.mk') : null;
+      if (mk) return { on: 'marker', focus: mk.dataset.id };
+      return hit && hit.closest('#map') ? { on: 'map', focus: null } : { on: 'other' };
+    }, p);
+
+    // Later: once the window has passed, a tap on the same spot is a tap on
+    // whatever the flight left there — open map closes the card, a marker
+    // opens instead.
+    await page.mouse.click(target.x, target.y);
+    expect((await viewOf(page)).focus).toBe(target.id);
+    await page.waitForFunction(() => performance.now() - markerTap.t > DBL_MS);
+    const later = await what(target);
+    expect(later.on, 'the flight left the map itself under the pointer').not.toBe('other');
+    expect(later.focus).not.toBe(target.id);
+    await page.mouse.click(target.x, target.y);
+    await expect.poll(async () => (await viewOf(page)).focus).toBe(later.focus);
+
+    // Distant: inside the window but well outside DBL_PX, a second tap is a
+    // separate tap and is acted on at once. The point is found on open map
+    // rather than offset by hand, which could land it on a zoom button.
+    await page.evaluate(() => { closeDetail(); fitView(false); markerTap = null; });
+    await settleCounts(page);
+    await page.mouse.click(target.x, target.y);
+    expect((await viewOf(page)).focus).toBe(target.id);
+    const away = await pickEmptySea(page);
+    expect(Math.abs(away.x - target.x) + Math.abs(away.y - target.y),
+      'far outside the window\'s 10 px').toBeGreaterThan(40);
+    const elapsed = await page.evaluate(() => performance.now() - markerTap.t);
+    expect(elapsed, 'still inside the window, so only distance can tell them apart').toBeLessThan(600);
+    await page.mouse.click(away.x, away.y);
+    await expect.poll(async () => (await viewOf(page)).focus).toBe(null);
   });
 
   test('§4.4 dragging pans the map by the pointer\'s own delta', async ({ page }) => {
