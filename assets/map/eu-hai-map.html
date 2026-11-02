@@ -1001,8 +1001,8 @@ const year = v => { const m = /^(\d{4})/.exec(String(v==null?'':v)); return m ? 
 const items = []; const byId = {};
 function reg(arr, kind){ arr.forEach(d => {
   const domains = (d.domains && d.domains.length) ? d.domains : [d.domain];
-  // International standards (ISO, IEC, IEEE, SAE…) and one non-EU commons have
-  // no coordinates: they carry no marker but keep a card, search and filters.
+  // International standards (ISO, IEC, IEEE, SAE…) and reference models from
+  // outside Europe have no coordinates: they carry no marker but keep a card, search and filters.
   const geo = d.lat!=null && d.lon!=null;
   const [X,Y] = geo ? project(d.lon, d.lat) : [0,0];
   const tl = d.timeline || {};
@@ -1524,8 +1524,8 @@ function renderLayerRows(){
 function updateLayerCounts(){
   const n = perKind(0);
   // Of those, the ones that will never carry a marker (§3.1 point 4): the
-  // international standards and the one non-EU commons that have no
-  // coordinates. They match the filters and they have cards, but the map
+  // international standards and the reference models from outside Europe that
+  // have no coordinates. They match the filters and they have cards, but the map
   // cannot show them.
   const off = perKind(0);
   scopeItems('layer').forEach(it=>{ n[it.kind]++; if (!it.geo) off[it.kind]++; });

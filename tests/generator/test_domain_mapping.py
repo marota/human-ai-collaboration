@@ -829,7 +829,7 @@ class InfrastructureHasNoLayerOfItsOwn(TempCheckout):
         standalone = [e for e in with_infra if e["domain"] in INFRA_CODES]
         merged = [e for e in with_infra if e["domain"] not in INFRA_CODES]
         self.assertEqual((len(with_infra), len(merged), len(standalone)),
-                         (41, 23, 18),
+                         (37, 19, 18),
                          "the infrastructure split moved; if that is an upstream "
                          "data change, update §3.2's figures and this pin together")
         # One marker per entry, and no entry landed in the layer twice.

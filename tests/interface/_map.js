@@ -156,6 +156,38 @@ export async function openViaSearch(page, query, index = 0) {
   await items.nth(index).click();
 }
 
+/** A scope whose entities without coordinates number between `min` and `max`:
+ *  a layer on its own when one fits, otherwise a layer narrowed to one domain.
+ *  The off-map hints read differently at n = 1, and the badge drops its title
+ *  when nothing is narrowed, so tests need such scopes; deriving them from the
+ *  page's own items lets a regeneration move the choice instead of breaking
+ *  the tests. Null when the payload offers none. */
+export function offMapScope(page, min, max) {
+  return page.evaluate(([lo, hi]) => {
+    const off = (k) => items.filter((it) => it.kind === k && !it.geo);
+    const fits = (n) => n >= lo && n <= hi;
+    for (const k of KINDS) if (fits(off(k).length)) return { kind: k, dom: null, n: off(k).length };
+    for (const k of KINDS) {
+      for (const d of new Set(off(k).flatMap((it) => it.domains))) {
+        const n = off(k).filter((it) => it.domains.includes(d)).length;
+        if (fits(n)) return { kind: k, dom: d, n };
+      }
+    }
+    return null;
+  }, [min, max]);
+}
+
+/** The scope that leaves exactly one entity off the map. */
+export const soloOffMapScope = (page) => offMapScope(page, 1, 1);
+
+/** Apply a scope from offMapScope() through the real controls: its layer
+ *  alone, and its domain alone, or every domain when it has none. */
+export async function narrowToScope(page, scope) {
+  await setLayers(page, [scope.kind]);
+  for (const b of await page.locator(`#domain-groups [data-ga="${scope.dom ? 'none' : 'all'}"]`).all()) await b.click();
+  if (scope.dom) await page.locator(`#domain-groups input[data-dom="${scope.dom}"]`).check();
+}
+
 /** Invariant 12: in view + off screen + off the map == matches the filters
  *  + any card the filters exclude but that is kept open (§9.2). */
 export async function expectCountersReconcile(page, because = '') {

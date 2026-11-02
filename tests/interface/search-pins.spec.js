@@ -534,12 +534,12 @@ test.describe('§11 search — grouping and the eight-per-layer cap', () => {
     await dropOpen(page);
     const ref = await reference(page, 'er');
     // The fixture must actually exercise the cap, or the test would pass on an
-    // implementation with no cap at all: every layer has more hits than the
-    // cap except the clusters, which hold six cards and so show all of theirs
-    // (the next test's subject).
+    // implementation with no cap at all: the three large layers have more hits
+    // than the cap, while the clusters and the commons, too small for any query
+    // to overflow, show all of theirs (the next test's subject).
     expect(ref.map((x) => x.kind)).toEqual(LAYER_ORDER);
     const over = ref.filter((x) => x.own.length + x.aff.length > CAP).map((x) => x.kind);
-    expect(over).toEqual(LAYER_ORDER.filter((k) => k !== 'cluster'));
+    expect(over).toEqual(LAYER_ORDER.filter((k) => !['cluster', 'commons'].includes(k)));
     const g = await groups(page);
     expect(g.map((x) => x.ids.length))
       .toEqual(ref.map((x) => Math.min(CAP, x.own.length + x.aff.length)));

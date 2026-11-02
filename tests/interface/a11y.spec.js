@@ -781,7 +781,7 @@ test.describe('§14 accessible names on icon-only controls', () => {
     // The floating card only shows when the feed is closed (§5), so close it
     // first — a name on a display:none button reaches nobody.
     await page.click('#fd-close');
-    await openViaSearch(page, 'CityLearn');
+    await openViaSearch(page, 'NIST AI Risk');
     await expect(page.locator('#detail')).toBeVisible();
     await expect(page.locator('#dt-close')).toHaveAccessibleName('Fermer');
     await expect(page.locator('#dt-back')).toHaveAccessibleName('Retour');
@@ -1198,8 +1198,8 @@ test.describe('§14 Escape priority: tour > welcome > detail > drawer', () => {
 
   test('§14 Escape closes the card when nothing is stacked above it', async ({ page }) => {
     await openMap(page);
-    await openViaSearch(page, 'CityLearn');
-    expect((await snapshot(page)).focusId).toBe('citylearn');
+    await openViaSearch(page, 'NIST AI Risk');
+    expect((await snapshot(page)).focusId).toBe('nist-ai-rmf');
     await page.keyboard.press('Escape');
     expect((await snapshot(page)).focusId).toBe(null);
     await expect(page.locator('#detail')).toBeHidden();
@@ -1237,8 +1237,8 @@ test.describe('§14 Escape priority: tour > welcome > detail > drawer', () => {
   // priority ("tour > welcome > detail > drawer") implies one layer per press.
   test('§14 SPEC-DEVIATION Escape in the search box also closes the card behind it', async ({ page }) => {
     await openMap(page);
-    await openViaSearch(page, 'CityLearn');
-    await page.fill('#search', 'CityLearn');
+    await openViaSearch(page, 'NIST AI Risk');
+    await page.fill('#search', 'NIST AI Risk');
     await expect(page.locator('#search-drop')).toBeVisible();
     await page.locator('#search').press('Escape');
     await expect(page.locator('#search-drop')).toBeHidden();
@@ -1712,12 +1712,12 @@ test.describe('§14 keyboard reach without the map', () => {
     // Arrowing is one path; the results are real buttons in document order after
     // the field, so Tab is the other. Either has to end on the same card.
     await page.locator('#search').focus();
-    await page.keyboard.type('CityLearn');
+    await page.keyboard.type('NIST AI Risk');
     await expect(page.locator('.sd-item').first()).toBeVisible();
     await page.keyboard.press('Tab');
-    expect(await page.evaluate(() => document.activeElement.dataset.open)).toBe('citylearn');
+    expect(await page.evaluate(() => document.activeElement.dataset.open)).toBe('nist-ai-rmf');
     await page.keyboard.press('Enter');
-    expect((await snapshot(page)).focusId).toBe('citylearn');
+    expect((await snapshot(page)).focusId).toBe('nist-ai-rmf');
   });
 
   // SPEC-DEVIATION: the dropdown is a role="listbox" whose children are
@@ -1727,7 +1727,7 @@ test.describe('§14 keyboard reach without the map', () => {
   // the selection a screen-reader user is moving through is announced to nobody.
   test('§14 SPEC-DEVIATION the search dropdown claims listbox semantics it does not implement', async ({ page }) => {
     await openMap(page);
-    await page.fill('#search', 'CityLearn');
+    await page.fill('#search', 'NIST AI Risk');
     await expect(page.locator('.sd-item').first()).toBeVisible();
     expect(await page.evaluate(() => ({
       dropRole: document.getElementById('search-drop').getAttribute('role'),
