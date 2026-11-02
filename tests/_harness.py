@@ -17,6 +17,7 @@ GENERATOR = REPO / "scripts" / "build-map-data.py"
 DATA_JS = REPO / "assets" / "map" / "hai-data.js"
 MAP_HTML = REPO / "assets" / "map" / "eu-hai-map.html"
 SPEC = REPO / "docs" / "map-interface-spec.md"
+MAP_MD = REPO / "map.md"
 
 
 def load_generator():

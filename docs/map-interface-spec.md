@@ -710,8 +710,8 @@ range goes. The *unknown start* checkbox removes the whole set for a reader who
 wants only established dates.
 
 **Its count is the set it actually governs**, computed across every axis but the
-period (§6.1). All 37 undated entities are teams, so a reader filtered to
-Commons needs to see 0 there, not 37 — a figure that would name a set the
+period (§6.1). All 49 undated entities are teams, so a reader filtered to
+Commons needs to see 0 there, not 49 — a figure that would name a set the
 checkbox beside it cannot change. Zero is also a useful signal in its own right:
 the switch has nothing to do in the current view.
 
