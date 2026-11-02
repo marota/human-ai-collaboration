@@ -60,6 +60,7 @@ the links given.
 | Ecosystem map | [`map.md`](map.md) is the page around it. The map itself is [`assets/map/eu-hai-map.html`](assets/map/eu-hai-map.html), a single self-contained page. Its data, [`assets/map/hai-data.js`](assets/map/hai-data.js), is generated from the YAML of a separate repository, `eu-hai-collab-map`, which is private for now. |
 | The map's chat | [`assets/map/hai-chat.js`](assets/map/hai-chat.js) runs in the page. Its server, which answers with a local model on the maintainer's machine, is in [`chat/`](chat/); see [`chat/README.md`](chat/README.md). |
 | How the map works | [`docs/map-interface-spec.md`](docs/map-interface-spec.md) covers the data model, the visual language, filtering, the chat, and the invariants a change must keep. |
+| Admission criteria | [`docs/admission-criteria.md`](docs/admission-criteria.md) is the grid a proposal goes through: whether it enters the map, and in which tier. It translates the French original, kept in the data repository. |
 | References | [`references.md`](references.md) |
 | About | [`about.md`](about.md) · [ORCID 0000-0003-1753-5493](https://orcid.org/0000-0003-1753-5493) |
 
