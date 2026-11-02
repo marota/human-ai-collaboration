@@ -74,6 +74,7 @@ export function snapshot(page) {
     focusId: state.focusId,
     pins: state.pins.size,
     layers: { ...state.layers },
+    tiers: { ...state.tiers },
     domains: [...state.domains],
     years: { ...state.years },
     links: state.links,

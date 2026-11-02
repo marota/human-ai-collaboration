@@ -72,6 +72,10 @@ const BADGE = { energy: 'energy', aviation: 'aviation', rail: 'rail', transport:
   compute: 'compute', cluster: 'AI network', simulation: 'socio-tech sim.', hf: 'human factors',
   xai: 'XAI', multi: 'multi/other', maritime: 'maritime', nuclear: 'nuclear', defense: 'defence' };
 
+// §8's tier tag speaks the tier facet's words (§6), not the vocabulary's, so the
+// card and the filter beside it name a tier alike. Page vocabulary, written out.
+const TIER_TAG = { core: 'Core', ecosystem: 'Periphery' };
+
 // §8 item 6's identity fields, in the order the spec lists them, with the
 // payload field each one reads — the same arrangement as SEC_SOURCES, and for
 // the same two reasons. It predicts one card's grid from that card's payload,
@@ -713,12 +717,15 @@ test.describe('§8 section order, and omission when empty', () => {
     await openMap(page);
     const rows = await corpus(page);
     const taxo = await taxonomy(page);
-    // The labels are §3.4 lookups in the vocabulary that ships with the data, so
-    // the row is rebuilt here by the rule the spec states and compared whole.
-    // Which entity has which tag is upstream's business; that a tier the data
-    // does not carry must not appear is the page's.
+    // The kind and status labels are §3.4 lookups in the vocabulary that ships
+    // with the data; the tier's is the facet's own word for the two tiers it
+    // filters on, and the vocabulary's for anything else. So the row is rebuilt
+    // here by the rule the spec states and compared whole. Which entity has
+    // which tag is upstream's business; that a tier the data does not carry
+    // must not appear is the page's.
+    const tierTag = (k) => (Object.hasOwn(TIER_TAG, k) ? TIER_TAG[k] : label(taxo, 'tier', k));
     const tags = (r) => [r.kind ? label(taxo, 'kind', r.kind) : (r.type ? label(taxo, 'type', r.type) : ''),
-      label(taxo, 'status', r.status), label(taxo, 'tier', r.tier)].filter(Boolean);
+      label(taxo, 'status', r.status), r.tier ? tierTag(r.tier) : ''].filter(Boolean);
     const shown = () => page.$$eval(`${PANEL} .dt-tag`, ts => ts.map(t => t.textContent));
 
     const all3 = any(rows, r => r.kind && r.status && r.tier, 'carries a kind, a status and a tier');

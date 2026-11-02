@@ -1050,9 +1050,11 @@ test.describe('§4.2 markers, and invariant 2', () => {
 
   test('inv.2 two entities of the same layer and domains draw the identical marker', async ({ page }) => {
     // The sharpest reading of "neither channel encodes anything else": if layer
-    // and domain set are all that a marker shows, then two entities agreeing on
-    // both must produce byte-identical markup. Status, tier, funding, date
-    // confidence, pin count — none of them may reach the glyph. Scores of
+    // and domain set are all that a marker's glyph shows, then two entities
+    // agreeing on both must produce byte-identical markup. Status, tier, funding,
+    // date confidence, pin count — none of them may reach the glyph. The tier
+    // does reach the marker, as its strength alone (§4.2): a class on the outer
+    // element, which is why the inner markup is what is compared. Scores of
     // groups in the corpus have more than one member and disagree on status or
     // tier, so a leak would be caught here rather than by eye; how many there
     // are today is computed below rather than written down.

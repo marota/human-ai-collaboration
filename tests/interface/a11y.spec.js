@@ -254,14 +254,14 @@ test.describe('§14 landmarks and regions', () => {
 
 // ---------------------------------------------------------------------------
 test.describe('§14 aria-pressed on every toggle', () => {
-  test('§14 exactly ten controls claim a pressed state, and they are the toggles', async ({ page }) => {
+  test('§14 exactly twelve controls claim a pressed state, and they are the toggles', async ({ page }) => {
     await openMap(page);
     // Enumerated rather than spot-checked: the failure this guards against is a
     // new two-state control that keeps its state in a CSS class only.
     expect(await page.evaluate(() =>
-      [...document.querySelectorAll('[aria-pressed]')].map((el) => el.id || el.dataset.layer)))
-      .toEqual(['project', 'team', 'cluster', 'commons', 'framework', 'links-row', 'links-pill', 'mymap-pill',
-        'feed-pill', 'chat-pill']);
+      [...document.querySelectorAll('[aria-pressed]')].map((el) => el.id || el.dataset.layer || el.dataset.tier)))
+      .toEqual(['project', 'team', 'cluster', 'commons', 'framework', 'core', 'ecosystem', 'links-row', 'links-pill',
+        'mymap-pill', 'feed-pill', 'chat-pill']);
   });
 
   test('§14 the five layer toggles start pressed and track state', async ({ page }) => {

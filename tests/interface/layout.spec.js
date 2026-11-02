@@ -262,7 +262,7 @@ test.describe('§5 the grid', () => {
     // §5 enumerates the sidebar's contents; the split with the floating cluster
     // is the whole point ("one place to look for interactions"), so each of
     // these has to be in the panel and not on the map.
-    const ids = ['search', 'presets', 'f-layers', 'f-domains', 'links-row', 'f-nogeo',
+    const ids = ['search', 'presets', 'f-layers', 'f-tiers', 'f-domains', 'links-row', 'f-nogeo',
       'f-mymap', 'st-project', 'st-team', 'st-commons', 'st-framework', 'st-note',
       'intro-btn', 'tour-btn'];
     const where = await page.evaluate((list) => list.map((id) => {
@@ -278,8 +278,8 @@ test.describe('§5 the grid', () => {
   test('§5 the sidebar\'s sections sit in the order §5 enumerates them', async ({ page }) => {
     await openAt(page, { width: 1440 });
     // §5's list is a reading order, not a set: "Identity, counters, search,
-    // starting views, layer toggles, domain filters, links toggle, off-the-map
-    // list, My map, help." The test above proves each of those is in the panel
+    // starting views, layer toggles, tier toggles, domain filters, links toggle,
+    // off-the-map list, My map, help." The test above proves each of those is in the panel
     // and not on the map; this one proves the panel is walked in that sequence,
     // which is what the section's own argument — "there should be one place to
     // look for interactions" — rests on.
@@ -290,7 +290,7 @@ test.describe('§5 the grid', () => {
     // search box under the domain groups, is a one-line markup edit that changes
     // what a first-time reader meets first and that nothing else here notices.
     const WRITTEN = ['.brand', '#st-project', '#st-note', '#search', '#presets',
-      '#f-layers', '#f-domains', '#links-row', '#f-nogeo', '#f-mymap', '#intro-btn'];
+      '#f-layers', '#f-tiers', '#f-domains', '#links-row', '#f-nogeo', '#f-mymap', '#intro-btn'];
     const got = await page.evaluate((sels) => {
       const pairs = sels.map((s) => [s, document.querySelector(s)]);
       const missing = pairs.filter(([, el]) => !el).map(([s]) => s);

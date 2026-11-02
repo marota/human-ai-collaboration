@@ -321,6 +321,7 @@ test.describe('§16 invariant 8 — both languages, every key', () => {
     const families = await page.evaluate(() => ({
       preset: PRESETS.map((p) => 'preset.' + p.id),
       kinds: KINDS.flatMap((k) => ['kind.' + k, 'kinds.' + k, 'wl.' + k]),
+      tiers: TIERS.map((k) => 'tier.' + k),
       grp: DOM_GROUPS.map((g) => 'grp.' + g.key),
       tour: tourTargets().flatMap((s) => ['tour.' + s.k + 't', 'tour.' + s.k + 'b']),
       rel: [...new Set(items.flatMap((it) => relSections(it).map((s) => s.key)))].sort(),
@@ -331,6 +332,7 @@ test.describe('§16 invariant 8 — both languages, every key', () => {
     expect(families.rel).toEqual(['rel.clusters', 'rel.created', 'rel.createdBy', 'rel.members',
       'rel.partnerClusters', 'rel.projects', 'rel.teams', 'rel.usedBy', 'rel.uses']);
     expect(families.tour).toHaveLength(8);
+    expect(families.tiers).toEqual(['tier.core', 'tier.ecosystem']);
     expect(all.filter((k) => !(k in fr))).toEqual([]);
     expect(all.filter((k) => !(k in en))).toEqual([]);
   });
