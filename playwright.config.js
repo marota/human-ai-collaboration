@@ -10,12 +10,20 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   // Playwright's default — half the logical cores, so 2 on a four-core GitHub
-  // runner — is left alone on purpose. Raising it to 4 was tried and was worse
-  // on both counts: the suite went from 11.2 to 13.7 minutes, because four
-  // Chromium instances on four vCPUs contend rather than parallelise, and the
-  // clock-driven toast test started losing its race on the busier machine.
-  // Sharding across runners is the way to make this faster, not oversubscribing
-  // one of them.
+  // runner — is left alone on purpose. Raising it to 4 was tried, and what
+  // settled it was a race, not a stopwatch: the clock-driven toast test in
+  // a11y.spec.js lost its pauseAt race twice over, retry included, which is
+  // what four Chromium instances contending for four vCPUs they already
+  // multi-thread across look like.
+  //
+  // The wall clock decided nothing, and the figures are kept here so that the
+  // next person does not read one into them: three runs of this suite took
+  // 671s and 948s at two workers, and 822s at four. The spread between runners
+  // is wider than the difference being measured, so these runs cannot tell
+  // whether more workers are faster, slower, or neither.
+  //
+  // If this does need to be faster, shard it across runners, where the
+  // parallelism is real, rather than oversubscribing one of them.
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   // Two concurrent `playwright test` invocations in one checkout otherwise share
   // this directory and delete each other's traces mid-write, which surfaces as
