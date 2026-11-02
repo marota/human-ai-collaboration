@@ -2533,9 +2533,18 @@ test.describe('§4.4 the gestures on the stage', () => {
    *  only ever test the easy case. The gap is the subject here, not a wait for
    *  the page to catch up. */
   async function handDblclick(page, x, y, gap) {
+    // Zero means "both clicks at once", and that has to be delivered in one
+    // call. Four awaited round-trips to the browser are not instant on a
+    // loaded machine: on a busy CI runner they stretched past the page's own
+    // DBL_MS window of 600 ms, the marker-tap guard lapsed exactly as it is
+    // meant to, and the second click landed on the open map the flight had
+    // slid under the pointer — closing the card and failing the row that was
+    // supposed to be the easy one. `mouse.dblclick()` sends the whole gesture
+    // from a single call, so the row tests the page rather than the runner.
+    if (!gap) return page.mouse.dblclick(x, y);
     await page.mouse.move(x, y);
     await page.mouse.down(); await page.mouse.up();
-    if (gap) await page.waitForTimeout(gap);
+    await page.waitForTimeout(gap);
     await page.mouse.down({ clickCount: 2 }); await page.mouse.up({ clickCount: 2 });
   }
 
