@@ -1277,17 +1277,34 @@ function endPtr(e){ ptrs.delete(e.pointerId);
   if (a.length===1) dragStart = {x:a[0][0],y:a[0][1],vx:view.x,vy:view.y};
   else if (a.length===2) pinchD = Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);
 }
+// A double-click on a marker is a reader opening it, emphatically — not a zoom,
+// and not "open, then close". Neither half of the gesture can be recognised
+// from the event itself. The pointer capture taken on pointerdown retargets the
+// rest of the gesture to the svg, so a dblclick never has the marker as its
+// target. And the first tap starts flyTo(), which carries the marker out from
+// under the pointer: with a human gap between the clicks the second tap lands
+// on open map and closes the card the first one opened. So the tap that opened
+// a marker is remembered, and a second tap or a dblclick on the same spot just
+// after it is treated as the rest of that gesture.
+const DBL_MS = 600, DBL_PX = 10;
+let markerTap = null;
+const continuesMarkerTap = e => !!markerTap && e.timeStamp - markerTap.t <= DBL_MS
+  && Math.abs(e.clientX - markerTap.x) + Math.abs(e.clientY - markerTap.y) <= DBL_PX;
 svg.addEventListener('pointerup', e=>{
   const wasTap = ptrs.size===1 && moved<=4 && e.button===0;
   endPtr(e);
   if (!wasTap) return;
+  if (continuesMarkerTap(e)) return;               // the second half of a double-click
   const hit = document.elementFromPoint(e.clientX, e.clientY);
   const mk = hit && hit.closest ? hit.closest('.mk') : null;
-  if (mk) openEntity(mk.dataset.id);
+  if (mk){ openEntity(mk.dataset.id); markerTap = { t: e.timeStamp, x: e.clientX, y: e.clientY }; }
   else if (state.focusId && hit && hit.closest('#map')) closeDetail();
 });
 svg.addEventListener('pointercancel', endPtr);
-svg.addEventListener('dblclick', e=>{ if (e.target.closest('.mk')) return; const rect = svg.getBoundingClientRect(); zoomAt(e.clientX-rect.left,e.clientY-rect.top,1.7); });
+svg.addEventListener('dblclick', e=>{
+  if (continuesMarkerTap(e)) return;               // let the flight finish, at its own scale
+  const rect = svg.getBoundingClientRect(); zoomAt(e.clientX-rect.left,e.clientY-rect.top,1.7);
+});
 document.getElementById('z-in').addEventListener('click',()=>{ const [w,h]=stageSize(); zoomAt(w/2,h/2,1.45); });
 document.getElementById('z-out').addEventListener('click',()=>{ const [w,h]=stageSize(); zoomAt(w/2,h/2,1/1.45); });
 document.getElementById('z-fit').addEventListener('click',()=>fitView(true));
@@ -2021,8 +2038,16 @@ document.getElementById('fd-close').addEventListener('click', ()=>setFeed(false)
 document.getElementById('fd-offscreen').addEventListener('click', ()=>fitView(!reduceMotion));
 document.getElementById('fd-offmap').addEventListener('click', ()=>{
   document.body.classList.remove('sb-hidden');
-  if (window.innerWidth<=840) setPanel(true);
-  document.getElementById('f-nogeo').scrollIntoView({ behavior: reduceMotion?'auto':'smooth', block:'center' });
+  // Below 840 px both columns are overlay drawers on the same layer, and the
+  // feed is the later sibling. Left open, the column this button sits in covers
+  // the very rows it is about to scroll into view — all but a 60 px sliver of
+  // each. The reader asked to see the off-map list, so the column steps aside.
+  if (window.innerWidth<=840){ if (state.feed) setFeed(false); setPanel(true); }
+  // Aligned to the top, not centred: the section grows a row per placeless
+  // entity and is already taller than a phone's drawer, and centring a section
+  // taller than its viewport scrolls its own heading — the badge with the very
+  // number this button quoted — up under the drawer's header.
+  document.getElementById('f-nogeo').scrollIntoView({ behavior: reduceMotion?'auto':'smooth', block:'start' });
 });
 
 // ---------- period filter ----------
