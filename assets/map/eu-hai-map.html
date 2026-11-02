@@ -17,6 +17,9 @@
     --shadow-lg:0 24px 60px -24px rgba(20,22,26,.35);
     --sea:#f6f3ec; --land:#ece7da; --land-line:#d6cfc0; --grat:rgba(20,22,26,.045);
     --scrim:rgba(20,22,26,.38);
+    /* How strongly a periphery marker is drawn (§4.2). Dark mode needs more:
+       fading a colour into a dark land loses its hue sooner than into a pale one. */
+    --periph:.42;
     --serif:Charter,"Iowan Old Style","Palatino Linotype",Palatino,"Source Serif 4",Georgia,"Times New Roman",serif;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
@@ -33,6 +36,7 @@
       --shadow-lg:0 24px 60px -24px rgba(0,0,0,.8);
       --sea:#10131a; --land:#1d222b; --land-line:#313947; --grat:rgba(233,230,224,.05);
       --scrim:rgba(0,0,0,.55);
+      --periph:.55;
     }
   }
   *,*::before,*::after{box-sizing:border-box}
@@ -127,6 +131,9 @@
     background:var(--surface);transition:transform .15s;box-shadow:var(--shadow-sm)}
   .layer-row[aria-pressed="true"] .sw{background:var(--accent)}
   .layer-row[aria-pressed="true"] .sw::after{transform:translateX(11px)}
+  /* A tier row's glyph is drawn at the strength of that tier's markers, so the
+     two rows are also the key to it. */
+  .layer-row .glyph.periph{opacity:var(--periph)}
 
   .fgroup{margin-top:13px;padding-top:11px;border-top:1px solid var(--rule)}
   .fgroup:first-of-type{margin-top:0;padding-top:0;border-top:none}
@@ -139,7 +146,7 @@
   .note{font-size:11px;color:var(--ink-soft);line-height:1.55;margin:10px 0 0;padding:9px 11px;
     background:var(--surface-alt);border-radius:8px}
   .note strong{color:var(--ink);font-weight:600}
-  body.mymap-on #f-domains,body.mymap-on #f-layers{opacity:.4;pointer-events:none}
+  body.mymap-on #f-domains,body.mymap-on #f-layers,body.mymap-on #f-tiers{opacity:.4;pointer-events:none}
 
   .pin-list{display:flex;flex-direction:column;gap:2px;margin:2px 0 8px}
   .pin-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font-size:12.5px;width:100%;text-align:left}
@@ -172,6 +179,13 @@
   .mk .halo{opacity:0;transition:opacity .15s}
   .mk:hover .halo,.mk.focus .halo{opacity:1}
   .mk.peek .halo{opacity:.55}
+  /* The periphery (tier: ecosystem) is drawn muted, so the core stands out with
+     both tiers on. Strength is the tier's channel and nothing else's: the glyph
+     inside is the same shape and colour either way (invariant 2). This sits
+     before .dim, so a dimmed marker stays dimmed whatever its tier; the marker
+     the reader points at, or has open, comes back to full strength. */
+  .mk.periph{opacity:var(--periph)}
+  .mk.periph:not(.dim):hover,.mk.periph.peek:not(.dim),.mk.periph.focus{opacity:1}
   .mk.dim{opacity:.13;pointer-events:auto}
   .mk .lbl{font-family:var(--sans);font-size:8.5px;font-weight:600;fill:var(--ink-soft);
     paint-order:stroke;stroke:var(--sea);stroke-width:2.6px;pointer-events:none;display:none}
@@ -205,6 +219,7 @@
   .legend-row{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--ink-soft)}
   .legend-row .glyph{width:18px;height:18px;flex:none;display:grid;place-items:center}
   .legend p{font-size:10px;color:var(--ink-faint);line-height:1.5;margin:8px 0 0}
+  .legend p + p{margin-top:2px}
   .attrib{font-size:9.5px;color:var(--ink-faint);background:color-mix(in srgb,var(--paper) 72%,transparent);
     padding:3px 8px;border-radius:6px;align-self:flex-end}
 
@@ -530,6 +545,12 @@
         <div id="layer-rows"></div>
       </section>
 
+      <section class="sb-section" id="f-tiers">
+        <h3 class="sb-h" data-i18n="tiersTitle">Périmètre</h3>
+        <div id="tier-rows"></div>
+        <p class="note" data-i18n="tiersNote">Cœur : les fiches qui font elles-mêmes de la collaboration humain–IA. Périphérie : celles qui gravitent autour, avec un lien plus lâche — simples partenaires, calcul, cadres, briques. Leurs marqueurs sont estompés.</p>
+      </section>
+
       <section class="sb-section" id="f-domains">
         <h3 class="sb-h"><span data-i18n="domainsTitle">Domaines</span>
           <span class="mini-act"><button class="mini-btn" id="reset-btn" data-i18n="reset">Réinitialiser</button></span>
@@ -637,6 +658,7 @@
         <summary data-i18n="legendTitle">Légende</summary>
         <div class="legend-rows" id="legend-rows"></div>
         <p data-i18n="legendPie">Couleur = domaine · parts de tarte = multi-domaines.</p>
+        <p data-i18n="legendTier">Marqueur estompé = périphérie.</p>
       </details>
       <span class="attrib">Natural Earth · <span data-i18n="attribData">données</span> CC BY 4.0</span>
     </div>
@@ -716,6 +738,11 @@ const DOM_GROUPS = [
 const ALL_DOMS = DOM_GROUPS.flatMap(g => g.doms);
 const KINDS = ['project','team','cluster','commons','framework'];
 const perKind = v => Object.fromEntries(KINDS.map(k => [k, v]));
+// The admission grid's two tiers, by their data values: the core does human–AI
+// collaboration itself, the periphery (`ecosystem`) gravitates around it. A card
+// with no tier is core, as the data repository defines it.
+const TIERS = ['core','ecosystem'];
+const perTier = v => Object.fromEntries(TIERS.map(k => [k, v]));
 const CAPITALS = [
   ['Paris',48.857,2.352],['London',51.507,-0.128],['Berlin',52.52,13.405],['Madrid',40.417,-3.703],
   ['Roma',41.902,12.496],['Wien',48.208,16.373],['Warszawa',52.23,21.011],['Stockholm',59.329,18.069],
@@ -732,11 +759,14 @@ const I18N = {
     stCountriesN:n=>`${n} pays`,
     stTile:(v,m)=>`${v} dans la vue · ${m} ${m>1?'correspondent':'correspond'} aux filtres`,
     presetsTitle:'Vues de départ', layersTitle:'Couches', domainsTitle:'Domaines', reset:'Réinitialiser',
+    tiersTitle:'Périmètre', 'tier.core':'Cœur', 'tier.ecosystem':'Périphérie',
+    tiersNote:'Cœur : les fiches qui font elles-mêmes de la collaboration humain–IA. Périphérie : celles qui gravitent autour, avec un lien plus lâche — simples partenaires, calcul, cadres, briques. Leurs marqueurs sont estompés.',
     all:'Tout', none:'Aucun',
     'grp.industrial':'Domaines industriels', 'grp.research':'Axes de recherche', 'grp.infra':'Infrastructures de recherche',
     linksTitle:'Liens', linksLbl:'Afficher tous les liens', linksPill:'Liens',
     linksNote:'Les liens consortium et d\u2019usage s\u2019affichent automatiquement autour d\u2019une fiche ouverte. Ce réglage dessine le maillage entier, à raison d\u2019un trait par organisation.',
     legendTitle:'Légende', legendPie:'Couleur = domaine · parts de tarte = multi-domaines.', attribData:'données',
+    legendTier:'Marqueur estompé = périphérie.',
     legendNote:'Un marqueur en parts de tarte couvre plusieurs domaines : il reste visible tant que l\u2019un d\u2019eux est coché.',
     myMapTitle:'Ma carte', myMapView:'Voir ma carte', myMapViewOff:'Toute la carte',
     myMapEmpty:'Épinglez des fiches (★) pour composer votre propre cartographie — elle est conservée sur cet appareil.',
@@ -824,11 +854,14 @@ const I18N = {
     // Verb agreement: "1 matches", "25 match".
     stTile:(v,m)=>`${v} in view · ${m} ${m===1?'matches':'match'} the filters`,
     presetsTitle:'Starting views', layersTitle:'Layers', domainsTitle:'Domains', reset:'Reset',
+    tiersTitle:'Scope', 'tier.core':'Core', 'tier.ecosystem':'Periphery',
+    tiersNote:'Core: the cards that do human–AI collaboration themselves. Periphery: the ones that gravitate around them, with a looser link — partners only, compute, frameworks, building blocks. Their markers are drawn faded.',
     all:'All', none:'None',
     'grp.industrial':'Industrial domains', 'grp.research':'Research focus', 'grp.infra':'Research infrastructure',
     linksTitle:'Links', linksLbl:'Show all links', linksPill:'Links',
     linksNote:'Consortium and usage links appear automatically around an open card. This switch draws the whole mesh, one line per organisation.',
     legendTitle:'Legend', legendPie:'Colour = domain · pie slices = multi-domain.', attribData:'data',
+    legendTier:'Faded marker = periphery.',
     legendNote:'A pie-slice marker spans several domains: it stays visible while any of them is ticked.',
     myMapTitle:'My map', myMapView:'View my map', myMapViewOff:'Whole map',
     myMapEmpty:'Pin cards (★) to compose your own cartography — it is kept on this device.',
@@ -930,6 +963,7 @@ const t = k => { const v = I18N[LANG][k]; return v==null ? (I18N.en[k] ?? k) : v
 const state = {
   domains: new Set(ALL_DOMS),
   layers: perKind(true),
+  tiers: perTier(true),
   years: null, // {a,b,undated} — filled once the data bounds are known
   feed:false, inView:new Set(), inFilter:new Set(),
   matchCount:0, offMapMatch:0, offScreen:0, keptOpen:0,
@@ -976,11 +1010,13 @@ function reg(arr, kind){ arr.forEach(d => {
   const dated = (y0!=null||y1!=null);
   // `vague`: we do not know when this actually began — either no date at all,
   // or only the founding year of the host institution.
-  const it = { d, kind, domains, X, Y, id:d.id, geo, y0, y1, dated, vague:(!dated || !!d.dateHost) };
+  const it = { d, kind, domains, X, Y, id:d.id, geo, y0, y1, dated, vague:(!dated || !!d.dateHost),
+    tier: TIERS.includes(d.tier) ? d.tier : 'core' };
   items.push(it); byId[d.id] = it;
 }); }
 reg(DATA.PROJECTS,'project'); reg(DATA.CLUSTERS,'cluster'); reg(DATA.COMMONS,'commons'); reg(DATA.TEAMS,'team'); reg(DATA.FRAMEWORKS,'framework');
 const TOTALS = { project:DATA.PROJECTS.length, team:DATA.TEAMS.length, cluster:DATA.CLUSTERS.length, commons:DATA.COMMONS.length, framework:DATA.FRAMEWORKS.length };
+const TIER_TOTALS = perTier(0); items.forEach(it => TIER_TOTALS[it.tier]++);
 
 // ---------- period bounds ----------
 const YEARS = items.flatMap(it => [it.y0, it.y1]).filter(y => y!=null);
@@ -1186,13 +1222,15 @@ const edgeEls = edges.map(e=>{
   gEdges.appendChild(p);
   return p;
 });
-// markers (order: teams under, then commons, frameworks, projects on top)
+// markers (order: teams under, then commons, frameworks, projects on top; within
+// a layer the periphery under the core, so a muted marker never veils a full one)
 const drawOrder = ['team','commons','framework','cluster','project'];
-const sorted = items.filter(it=>it.geo).sort((a,b)=>drawOrder.indexOf(a.kind)-drawOrder.indexOf(b.kind));
+const sorted = items.filter(it=>it.geo).sort((a,b)=>drawOrder.indexOf(a.kind)-drawOrder.indexOf(b.kind)
+  || TIERS.indexOf(b.tier)-TIERS.indexOf(a.tier));
 gMarkers.innerHTML = sorted.map(it=>{
   const r = MK_R[it.kind];
   const showLbl = it.kind!=='team';
-  return `<g class="mk" data-id="${esc(it.id)}" transform="translate(${it.X.toFixed(1)},${it.Y.toFixed(1)}) scale(1)">
+  return `<g class="mk${it.tier==='core'?'':' periph'}" data-id="${esc(it.id)}" transform="translate(${it.X.toFixed(1)},${it.Y.toFixed(1)}) scale(1)">
     <circle r="${Math.max(r+6,11)}" fill="transparent"></circle>
     ${shapeSvg(it.domains, it.kind, r, true)}
     <text class="star" x="${r*0.7+2}" y="${-r*0.7-2}" font-size="9" fill="var(--accent)" stroke="var(--paper)" stroke-width="2" paint-order="stroke">★</text>
@@ -1318,16 +1356,17 @@ function flyTo(id){
 }
 
 // ---------- visibility ----------
-// The three filter axes as one predicate. Every counter in the interface reads
+// The four filter axes as one predicate. Every counter in the interface reads
 // it, so "matches the filters" means the same thing in the header tiles, the
-// layer rows, the period control and the off-the-map list — the alternative,
-// each control counting in its own terms, is what made a layer row say 25 while
-// the tile beneath it said 24 and the caption said both.
+// layer and tier rows, the period control and the off-the-map list — the
+// alternative, each control counting in its own terms, is what made a layer row
+// say 25 while the tile beneath it said 24 and the caption said both.
 // `skip` leaves one axis out: a control's own count has to answer "how many
 // would this bring in", which it cannot do while counting itself. A layer row
-// skips 'layer', the unknown-start checkbox skips 'period'.
+// skips 'layer', a tier row 'tier', the unknown-start checkbox skips 'period'.
 function matchesFilters(it, skip){
   if (skip !== 'layer'  && !state.layers[it.kind]) return false;
+  if (skip !== 'tier'   && !state.tiers[it.tier]) return false;
   if (skip !== 'domain' && !it.domains.some(d=>state.domains.has(d))) return false;
   if (skip !== 'period' && periodState(it) === 'out') return false;
   return true;
@@ -1408,7 +1447,7 @@ function refresh(){
   styleHotEdges();
   // Every count in the panel is a reading of the same filter state, so they all
   // move together or none of them can be trusted.
-  updateLayerCounts(); updateUndatedCount(); renderHist(); paintHist();
+  updateLayerCounts(); updateTierCounts(); updateUndatedCount(); renderHist(); paintHist();
   updateInView(vis, matched); renderStats(); updateNoGeo(); renderFeed();
   document.getElementById('links-row').setAttribute('aria-pressed', state.links);
   document.getElementById('links-pill').classList.toggle('active', state.links);
@@ -1439,9 +1478,10 @@ function applyPreset(id){
   const p = PRESETS.find(x=>x.id===id); if (!p) return;
   state.domains = new Set(p.doms || ALL_DOMS);
   KINDS.forEach(k=>state.layers[k]=true);
+  TIERS.forEach(k=>state.tiers[k]=true);
   state.myMap = false;
   state.years = { a:YMIN, b:YMAX, undated:true };
-  syncDomainChecks(); renderLayerRows(); renderTime(); refresh(); fitView(true);
+  syncDomainChecks(); renderLayerRows(); renderTierRows(); renderTime(); refresh(); fitView(true);
   closeWelcome();
 }
 function renderLayerRows(){
@@ -1489,6 +1529,39 @@ function updateLayerCounts(){
     const msg = off[k] ? t('layerSplit')(n[k]-off[k], off[k], n[k])
       : state.myMap ? t('layerCountMyMap')(n[k])
       : (n[k] === TOTALS[k] ? '' : t('layerCount')(n[k], TOTALS[k]));
+    el.title = msg; el.setAttribute('aria-label', msg);
+  });
+}
+// The tier facet: one switch per tier, built like the layer rows. Its glyph is
+// three markers of no layer in particular, drawn at that tier's strength.
+const TIER_GLYPH = `<svg width="18" height="18" viewBox="-9 -9 18 18">${
+  [[-3.6,2.4,'energy'],[3.6,2.4,'aviation'],[0,-3.4,'rail']].map(([x,y,d])=>
+    `<circle cx="${x}" cy="${y}" r="3.7" fill="${COLORS[d]}" stroke="var(--paper)" stroke-width="1.1"></circle>`).join('')}</svg>`;
+function renderTierRows(){
+  const host = document.getElementById('tier-rows');
+  host.innerHTML = TIERS.map(k=>`
+    <button class="layer-row" data-tier="${k}" aria-pressed="${state.tiers[k]}">
+      <span class="glyph${k==='core'?'':' periph'}">${TIER_GLYPH}</span>
+      <span class="lbl">${esc(t('tier.'+k))}</span>
+      <span class="cnt">${TIER_TOTALS[k]}</span>
+      <span class="sw"></span>
+    </button>`).join('');
+  host.querySelectorAll('[data-tier]').forEach(b=>b.addEventListener('click',()=>{
+    const k = b.dataset.tier; state.tiers[k] = !state.tiers[k];
+    b.setAttribute('aria-pressed', state.tiers[k]); refresh();
+  }));
+  updateTierCounts();
+}
+// The same facet count as a layer row's (§6.1), with the tier axis left out.
+// No tile reads the tiers, so there is no placeless split to show here.
+function updateTierCounts(){
+  const n = perTier(0);
+  scopeItems('tier').forEach(it=>{ n[it.tier]++; });
+  document.querySelectorAll('.layer-row[data-tier]').forEach(b=>{
+    const k = b.dataset.tier, el = b.querySelector('.cnt');
+    el.textContent = n[k];
+    const msg = state.myMap ? t('layerCountMyMap')(n[k])
+      : (n[k] === TIER_TOTALS[k] ? '' : t('layerCount')(n[k], TIER_TOTALS[k]));
     el.title = msg; el.setAttribute('aria-label', msg);
   });
 }
@@ -1712,8 +1785,10 @@ function cardHtml(it){
   const secs = relSections(it);
   const tl = d.timeline, lk = d.links || {}, fn = d.funding, inf = d.infra;
   const spec = d.kind ? taxo('kind', d.kind) : (d.type ? taxo('type', d.type) : '');
+  // The tier tag uses the facet's own words (§6), so the card and the filter
+  // name a tier alike; a value the facet does not know falls back to TAXO.
   const tags = [spec, d.status ? taxo('status', d.status) : '',
-                d.tier ? taxo('tier', d.tier) : ''].filter(Boolean);
+                d.tier ? (TIERS.includes(d.tier) ? t('tier.'+d.tier) : taxo('tier', d.tier)) : ''].filter(Boolean);
 
   const org = d.organisation, aff = d.affiliation || {};
   const identity = facts([
@@ -2231,10 +2306,11 @@ document.getElementById('mymap-btn').addEventListener('click', toggleMyMap);
 document.getElementById('mymap-pill').addEventListener('click', toggleMyMap);
 document.getElementById('reset-btn').addEventListener('click', ()=>{
   state.domains = new Set(ALL_DOMS); KINDS.forEach(k=>state.layers[k]=true);
+  TIERS.forEach(k=>state.tiers[k]=true);
   state.links = false; state.myMap = false; closeDetail();
   state.years = { a:YMIN, b:YMAX, undated:true };
   searchInput.value=''; searchDrop.classList.remove('open');
-  syncDomainChecks(); renderLayerRows(); renderTime(); refresh(); fitView(true);
+  syncDomainChecks(); renderLayerRows(); renderTierRows(); renderTime(); refresh(); fitView(true);
 });
 document.getElementById('share-btn').addEventListener('click', ()=>{
   const h = [];
@@ -2243,6 +2319,8 @@ document.getElementById('share-btn').addEventListener('click', ()=>{
   if (state.domains.size !== ALL_DOMS.length) h.push('dom='+[...state.domains].join(','));
   const lays = KINDS.filter(k=>state.layers[k]);
   if (lays.length !== KINDS.length) h.push('lay='+lays.join(','));
+  const tiers = TIERS.filter(k=>state.tiers[k]);
+  if (tiers.length !== TIERS.length) h.push('tier='+tiers.join(','));
   if (state.links) h.push('links=1');
   if (state.myMap) h.push('my=1');
   if (timeOn()) h.push('yr='+state.years.a+','+state.years.b);
@@ -2370,7 +2448,7 @@ function applyLang(){
   document.getElementById('sb-foot').innerHTML = t('footer');
   document.getElementById('fd-close').title = t('feedHide'); document.getElementById('fd-close').setAttribute('aria-label', t('feedHide'));
   document.title = t('title') + (LANG==='fr' ? ' — carte de l\u2019écosystème' : ' — ecosystem map');
-  renderPresets(); renderLayerRows(); renderDomainGroups(); renderLegend(); renderPins(); renderNoGeo(); renderTime();
+  renderPresets(); renderLayerRows(); renderTierRows(); renderDomainGroups(); renderLegend(); renderPins(); renderNoGeo(); renderTime();
   if (welcome.classList.contains('open')) renderWelcome();
   if (state.focusId) renderDetail(state.focusId);
   refresh();
@@ -2385,6 +2463,9 @@ function applyHash(){
   const pins = h.get('pins'); if (pins) pins.split(',').forEach(id=>{ if (byId[id]) state.pins.add(id); });
   const dom = h.get('dom'); if (dom){ state.domains = new Set(dom.split(',').filter(d=>ALL_DOMS.includes(d))); if (!state.domains.size) state.domains = new Set(ALL_DOMS); }
   const lay = h.get('lay'); if (lay){ KINDS.forEach(k=>state.layers[k] = lay.split(',').includes(k)); }
+  // Like `dom`: unknown codes are dropped, and a link left with none keeps both.
+  const tier = h.get('tier'); if (tier){ const on = tier.split(',').filter(k=>TIERS.includes(k));
+    if (on.length) TIERS.forEach(k=>state.tiers[k] = on.includes(k)); }
   if (h.get('links')==='1') state.links = true;
   if (h.get('my')==='1' && state.pins.size) state.myMap = true;
   const yr = h.get('yr');

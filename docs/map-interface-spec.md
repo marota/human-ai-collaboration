@@ -143,6 +143,11 @@ colour when single) · `domains[]` (drives the pie slices and the filters) ·
 `dateConf` and `dateHost` are derived, not authored: the generator parses them
 out of the provenance note (§10).
 
+`tier` places a card in the admission grid: `core` for the cards that do
+human–AI collaboration themselves, `ecosystem` for the periphery that gravitates
+around them. The field is optional, and a card without it is core — the data
+repository's own rule, which the map follows (§6).
+
 Per layer, additionally:
 
 - **Projects** — `kind`, `when` (compact span for tooltip and print), `budget`
@@ -225,6 +230,19 @@ Seventeen domain colours in three filter groups:
 Draw order is `team → commons → framework → cluster → project`, so the large, sparse
 markers sit above the dense small ones.
 
+**Strength encodes the tier.** A periphery marker (`tier: ecosystem`, §3.3) is
+drawn muted — opacity 0.42, or 0.55 in dark mode, where fading a colour into a
+dark land loses its hue sooner than into a pale one — so the core stands out with
+both tiers on. It is a third channel, independent of the other two: a periphery
+marker keeps its shape and its colours, and the tier lives in a class on the
+marker's outer element (`.mk.periph`), never in the glyph. Within a layer the
+periphery is drawn under the core, so a muted marker never veils a full one. Two
+states override it. A dimmed marker (§6, §7) stays dimmed at 0.13 whatever its
+tier. And the marker the reader has open, points at, or peeks from a card's row
+comes back to full strength, so what they are reading is never the faint one.
+The tier rows of §6 draw their glyph at their tier's strength, which makes them
+the key; the legend says it in words.
+
 Co-located entities are **jittered** by 0.18° on a circle, per layer group, so a
 city with eight labs shows eight markers rather than one. Projects, clusters and
 commons share one pass, in that order; teams and frameworks have their own. This is applied once,
@@ -300,7 +318,8 @@ layout work.
 Three columns in a CSS grid, `312px | 1fr | 344px`:
 
 - **Left — controls.** Identity, counters, search, starting views, layer
-  toggles, domain filters, links toggle, off-the-map list, My map, help.
+  toggles, tier toggles, domain filters, links toggle, off-the-map list, My map,
+  help.
 - **Centre — the map.** Floating control clusters at the four corners; the
   top-right cluster holds the period slider and the mode pills.
 - **Right — the feed.** Optional; collapses to zero columns when hidden.
@@ -375,15 +394,20 @@ There is exactly one filter predicate, `matchesFilters(it, skip)`, and exactly
 one visibility function, `visibleSet()`, built on it. `visibleSet()` returns
 three sets: `vis` (rendered), `dimmed` (rendered faintly) and `matched` (what
 the filters actually select, recorded before the focus override below). Every
-counter in the interface reads one of the three. Four independent axes combine
+counter in the interface reads one of the three. Five independent axes combine
 with AND:
 
 1. **Layer** — one toggle per layer.
-2. **Domain** — 17 checkboxes. An entity survives if *any* of its domains is
+2. **Tier** — the *Scope* section: one toggle for the core, one for the
+   periphery (`tier: ecosystem`, §3.3), both on by default. Every card is in
+   exactly one; a card the data gives no tier is core. The rows are labelled
+   Core / Periphery, *Cœur / Périphérie*, in the page's own `I18N`; the data
+   value stays `ecosystem`.
+3. **Domain** — 17 checkboxes. An entity survives if *any* of its domains is
    checked, so a multi-domain marker stays visible until all of its domains are
    unchecked.
-3. **Period** — see §10.
-4. **My map** — when on, replaces the above entirely: only pins and their
+4. **Period** — see §10.
+5. **My map** — when on, replaces the above entirely: only pins and their
    immediate neighbours, the neighbours dimmed.
 
 The focused entity is always re-added to `vis` and un-dimmed, along with any of
@@ -393,8 +417,9 @@ filter while reading.
 
 **Starting views** are named domain presets (Overview, Energy & grids,
 Aviation & ATM, Health, Human factors & XAI, Simulation & infrastructure). They
-reset the layers, the period and My map, so a preset is a clean slate rather
-than a modifier on the current state.
+reset the layers, the tiers, the period and My map, so a preset is a clean slate
+rather than a modifier on the current state. The domain section's Reset puts
+every axis back to its default, the tiers included.
 
 ### 6.1 A control's own count leaves its own axis out
 
@@ -403,8 +428,10 @@ returns the entities that pass every *other* axis. That parameter exists because
 a control's count has to answer "how many would this bring in", which it cannot
 do while counting itself: a layer row whose figure collapsed to zero the moment
 you switched the layer off would be useless for deciding whether to switch it
-back on. So the Commons row skips `layer`, the *unknown start* checkbox skips
-`period`, and the period histogram skips `period`.
+back on. So the Commons row skips `layer`, the Core and Periphery rows skip
+`tier`, the *unknown start* checkbox skips `period`, and the period histogram
+skips `period`. A tier row shows a bare figure: no header tile reads the tiers,
+so there is no placeless half to split off as a layer row does (§9.1.1).
 
 The consequence to keep in mind when adding a control: **its own toggle must not
 move its own number, and every other filter must.** Both halves are load-bearing
@@ -414,8 +441,8 @@ drifting into a corpus constant that contradicts everything around it.
 In **My map** mode there are no filter axes: the pins and their neighbours
 replace them. `scopeItems()` returns that set instead, so the same counters
 describe the map the reader is actually looking at rather than a corpus they
-have left behind. The layer and domain controls are inert in this mode; their
-counts describe the My map set.
+have left behind. The layer, tier and domain controls are inert in this mode;
+their counts describe the My map set.
 
 ---
 
@@ -447,7 +474,12 @@ floating panel and the feed use the same output, so they cannot drift.
 Section order, each omitted when empty:
 
 1. Layer eyebrow with glyph, name, `city, country · span`
-2. Tags — kind or type, status, tier
+2. Tags — kind or type, status, tier. The tier tag uses the Scope facet's own
+   words (Core / Periphery) rather than `DATA.TAXO`'s, so the card and the
+   filter beside it name a tier alike; a value the facet does not know falls
+   back to the vocabulary. Like the other tags it appears only when the data
+   carries the field, so a card left untiered — core, for the filter — shows no
+   tier tag
 3. Domain badges with colour dots
 4. Description, paragraphs preserved
 5. Pin / Visit website
@@ -494,7 +526,7 @@ mixing them is the single most reliable way to make the interface look broken:
 | Reading | What it counts | Where it is used |
 |---|---|---|
 | **In view** | Entities with a marker inside the stage rectangle | the header tiles, the feed header |
-| **Matches the filters** | Entities passing the filter axes (§6), off-map ones included | the caption, the layer rows, the *unknown start* count, the Off-the-map badge |
+| **Matches the filters** | Entities passing the filter axes (§6), off-map ones included | the caption, the layer and tier rows, the *unknown start* count, the Off-the-map badge |
 
 A third quantity — the **corpus total** — belongs only where the page is
 describing itself rather than the current view: the welcome panel's rows, and
@@ -795,9 +827,15 @@ The switch changes the interface **and** the content. Entity descriptions exist
 in both languages in the data (`desc_fr` / `desc_en`, falling back to `desc`),
 and every controlled vocabulary value has both labels in `DATA.TAXO`.
 
-`applyLang()` re-renders every dynamic surface: presets, layer rows, domain
-groups, legend, pins, off-the-map list, period control, the open card. A missing
-French key falls back to English rather than showing the raw key.
+The tier is the one controlled value the page also labels itself. The Scope
+facet names the two tiers in `I18N` (`tier.core`, `tier.ecosystem`), and the
+card's tier tag reads the same two labels (§8), so renaming them is one edit in
+the page. `DATA.TAXO.tier` keeps the vocabulary's own labels, which the chat's
+proposal form still uses (§18).
+
+`applyLang()` re-renders every dynamic surface: presets, layer rows, tier rows,
+domain groups, legend, pins, off-the-map list, period control, the open card. A
+missing French key falls back to English rather than showing the raw key.
 
 Initial language: `?lang=` → `localStorage` → browser language → English.
 
@@ -830,13 +868,20 @@ when it differs from the default:
 | `e=<id>` | open this card on load |
 | `dom=a,b` | checked domains |
 | `lay=a,b` | enabled layers |
+| `tier=core` | the tiers left on, by data value (`core`, `ecosystem`) |
 | `links=1` | full link mesh drawn |
 | `my=1` | My map mode |
 | `yr=2016,2021` | period range |
 | `nd=0` | undated entities excluded |
 
 Unknown ids and codes are filtered out on read, so a stale link degrades to a
-sensible view instead of an empty map.
+sensible view instead of an empty map: a `tier=` left with no known code keeps
+both tiers, as a `dom=` left with no known domain keeps all of them.
+
+The filters live in the fragment alone. None of them — layers, tiers, domains,
+period — is kept in `localStorage`, so a reload starts from the default view and
+a shared link is the whole view: a reader's own last session never leaks into a
+link they open.
 
 ---
 
@@ -877,7 +922,8 @@ A change that breaks one of these is a regression even if nothing throws.
 
 1. Regenerating the data without a source change produces an empty diff.
 2. Shape means layer; colour means domain. Neither channel encodes anything
-   else.
+   else. The tier is carried by strength alone: a periphery marker is muted,
+   never re-shaped or re-coloured (§4.2).
 3. An entity without coordinates has no marker but keeps a card, a search
    result, a feed row and its graph edges.
 4. A date that is not the entity's own is never drawn as one: an unknown start
@@ -903,8 +949,8 @@ A change that breaks one of these is a regression even if nothing throws.
     names (§9.2).
 13. **No count is a corpus constant unless it is labelled as one.** Every figure
     the interface shows next to a live one is recomputed in `refresh()` from
-    `matchesFilters()` — header tiles, layer rows, the *unknown start* count,
-    the Off-the-map badge, the period histogram. The corpus totals survive in
+    `matchesFilters()` — header tiles, layer and tier rows, the *unknown start*
+    count, the Off-the-map badge, the period histogram. The corpus totals survive in
     exactly two places: the welcome panel, which describes the map rather than
     the view, and the `title` of a count that has narrowed (§6.1, §9.1).
 14. **Every headline figure traces to one control.** A tile that aggregates two
@@ -933,6 +979,12 @@ to `SECTOR` or `APPROACH` in the generator. Markers and filters follow.
 **A new vocabulary value.** Add it to `data/taxonomy.yml` and to the matching
 `TAXO` table in the generator. Without the second step it renders de-underscored
 rather than breaking.
+
+**A new tier.** Add the value to `TIERS`, which lists them from the centre
+outwards, and its `tier.<value>` label to both `I18N` blocks. The facet row, the
+filter, the `tier=` parameter and the draw order follow; `.mk.periph` mutes every
+tier but the core, so a tier that needs a strength of its own needs its own rule.
+Until then a value the page does not list counts as core.
 
 **A new language.** Add the `I18N` block, the `descriptions.<lang>.yml` file in
 the data repository, the third label in the generator's `TAXO` tables, and an

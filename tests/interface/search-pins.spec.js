@@ -72,6 +72,7 @@ const fullState = (page) => page.evaluate(() => ({
   focusId: state.focusId,
   domains: [...state.domains],
   layers: { ...state.layers },
+  tiers: { ...state.tiers },
   links: state.links,
   myMap: state.myMap,
   years: { ...state.years },
@@ -1295,6 +1296,7 @@ test.describe('§13 sharing — the URL fragment', () => {
     await page.evaluate((id) => openEntity(id), AZUR);
     await page.uncheck('[data-dom="energy"]');
     await setLayers(page, ['project', 'team', 'framework']);
+    await page.click('.layer-row[data-tier="ecosystem"]');
     await page.click('#links-row');
     await page.click('#mymap-btn');
     const { a, b } = await narrowed(page);
@@ -1305,7 +1307,7 @@ test.describe('§13 sharing — the URL fragment', () => {
     const doms = (await domainOrder(page)).filter((d) => d !== 'energy').join(',');
     await stubClipboard(page);
     expect(fragmentOf(await copiedLink(page))).toBe(
-      [`pins=${REVERE},${DLR}`, `e=${AZUR}`, `dom=${doms}`, 'lay=project,team,framework',
+      [`pins=${REVERE},${DLR}`, `e=${AZUR}`, `dom=${doms}`, 'lay=project,team,framework', 'tier=core',
         'links=1', 'my=1', `yr=${a},${b}`, 'nd=0'].join('&'));
   });
 
@@ -1319,6 +1321,7 @@ test.describe('§13 sharing — the URL fragment', () => {
     await page.evaluate((id) => openEntity(id), AZUR);
     await page.uncheck('[data-dom="energy"]');
     await setLayers(page, ['project', 'team', 'framework']);
+    await page.click('.layer-row[data-tier="ecosystem"]');
     await page.click('#links-row');
     const { a, b } = await narrowed(page);
     await setPeriod(page, a, b);
