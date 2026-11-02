@@ -36,13 +36,13 @@ still shows as present today, the axis just stops stretching to show it.
 The histogram behind the slider counts how many dated entities were running
 each year — the shape of the field's growth, in effect. An entity is kept when
 its span overlaps the selection; no recorded end date means "still running".
-Start years were researched for the 199 entities that had none — founding dates
+Start years were researched for the 255 entities that had none — founding dates
 of labs, operators and standards, each recorded in the entry's provenance with
-its source and a confidence level. Of those, 23 turned out to have only their
+its source and a confidence level. Of those, 36 turned out to have only their
 *host institution's* founding year on record rather than their own — that year
 becomes a floor, not a start: the entry is shown as certainly present in the
 2020s, only possibly so back to the year its host was founded, and never before
-it. A further 14 entities carry no date at all and are treated the same way,
+it. A further 13 entities carry no date at all and are treated the same way,
 with no floor. Both groups are kept by default and can be dropped with the
 *undated* checkbox. The few real foundings older than 1945 — Philips, the ASEA
 and Siemens laboratories, Radboud University — stay included in any range that
@@ -79,11 +79,12 @@ The data is organised into five layers, one YAML file per entity, plus the
 consortium relationships between them. The current snapshot holds:
 
 <ul class="tiles">
-  <li><strong>274</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
-  <li><strong>115</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
+  <li><strong>269</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
+  <li><strong>110</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
   <li><strong>45</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
-  <li><strong>26</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
-  <li><strong>303</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
+  <li><strong>24</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
+  <li><strong>15</strong><span>Clusters</span><em>Associations, networks and committees that convene teams and projects</em></li>
+  <li><strong>503</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
   <li><strong>27</strong><span>Countries</span><em>Europe in the broad sense, including UK, CH and NO</em></li>
 </ul>
 
@@ -93,15 +94,16 @@ facility is run by a team already on the map, it enriches that team's card with
 its operator, access model and capacity; the 18 sites with no team of
 their own carry a marker in the Teams layer.
 
-Sixteen entities have no coordinates and so no pin, because none has one place
+Eighteen entities have no coordinates and so no pin, because none has one place
 in Europe to put it: the international standards (ISO 9241-210, IEC 61508,
 IEEE 7000, SAE J3016, ARP6983/ED-324, the NIST AI RMF), the founding
 human–automation models (Fitts' List, Sheridan &amp; Verplank, Parasuraman,
-Sheridan &amp; Wickens, Lee &amp; See on trust, Klein's ten challenges, Endsley's
-situation awareness), reference frameworks from outside Europe (Shneiderman's
-human-centred AI, STAMP/STPA, value-sensitive design), and one non-European
-commons. They are listed under **Off the map** in the side panel, and their
-cards read like any other.
+Sheridan &amp; Wickens, Lee &amp; See on trust, Klein's ten challenges,
+naturalistic decision making, Endsley's situation awareness), reference
+frameworks from outside Europe (Shneiderman's human-centred AI, STAMP/STPA,
+value-sensitive design, Evaluative AI), and one non-European commons. They are
+listed under **Off the map** in the side panel, and their cards read like any
+other.
 
 Clicking a marker opens a card built from the whole record, not a summary of it:
 description, focus areas, timeline and milestones, consortium with each

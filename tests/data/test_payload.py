@@ -37,12 +37,14 @@ import re
 import unittest
 from collections import Counter
 
-from tests._harness import MAP_HTML, SPEC, load_generator, load_payload, map_script
+from tests._harness import (MAP_HTML, MAP_MD, SPEC, load_generator, load_payload,
+                            map_script)
 
 # ---------------------------------------------------------------- fixtures
 
 SCRIPT = map_script()
 SPEC_TEXT = SPEC.read_text(encoding="utf-8")
+MAP_MD_TEXT = MAP_MD.read_text(encoding="utf-8")
 
 # The five layers that carry entities. EDGES is a relation, not a layer of cards,
 # and `reg()` in the map registers exactly these five.
@@ -261,7 +263,7 @@ def spec_infra_domain_codes() -> set:
     return {n.strip() for n in names.split("/")}
 
 
-# The spec spells small figures out in words where it states them in prose.
+# The spec and `map.md` spell small figures out where they state them in prose.
 NUMBER_WORDS = ("zero", "one", "two", "three", "four", "five", "six", "seven",
                 "eight", "nine", "ten", "eleven", "twelve", "thirteen",
                 "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
@@ -290,6 +292,31 @@ def spec_date_note_levels() -> tuple:
     provenance note, read out of the pattern it quotes."""
     m = re.search(r"wrote as `timeline\.start \(([\w|]+)\): <evidence>`", SPEC_TEXT)
     return tuple(m.group(1).split("|"))
+
+
+def map_md_tiles() -> dict:
+    """`map.md`'s snapshot tiles — the label each one carries -> its figure."""
+    block = re.search(r'<ul class="tiles">(.*?)</ul>', MAP_MD_TEXT, re.S).group(1)
+    return {label: int(n) for n, label in re.findall(
+        r"<strong>(\d+)</strong><span>([^<]+)</span>", block)}
+
+
+def map_md_figure(pattern: str) -> int:
+    """The one integer `pattern` captures out of `map.md`."""
+    m = re.search(pattern, MAP_MD_TEXT)
+    assert m, f"map.md no longer states: {pattern}"
+    return int(m.group(1))
+
+
+def undated_entities() -> list:
+    """§10.1's undated set: no start year of its own, or only its host's."""
+    out = []
+    for layer in ENTITY_LAYERS:
+        for o in PAYLOAD[layer]:
+            start = (o.get("timeline") or {}).get("start")
+            if not re.search(r"\d{4}", str(start or "")) or o.get("dateHost"):
+                out.append((layer, o["id"]))
+    return out
 
 
 def spec_prose_figures(start: str, end: str) -> list:
@@ -1150,6 +1177,77 @@ class LayerTable(unittest.TestCase):
         seen = Counter((o.get("name"), o.get("lat"), o.get("lon"))
                        for o in PAYLOAD["TEAMS"] if o.get("lat") is not None)
         self.assertEqual(sorted(k for k, n in seen.items() if n > 1), [])
+
+
+class DocumentedSnapshots(unittest.TestCase):
+    """§3.2 — the snapshot figures stated outside §3.2's own table.
+
+    `map.md` is the page a reader lands on, and it states the corpus twice: in
+    the tiles under "What is in it", and in the prose about dates, infrastructure
+    and the entities with no pin. Nothing read any of it, and it drifted: the
+    tiles kept the figures of one regeneration through two later ones — Links
+    reading 303 against a payload of 503 — and gained no tile when the clusters
+    layer arrived. §10.1's undated figure went the same way. These are snapshots,
+    like the table's, so a regeneration that moves one fails here and the
+    sentence gets updated; what they must never do is disagree in silence.
+    """
+
+    def test_3_2_every_registered_layer_has_a_tile(self):
+        # A layer the map registers but the page never counts leaves the snapshot
+        # describing a smaller corpus than the map draws — which is how the
+        # clusters layer stayed off this page.
+        self.assertEqual(sorted(map_md_tiles()), sorted(
+            [layer.capitalize() for layer in ENTITY_LAYERS] + ["Countries", "Links"]))
+
+    def test_3_2_the_tiles_match_the_payload(self):
+        want = {layer.capitalize(): len(PAYLOAD[layer]) for layer in ENTITY_LAYERS}
+        want["Links"] = len(PAYLOAD["EDGES"])
+        want["Countries"] = len({o["country"] for o in all_entities() if o.get("country")})
+        self.assertEqual(map_md_tiles(), want)
+
+    def test_3_2_the_prose_figures_match_the_payload(self):
+        # Dates: the research pass recorded a confidence level on every start year
+        # it established (`dateConf`), and `dateHost` marks the ones where only the
+        # host institution's year was found. The rest carry no year at all.
+        self.assertEqual(
+            map_md_figure(r"researched for the (\d+) entities that had none"),
+            sum(1 for o in all_entities() if o.get("dateConf")))
+        self.assertEqual(
+            map_md_figure(r"Of those, (\d+) turned out to have only their"),
+            sum(1 for o in all_entities() if o.get("dateHost")))
+        undated = [o for o in all_entities()
+                   if not (o.get("timeline") or {}).get("start")
+                   and not (o.get("timeline") or {}).get("end")]
+        self.assertEqual(
+            map_md_figure(r"A further (\d+) entities carry no date at all"),
+            len(undated))
+        # Infrastructure, split the way §3.2's own prose splits it.
+        infra = [o for o in PAYLOAD["TEAMS"] if o.get("infra")]
+        standalone = [o for o in infra if o.get("type") == "infrastructure"]
+        self.assertEqual(
+            map_md_figure(r"a layer\s+of its own in the data \((\d+) entries\)"), len(infra))
+        self.assertEqual(
+            map_md_figure(r"the (\d+) sites with no team of"), len(standalone))
+
+    def test_3_2_the_entities_with_no_pin_are_counted_in_words(self):
+        # The figure is spelled out, and the sentence then names them group by
+        # group, so a new coordinate-less entity has to be placed in one of those
+        # groups rather than silently raising a number nobody reads.
+        word = re.search(r"^(\S+) entities have no coordinates", MAP_MD_TEXT, re.M).group(1)
+        self.assertIn(word.lower(), NUMBER_WORDS,
+                      "spell the figure as a word this test knows")
+        self.assertEqual(NUMBER_WORDS.index(word.lower()),
+                         sum(1 for o in all_entities() if o.get("geo") is False))
+
+    def test_10_1_the_spec_s_undated_figure_matches_the_payload(self):
+        # §10.1 states the size of the set the *undated* checkbox governs, twice
+        # in one sentence, and rests a claim on all of it being teams.
+        stated = re.findall(r"All (\d+) undated entities are teams.*?not (\d+) —",
+                            SPEC_TEXT, re.S)
+        self.assertEqual(len(stated), 1)
+        undated = undated_entities()
+        self.assertEqual([int(n) for n in stated[0]], [len(undated), len(undated)])
+        self.assertEqual({layer for layer, _ in undated}, {"TEAMS"})
 
 
 class PerLayerFields(unittest.TestCase):
