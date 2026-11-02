@@ -103,7 +103,7 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
-Counts are a snapshot (31 October 2026) and move with every upstream
+Counts are a snapshot (2 November 2026) and move with every upstream
 regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
@@ -464,6 +464,28 @@ button walks the history, so a reader can follow a consortium out and come back.
 Clicking empty map closes the card. Escape closes, in priority order: tour,
 welcome, card, drawer.
 
+**A double-click on a marker opens it — nothing more.** It is not a zoom, and
+not "open, then close". Neither half of the gesture can be recognised from the
+event alone:
+
+- the pointer capture taken on `pointerdown` retargets the rest of the gesture
+  to the svg, so a `dblclick` never has the marker as its target, and an
+  exemption written as `e.target.closest('.mk')` can never fire;
+- the first click starts the flight, which carries the marker out from under
+  the pointer. With a human gap of 120 ms between the clicks, the second one
+  lands on open map and closes the card the first one opened.
+
+Before the fix the reader was left with no card at all, on a map zoomed one rung
+for no reason. `mouse.dblclick()` fires both clicks in the same instant, so a
+test using it only ever saw the first of the two faults.
+
+So the tap that opened a marker is remembered (`markerTap`). A second tap or a
+`dblclick` within `DBL_MS` (600 ms) and `DBL_PX` (10 px) of it is treated as the
+rest of that gesture. The flight then finishes at its own scale, centred. The
+window is short and narrow on purpose: a later tap on the same spot, or a quick
+tap elsewhere, is still its own tap. A double-click on open map still zooms
+1.7×.
+
 ---
 
 ## 8. The card
@@ -662,6 +684,22 @@ entities that do not match stay listed and stay clickable, because reaching them
 is what the section is for, but they are dimmed (`.pin-item.out`): badge and
 list then agree by inspection rather than by arithmetic the reader has to do.
 
+**On a phone the remedy has to clear its own way.** Below 840 px the sidebar and
+the feed are both overlay drawers on one layer, and `#feed` is the later
+sibling. At 420 px the sidebar takes x 0–330 and the feed x 80–420, so a feed
+left open owns 250 px of the overlap. `#fd-offmap` used to reveal the sidebar and
+leave open the column it was pressed from. The section was scrolled into place
+*behind* the feed, reachable only in a 62 px sliver left of its edge and never on
+a row's name. Because the button lives inside `#feed`, that was every press of
+it on a phone, not a corner case. It now closes the column first (`setFeed(false)`,
+so the closed state persists — the state a phone boots in anyway).
+
+It also scrolls the section to the **top** of the drawer, not its centre. The
+section grows one row per placeless entity and is already taller than a phone's
+drawer. Centring a section taller than its viewport scrolled its own heading,
+with the badge carrying the very number the button quoted, up under the drawer's
+header.
+
 Hiding the feed reverts to the floating detail panel with the same card. The
 choice persists.
 
@@ -742,8 +780,8 @@ range goes. The *unknown start* checkbox removes the whole set for a reader who
 wants only established dates.
 
 **Its count is the set it actually governs**, computed across every axis but the
-period (§6.1). All 37 undated entities are teams, so a reader filtered to
-Commons needs to see 0 there, not 37 — a figure that would name a set the
+period (§6.1). All 49 undated entities are teams, so a reader filtered to
+Commons needs to see 0 there, not 49 — a figure that would name a set the
 checkbox beside it cannot change. Zero is also a useful signal in its own right:
 the switch has nothing to do in the current view.
 

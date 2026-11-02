@@ -486,8 +486,8 @@ test.describe('invariant 11 the width bounds themselves', () => {
     // with the feed panel open, say — the button row drops to its own line
     // below the pill instead of either row clipping". At 1024px with the feed
     // open the button row does drop, but row 1 clips as well: the cluster's
-    // budget (100vw-684 = 340px) is below the pill's ~370-377px natural width,
-    // so the slider is cut off. The pill's overflow:hidden keeps the clipping
+    // budget (100vw-684 = 340px) is below the pill's ~358-377px natural width
+    // — it varies with the platform's text metrics — so the slider is cut off. The pill's overflow:hidden keeps the clipping
     // invisible rather than leaking it, which is the behaviour asserted here.
     await openAt(page, { width: 1024, lang: 'fr' });
     await engagePeriod(page);
@@ -496,8 +496,18 @@ test.describe('invariant 11 the width bounds themselves', () => {
     // The button row did drop below the pill, as §5 promises.
     expect(r.group.top).toBeGreaterThanOrEqual(r.tf.bottom);
     // And the part that no longer fits is clipped, not painted over the map:
-    // the slider's box reaches past the stage, the pill's box does not.
-    expect(r.slider.right).toBeGreaterThan(r.stage.right);
+    // the slider's box reaches past the pill it sits in, while the pill's own
+    // box stays inside the stage and clips it there.
+    //
+    // Measured against the pill rather than the stage deliberately. The pill's
+    // width comes from the viewport (100vw-684), but the natural width of its
+    // content comes from text metrics, so how far the overflow reaches in
+    // absolute terms moves with the platform's fonts: the slider's right edge
+    // lands about 9px past the stage on macOS and about 1px short of it on
+    // Linux, which failed this assertion the first time CI ran the suite. What
+    // the clipping claim rests on is that the slider overflows its container,
+    // and that holds by 13-23px either way.
+    expect(r.slider.right).toBeGreaterThan(r.tf.right);
     expect(r.tf.right).toBeLessThanOrEqual(r.stage.right);
     expect(r.pill.overflow).toBe('hidden');
     expectClustersInsideStage(r, '1024px fr, pill clipped');

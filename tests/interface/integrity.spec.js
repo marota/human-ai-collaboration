@@ -611,13 +611,7 @@ test.describe('invariant 10 — the page never makes a network request', () => {
     // Below 841px the feed starts closed, so the card is the floating panel —
     // a different rendering path from the desktop tests above.
     expect(await page.evaluate(() => state.feed)).toBe(false);
-    // Opened through the element rather than by a real click: at this width the
-    // top-right cluster covers the Filters FAB, so a genuine click never lands
-    // on it. That defect is pinned in layout.spec.js, "§5 below 840px the
-    // cluster's button row swallows taps on the Filters FAB"; here it is only
-    // in the way, and what this test is about is that exercising the drawer
-    // requests nothing.
-    await page.evaluate(() => document.getElementById('sb-open').click());
+    await page.click('#sb-open');
     await applyPreset(page, 'energy');
     await page.fill('#search', 'grid');
     await expect(page.locator('.sd-item').first()).toBeVisible();

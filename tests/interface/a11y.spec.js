@@ -816,7 +816,14 @@ test.describe('§14 accessible names on icon-only controls', () => {
     // makes every advance below exactly the one the test asks for — and only
     // that: the two properties under test are still the timer firing and the
     // second message starting a fresh one.
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 50));
+    //
+    // The cushion has to outlast the round-trip between reading the page's
+    // clock and pausing it, because the clock keeps ticking in between: at
+    // 50 ms it was shorter than a round-trip on a contended CI runner, and
+    // pauseAt failed outright with "Cannot fast-forward to the past". A second
+    // is far longer than the hop and still far shorter than anything the test
+    // then measures.
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     const toast = page.locator('#toast');
     const asOf = await page.evaluate(() => t('asOf')(fmtAsOf()));
 

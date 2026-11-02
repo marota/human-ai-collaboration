@@ -1,0 +1,89 @@
+name: Tests
+
+# The suite is what stands between an upstream data refresh and a page that
+# quietly disagrees with its own payload — and until now nothing ran it except
+# a person remembering to. `main` sat red for days in October 2026 after a
+# stop-gap script was committed straight to it, and `map.md`'s snapshot figures
+# drifted through two regenerations unnoticed. Both were caught by the suite
+# the moment somebody ran it. So it runs here, on every pull request and on
+# every push to main.
+#
+# Two jobs rather than one: they are independent, so a Python failure and a
+# browser failure are both reported from a single run instead of the first one
+# hiding the second.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to the same branch supersedes the run already in flight.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Generator and payload
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # PyYAML is the only dependency outside the standard library: the
+      # generator reads the curated YAML with it, and the issue-form test parses
+      # the form the same way. There is no requirements file to honour.
+      - name: Install PyYAML
+        run: python3 -m pip install --disable-pip-version-check pyyaml
+
+      # Node is here only so that `npm run` resolves. The command itself stays
+      # defined once, in package.json, rather than being restated here where it
+      # could drift from what a contributor runs locally.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run the Python suite
+        run: npm run test:python
+
+  interface:
+    name: Interface
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # Chromium alone: playwright.config.js declares that one project, so the
+      # other two engines would be downloaded and never driven.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The page is served by the `webServer` block in playwright.config.js,
+      # which runs `python3 -m http.server` in the checkout. That block reuses
+      # an existing server only when $CI is unset, so here it always starts its
+      # own and cannot end up testing a tree other than this one.
+      - name: Run the interface suite
+        run: npm run test:interface
+
+      # The HTML reporter is on under $CI; keep it only when there is a failure
+      # to read, with the traces the config retains for the same reason.
+      - name: Keep the report of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
