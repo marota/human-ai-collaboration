@@ -1035,6 +1035,7 @@ test.describe('§9.3 the remedies land', () => {
         scrollTop: body.scrollTop,
         inside: s.top >= b.top - 1 && s.bottom <= b.bottom + 1,
         panelOpen: document.body.classList.contains('panel-open'),
+        feedOpen: state.feed,
       };
     });
     expect(r.sbHidden).toBe(false);
@@ -1042,124 +1043,113 @@ test.describe('§9.3 the remedies land', () => {
     expect(r.scrollTop).toBeGreaterThan(0);       // the section was not already there
     expect(r.inside).toBe(true);
     expect(r.panelOpen).toBe(false);              // the drawer is the narrow-screen path
+    // Two in-flow columns sit side by side, so there is nothing to step aside
+    // from: only the narrow path closes the feed (next test).
+    expect(r.feedOpen).toBe(true);
   });
 
-  // SPEC-DEVIATION: §5 turns both the sidebar and the feed into overlay drawers
-  // below 840 px, and §9.3 insists each header hint carries "its own remedy" —
-  // #fd-offmap "reveals the sidebar and scrolls the Off the map section into
-  // view". On a phone it reveals the sidebar *and leaves the column it was
-  // pressed from open*, and the two drawers do not fit side by side: at 420 px
-  // the sidebar takes x 0–330 (min(88vw,330)) and the feed x 80–420
-  // (min(88vw,340) off the right edge), both at z-index 90, with #feed later in
-  // #app — so the feed wins all 250 px of the overlap. The section is scrolled
-  // into place *behind* the column: its rows are rendered, badged and counted,
-  // and a 293 px row is reachable only in the 62 px sliver left of the feed's
-  // edge, never on its name and never at its centre. The remedy lands on
-  // nothing a thumb can hit.
-  //
-  // It is not a corner case either. #fd-offmap lives inside #feed, and below
-  // 840 px the column boots closed, so every press of the button on a phone is
-  // a press from inside the open column — the collision is the whole of the
-  // narrow path, not one route through it. The fix would be one more call in
-  // the handler (close the column, or make the drawers mutually exclusive);
-  // until then, asserting the behaviour as it stands.
-  test('§9.3 on a narrow screen #fd-offmap opens the sidebar drawer instead', async ({ page }) => {
+  test('§9.3 on a narrow screen #fd-offmap opens the drawer and steps the column aside', async ({ page }) => {
+    // Below 840 px the sidebar and the feed are both overlay drawers on one
+    // layer (§5), with #feed the later sibling: at 420 px the sidebar takes
+    // x 0–330 and the feed x 80–420, so a feed left open owns all 250 px of
+    // the overlap. That is what this button used to do — reveal the sidebar
+    // and leave open the column it was pressed from — so the Off the map
+    // section was scrolled into place *behind* the feed, reachable only in a
+    // 62 px sliver left of its edge and never on a row's name. Nor was it a
+    // corner case: the button lives inside #feed, so on a phone every press of
+    // it is a press from inside the open column.
     await page.setViewportSize({ width: 420, height: 820 });
     await openMap(page);
     const c = await corpus(page);
-    // The button is part of the feed's own header, so there is no way to press
-    // it with the column shut — which is what makes the overlap below universal.
     expect(await page.evaluate(() =>
       !!document.getElementById('fd-offmap').closest('#feed'))).toBe(true);
     await page.click('#feed-pill');               // below 840 px the feed starts closed
     await settleCounts(page);
+    expect(await page.evaluate(() => state.feed)).toBe(true);
     await page.click('#fd-offmap');
     await settleCounts(page);
     const r = await page.evaluate(() => ({
       panelOpen: document.body.classList.contains('panel-open'),
       sbHidden: document.body.classList.contains('sb-hidden'),
       secVisible: !document.getElementById('f-nogeo').hidden,
+      feedOpen: state.feed,
+      feedClass: document.body.classList.contains('feed-open'),
+      feedDisplay: getComputedStyle(document.getElementById('feed')).display,
     }));
-    expect(r).toEqual({ panelOpen: true, sbHidden: false, secVisible: true });
+    expect(r).toEqual({
+      panelOpen: true, sbHidden: false, secVisible: true,
+      feedOpen: false, feedClass: false, feedDisplay: 'none',
+    });
 
     // The drawer slides in over .25s and that CSS transition is not guarded by
     // prefers-reduced-motion, so geometry read too early is a frame of an
     // animation rather than where the drawer came to rest.
     await page.waitForFunction(() =>
       Math.abs(document.getElementById('sidebar').getBoundingClientRect().left) < 0.5);
+    // And the button scrolls the section into place smoothly, so wait for the
+    // drawer's body to stop moving too: a frame taken mid-scroll can have the
+    // section heading half under the drawer's own header.
+    // Sampled 40 ms apart rather than frame by frame: an eased scroll barely
+    // moves in its first frames, and a frame-based check can call it settled
+    // before it has really started.
+    let prevTop = null, still = 0;
+    await expect.poll(async () => {
+      const top = await page.evaluate(() => document.querySelector('.sb-body').scrollTop);
+      still = top === prevTop ? still + 1 : 0;
+      prevTop = top;
+      return still;
+    }, { intervals: [40], timeout: 5000 }).toBeGreaterThanOrEqual(3);
 
     const geo = await page.evaluate(() => {
-      const z = (id) => getComputedStyle(document.getElementById(id)).zIndex;
-      const sb = document.getElementById('sidebar').getBoundingClientRect();
-      const fd = document.getElementById('feed').getBoundingClientRect();
+      // Who owns a point, as the browser resolves a tap there.
+      const owner = (el, x, y) => {
+        const hit = document.elementFromPoint(x, y);
+        if (!hit) return 'off-viewport';
+        if (el.contains(hit)) return 'itself';
+        return hit.closest('#feed') ? 'feed' : hit.closest('#sidebar') ? 'sidebar' : 'other';
+      };
+      const centre = (el) => {
+        const b = el.getBoundingClientRect();
+        return owner(el, b.left + b.width / 2, b.top + b.height / 2);
+      };
       const rows = [...document.querySelectorAll('#nogeo-list [data-open]')];
       const row = rows[0], rb = row.getBoundingClientRect();
-      const nb = row.querySelector('.nm').getBoundingClientRect();
-      // Who owns a point, as the browser resolves a tap there. A point outside
-      // the viewport belongs to nobody, which is worth reporting rather than
-      // throwing: it would mean the scroll never landed.
-      const at = (x, y) => {
-        const el = document.elementFromPoint(x, y);
-        return el
-          ? { feed: !!el.closest('#feed'), sidebar: !!el.closest('#sidebar') }
-          : { feed: false, sidebar: false, offViewport: true };
-      };
-      const mid = (b) => at(b.left + b.width / 2, b.top + b.height / 2);
+      const onScreen = (el) => { const b = el.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; };
       return {
-        // The column the remedy was pressed from is still there.
-        feedOpen: state.feed,
-        feedDisplay: getComputedStyle(document.getElementById('feed')).display,
-        sb: { left: sb.left, right: sb.right, z: z('sidebar') },
-        fd: { left: fd.left, right: fd.right, z: z('feed') },
-        // Same stacking context, same z-index: document order decides, and the
-        // feed is the later sibling.
-        feedIsLaterSibling:
-          document.getElementById('sidebar').compareDocumentPosition(document.getElementById('feed'))
-            === Node.DOCUMENT_POSITION_FOLLOWING,
-        // The scroll really did land — the section is on screen, it is simply
-        // not the thing on top of itself.
         rowId: row.dataset.id,
-        rowOnScreen: rb.top >= 0 && rb.bottom <= innerHeight,
-        row: { left: rb.left, right: rb.right },
-        atRowCentre: mid(rb),
-        atRowName: mid(nb),
-        atRowLeftEdge: at(rb.left + 2, rb.top + rb.height / 2),
-        // Not one unlucky row: every row in the section, and the badge whose
-        // number the button quoted.
-        rowsCoveredAtCentre: rows.filter((b) => mid(b.getBoundingClientRect()).feed).length,
+        rowOnScreen: onScreen(row),
+        atRowCentre: centre(row),
+        atRowName: centre(row.querySelector('.nm')),
+        atRowRightEdge: owner(row, rb.right - 4, rb.top + rb.height / 2),
+        atBadge: centre(document.getElementById('nogeo-count')),
         rowCount: rows.length,
-        atBadge: mid(document.getElementById('nogeo-count').getBoundingClientRect()),
+        // Every row the drawer shows, not one lucky one; a row scrolled out of
+        // the drawer's body is simply not on screen, which is not the bug.
+        visibleRows: rows.filter(onScreen).length,
+        visibleRowsReachable: rows.filter(onScreen).filter((b) => centre(b) === 'itself').length,
+        coveredByFeed: rows.filter((b) => centre(b) === 'feed').length,
       };
     });
-
-    expect(geo.feedOpen).toBe(true);
-    expect(geo.feedDisplay).toBe('flex');
-    expect(geo.sb).toEqual({ left: 0, right: 330, z: '90' });
-    expect(geo.fd).toEqual({ left: 80, right: 420, z: '90' });
-    expect(geo.feedIsLaterSibling).toBe(true);
-    expect(geo.sb.right).toBeGreaterThan(geo.fd.left);   // 250 px of overlap
-
     // renderNoGeo() lists the off-map entities in registration order, so the
-    // row the scroll lands on is the first one the payload offers — the single
-    // commons with no coordinates, ahead of the ten standards.
+    // row the scroll lands on is the first one the payload offers.
     expect(geo.rowId).toBe(c.offMapEntries[0].id);
-    expect(c.offMapEntries[0].kind).toBe('commons');
     expect(geo.rowOnScreen).toBe(true);
-    // The row starts left of the feed's edge and ends well inside it, so the
-    // sliver is real but the useful part of the row is not.
-    expect(geo.row.left).toBeLessThan(geo.fd.left);
-    expect(geo.row.right).toBeGreaterThan(geo.fd.left);
-    expect(geo.atRowLeftEdge).toEqual({ feed: false, sidebar: true });
-    expect(geo.atRowCentre).toEqual({ feed: true, sidebar: false });
-    expect(geo.atRowName).toEqual({ feed: true, sidebar: false });
-    expect(geo.atBadge).toEqual({ feed: true, sidebar: false });
+    expect(geo.atRowCentre).toBe('itself');
+    expect(geo.atRowName).toBe('itself');
+    expect(geo.atRowRightEdge, 'the whole width, not a sliver').toBe('itself');
+    expect(geo.atBadge).toBe('itself');
     expect(geo.rowCount).toBe(c.offMap);
-    expect(geo.rowsCoveredAtCentre).toBe(c.offMap);
+    expect(geo.visibleRows).toBeGreaterThan(0);
+    expect(geo.visibleRowsReachable).toBe(geo.visibleRows);
+    expect(geo.coveredByFeed).toBe(0);
 
-    // And the hit test is not a DOM curiosity: a real tap on the row the button
-    // just scrolled to is refused, because something else is in front of it.
-    await expect(page.locator('#nogeo-list [data-open]').first().click({ timeout: 1500 }))
-      .rejects.toThrow(/intercepts pointer events/);
+    // And not as a DOM curiosity: a real tap on the row the button just
+    // scrolled to opens its card.
+    await page.locator('#nogeo-list [data-open]').first().click({ timeout: 3000 });
+    await expect.poll(() => page.evaluate(() => state.focusId)).toBe(geo.rowId);
+    // The column was closed through setFeed(), so the choice is remembered —
+    // which on a phone is the state the page boots in anyway (§13).
+    expect(await page.evaluate(() => localStorage.getItem('hai-map-v2-feed'))).toBe('0');
   });
 
   test('§9.3 the button\'s number is the badge of the section it scrolls to', async ({ page }) => {
