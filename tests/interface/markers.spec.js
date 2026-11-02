@@ -2532,11 +2532,36 @@ test.describe('§4.4 the gestures on the stage', () => {
    *  timing at which flyTo() has not yet moved anything, so on its own it can
    *  only ever test the easy case. The gap is the subject here, not a wait for
    *  the page to catch up. */
+  /** The two clicks `gap` ms apart as asked — and the gap the page actually
+   *  saw, which is not the same number. Playwright delivers input over a
+   *  channel whose latency is not bounded: each awaited hop to the browser
+   *  costs tens of milliseconds, hundreds on a loaded runner. The page treats
+   *  the second tap as the rest of the gesture only inside its own DBL_MS
+   *  window, and is *supposed* to stop doing so past it, so a row whose clicks
+   *  arrived further apart than that says nothing about the guard. The caller
+   *  gets the delivered gap and decides what it is entitled to assert.
+   *
+   *  The 0 ms row goes through mouse.dblclick(), which sends the whole gesture
+   *  from one call — that is what "both clicks at once" means, and four
+   *  separately awaited hops are not it. */
   async function handDblclick(page, x, y, gap) {
-    await page.mouse.move(x, y);
-    await page.mouse.down(); await page.mouse.up();
-    if (gap) await page.waitForTimeout(gap);
-    await page.mouse.down({ clickCount: 2 }); await page.mouse.up({ clickCount: 2 });
+    await page.evaluate(() => {
+      if (!window.__upsHooked) {
+        window.__upsHooked = true;
+        svg.addEventListener('pointerup', (e) => window.__ups.push(e.timeStamp), true);
+      }
+      window.__ups = [];
+    });
+    if (gap) {
+      await page.mouse.move(x, y);
+      await page.mouse.down(); await page.mouse.up();
+      await page.waitForTimeout(gap);
+      await page.mouse.down({ clickCount: 2 }); await page.mouse.up({ clickCount: 2 });
+    } else {
+      await page.mouse.dblclick(x, y);
+    }
+    const ups = await page.evaluate(() => window.__ups);
+    return ups.length >= 2 ? ups[ups.length - 1] - ups[0] : null;
   }
 
   /** The page has seen `n` dblclick events. Playwright resolves mouse.up()
@@ -2603,14 +2628,25 @@ test.describe('§4.4 the gestures on the stage', () => {
     await countDblclicks(page);
     const target = await offCentreMarker(page);
     expect(target, 'no marker a click can reach is far from the centre').not.toBe(null);
-    let seen = 0;
+    const dblMs = await page.evaluate(() => DBL_MS);
+    let seen = 0, held = 0;
+    const undelivered = [];
     for (const gap of [0, 120, 250, 400]) {
       // Each round starts cold: card shut, view fitted, no remembered tap.
       await page.evaluate(() => { closeDetail(); fitView(false); markerTap = null; });
       await settleCounts(page);
-      await handDblclick(page, target.x, target.y, gap);
+      const arrived = await handDblclick(page, target.x, target.y, gap);
       await sawDblclicks(page, ++seen);
       await viewAtRest(page);
+      // Past DBL_MS the guard lapses by design — the second tap is then a
+      // separate click on the map the flight slid under the pointer, and
+      // closing the card is the right answer. A row the harness could not
+      // deliver inside the window is a fact about the runner, so it is
+      // recorded and skipped rather than read as a verdict on the page.
+      if (arrived === null || arrived > dblMs) {
+        undelivered.push(`${gap} ms row arrived ${arrived === null ? 'incomplete' : `${Math.round(arrived)} ms`} apart`);
+        continue;
+      }
       const v = await viewOf(page);
       expect(v.focus, `${gap} ms: the card the first click opened is still open`).toBe(target.id);
       expect(v.k / v.k0, `${gap} ms: the flight lands on §7's scale, not a rung above it`)
@@ -2618,7 +2654,13 @@ test.describe('§4.4 the gestures on the stage', () => {
       const c = await centredOn(page, target.id);
       expect(c.sx, `${gap} ms: and centred, because no zoom cut the flight short`).toBeCloseTo(c.cx, 3);
       expect(c.sy).toBeCloseTo(c.cy, 3);
+      held++;
     }
+    // The skip above is what keeps the rows honest; this is what keeps them
+    // from all being skipped. The 0 ms row is one call, so it arrives inside
+    // the window on any machine that can run the suite at all.
+    expect(held, `no row reached the page inside its own ${dblMs} ms window, so the guard went untested — ${undelivered.join('; ')}`)
+      .toBeGreaterThan(0);
   });
 
   test('§7 with reduced motion the flight is instant, and the second click still does not close the card', async ({ page }) => {
