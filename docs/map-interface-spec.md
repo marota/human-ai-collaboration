@@ -108,12 +108,12 @@ regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
-| Projects & programmes | 110 | large circle | `data/projects/` |
-| Teams | 269 | small circle | `data/teams/` + infrastructure with no matching team |
+| Projects & programmes | 101 | large circle | `data/projects/` |
+| Teams | 238 | small circle | `data/teams/` + infrastructure with no matching team |
 | Clusters | 15 | hexagon | `data/clusters/` |
-| Commons | 24 | dashed circle | `data/commons/` |
+| Commons | 12 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
-| Links | 503 | curved edge | `data/edges.yml` |
+| Links | 456 | curved edge | `data/edges.yml` |
 
 **Clusters** are the associations, networks and clusters of projects that bring
 teams and projects together without being a funded project themselves (ADRA,
@@ -122,7 +122,7 @@ ICT4Water…). They link to the team cards of their member organisations, as
 projects link to their partners'. An association can itself be a project's
 partner: the project then links to its cluster card.
 
-**Infrastructure has no layer of its own**, by design. Of its 41 entries, 23
+**Infrastructure has no layer of its own**, by design. Of its 37 entries, 19
 describe a facility run by a team already on the map: they enrich that team's
 card with operator, access model and capacity, and add their infrastructure
 domain code to its marker, without creating a duplicate pin. The other 18 are
@@ -595,8 +595,8 @@ layer owned the seven. The reader was left to attribute the gap by hovering.
 
 The two figures part company only where a layer holds entities with no
 coordinates (§3.1, point 4): international standards — ISO, IEC, IEEE, SAE — and
-one non-EU commons. They match the filters and they keep a card, so the row
-counts them; they have no marker, so the tile never can.
+reference models from outside Europe. They match the filters and they keep a
+card, so the row counts them; they have no marker, so the tile never can.
 
 So the row now splits at exactly that seam — `23+7`, the second half dimmed —
 and the parts say what the whole could not: twenty-three you can see, seven you
@@ -780,8 +780,8 @@ range goes. The *unknown start* checkbox removes the whole set for a reader who
 wants only established dates.
 
 **Its count is the set it actually governs**, computed across every axis but the
-period (§6.1). All 49 undated entities are teams, so a reader filtered to
-Commons needs to see 0 there, not 49 — a figure that would name a set the
+period (§6.1). All 48 undated entities are teams, so a reader filtered to
+Commons needs to see 0 there, not 48 — a figure that would name a set the
 checkbox beside it cannot change. Zero is also a useful signal in its own right:
 the switch has nothing to do in the current view.
 
@@ -812,14 +812,13 @@ flatten them:
   and settles just four of the vague entries — a link to a 2020 project says
   nothing about when a decades-old institute began.
 - **Researched.** A handful were resolved individually: PowSyBl 2018, Italgas
-  2017 (not the 1837 company), Energinet 2023, Vitens 2010, Inserm AI Health
-  2021-12, Thames Water 2026-03, IFAC TC 4.1 1981, and ČEPS, whose card now
-  describes its ARTIC dispatch project, 2019.
+  2017 (not the 1837 company), Energinet 2023, Vitens 2010, Thames Water
+  2026-03, IFAC TC 4.1 1981, and ČEPS, whose card now describes its ARTIC
+  dispatch project, 2019.
 - **Judged from the nature of the entry.** Standing institutes and university
   departments are pre-2020 with near-certainty; a named modern programme inside
-  an old institution is not. Two remain genuinely open — Transelectrica Smart
-  Grid / SCADA and Uisce Éireann Leakage AI — and are treated as pre-2020, which
-  may be wrong for them.
+  an old institution is not. One remains genuinely open — Transelectrica Smart
+  Grid / SCADA — and is treated as pre-2020, which may be wrong for it.
 
 **The 1945 floor.** A handful of corporate laboratories and universities predate
 it — Siemens 1905, Philips 1914, the ASEA laboratory 1916, Radboud 1923 — and

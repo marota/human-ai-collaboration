@@ -13,7 +13,7 @@
 import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, caption, settleCounts, setLayers,
-  zoomBy, fitAll, expectCountersReconcile,
+  zoomBy, fitAll, expectCountersReconcile, offMapScope, soloOffMapScope, narrowToScope,
 } from './_map.js';
 
 // ---------------------------------------------------------------- local helpers
@@ -862,8 +862,8 @@ test.describe('§9.3 the header and its remedies', () => {
   //
   // One marker on screen, then Frameworks off: the column still lists exactly
   // that one entity, so nothing is rewritten, while both hints move — the
-  // off-map term loses every off-map framework, and the off-screen term loses
-  // the placed frameworks as well.
+  // off-map term loses every off-map framework (and hides, if nothing else is
+  // off the map), and the off-screen term loses the placed frameworks as well.
   test('§9.3 the header\'s numbers are not behind the render key', async ({ page }) => {
     await openMap(page);
     const c = await corpus(page);
@@ -894,15 +894,20 @@ test.describe('§9.3 the header and its remedies', () => {
     const offMap = offMapFor(c, kept);
     const after = await feedHeader(page);
     expect(after.countText).toBe('1');
-    expect(after.offMap.text).toBe(`+ ${offMap} off the map`);
     expect(after.offScreen.text).toBe(`+ ${matching - offMap - 1} off screen`);
     expect(1 + after.offScreen.n + after.offMap.n).toBe(matching);
-    // Not a deviation, just worth naming while the string is compared whole:
-    // unlike its French counterpart the English title carries no verb
-    // agreement, so with a single off-map entity it reads "1 more match the
-    // filters". The spec only ever quotes the plural.
-    expect(after.offMap.title)
-      .toBe(`${offMap} more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.`);
+    if (offMap === 0) {
+      // Only the frameworks were off the map: the hint hides rather than read 0.
+      expect(after.offMap.hidden).toBe(true);
+    } else {
+      expect(after.offMap.text).toBe(`+ ${offMap} off the map`);
+      // Not a deviation, just worth naming while the string is compared whole:
+      // unlike its French counterpart the English title carries no verb
+      // agreement, so with a single off-map entity it reads "1 more match the
+      // filters". The spec only ever quotes the plural.
+      expect(after.offMap.title)
+        .toBe(`${offMap} more match the filters but have no coordinates, so no marker — see “Off the map” in the left panel.`);
+    }
     await expectHeaderReconciles(page, 'one marker on screen, Frameworks off');
   });
 
@@ -922,12 +927,12 @@ test.describe('§9.3 the header and its remedies', () => {
 
   test('§9.3 in French the hints agree with n = 1', async ({ page }) => {
     await openMap(page, { lang: 'fr' });
-    // The singular is the point, so the filter state is derived for it: the
-    // layer whose off-map population is exactly one entity.
-    const c = await corpus(page);
-    const solo = LAYER_ORDER.find((k) => c.offMapByKind[k] === 1);
-    expect(solo, 'some layer must have exactly one off-map entity for n = 1 to be reachable').toBeTruthy();
-    await setLayers(page, [solo]);
+    // The singular is the point, so the filter state is derived for it: a
+    // layer, narrowed to one domain if need be, that leaves exactly one entity
+    // off the map.
+    const solo = await soloOffMapScope(page);
+    expect(solo, 'some scope must leave exactly one off-map entity for n = 1 to be reachable').toBeTruthy();
+    await narrowToScope(page, solo);
     await settleCounts(page);
     expect(await page.evaluate(() => state.offMapMatch)).toBe(1);
     const h = await feedHeader(page);
@@ -1209,17 +1214,19 @@ test.describe('§9.3 the remedies land', () => {
     // corpus constant sitting unlabelled next to live numbers is the §9.1 bug.
     expect((await offMapSection(page)).badgeTitle).toBe('');
     // Both halves of the English agreement, on filter states the payload picks:
-    // a layer holding exactly one off-map entity, and one holding several.
-    const solo = LAYER_ORDER.find((k) => c.offMapByKind[k] === 1);
-    const many = LAYER_ORDER.find((k) => c.offMapByKind[k] > 1);
+    // a scope that keeps several off-map entities but not all of them (all of
+    // them would narrow nothing, and drop the title), then one that keeps
+    // exactly one. Each is a layer, narrowed to one domain if need be.
+    const many = await offMapScope(page, 2, c.offMap - 1);
+    const solo = await soloOffMapScope(page);
     expect({ solo: !!solo, many: !!many },
-      'the agreement needs one layer with a single off-map entity and one with more').toEqual({ solo: true, many: true });
-    await setLayers(page, [solo]);
+      'the agreement needs a scope with a single off-map entity and one with more').toEqual({ solo: true, many: true });
+    await narrowToScope(page, many);
+    await settleCounts(page);
+    expect((await offMapSection(page)).badgeTitle).toBe(nogeoTitle(many.n, c.offMap));
+    await narrowToScope(page, solo);
     await settleCounts(page);
     expect((await offMapSection(page)).badgeTitle).toBe(nogeoTitle(1, c.offMap));
-    await setLayers(page, [many]);
-    await settleCounts(page);
-    expect((await offMapSection(page)).badgeTitle).toBe(nogeoTitle(c.offMapByKind[many], c.offMap));
   });
 
   test('§9.3 with every layer off the badge reads 0 and every row is dimmed', async ({ page }) => {

@@ -711,29 +711,26 @@ test.describe('§6.1 the period histogram', () => {
   });
 
   test('§6.1 a year carrying a single entity still draws a bar the reader can see', async ({ page }) => {
-    // The other end of the same normalisation. Against the whole Commons layer as the peak,
-    // a year with one entity is well under a unit of the 19-unit band — a sliver at this
-    // size. The floor is what keeps the sparse years of a narrow scope legible, so the
+    // The other end of the same normalisation. Against the whole Frameworks layer as the
+    // peak, a year with one entity is well under a unit of the 19-unit band — a sliver at
+    // this size. The floor is what keeps the sparse years of a narrow scope legible, so the
     // 1.1 is pinned here: without it the curve still has the right shape and the wrong
     // readability, which is the kind of regression a shape-only comparison cannot see.
+    // (The test read Commons until that layer became too small for one entity to fall
+    // under the floor.)
     await open(page);
-    await setLayers(page, ['commons']);
+    await setLayers(page, ['framework']);
     const want = await page.evaluate(() =>
-      window.__oracle.histCountsOf(window.__oracle.pass({ layers: ['commons'], skip: 'period' })));
+      window.__oracle.histCountsOf(window.__oracle.pass({ layers: ['framework'], skip: 'period' })));
     const bars = await histBars(page);
     expect(bars.map((b) => b.y)).toEqual(want.map((w) => w.y));
     const h = Object.fromEntries(bars.map((b) => [b.y, Number(b.h)]));
     const peak = Math.max(...want.map((w) => w.n));
-    // The peak is the whole dated layer, derived rather than written out: no commons has a
-    // recorded end, so every one of them is still running at the ceiling year and the last
-    // bar carries all of them.
-    const dated = await page.evaluate(() =>
-      window.__oracle.items.filter((i) => i.kind === 'commons' && i.dated).length);
-    expect(want[want.length - 1].n).toBe(dated);
-    expect(peak).toBe(dated);
+    // guard: against this peak a single entity really would draw under the floor
+    expect(19 / peak).toBeLessThan(1.1);
     const sparse = want.filter((w) => w.n === 1).map((w) => w.y);
     expect(sparse.length).toBeGreaterThan(0);           // guard: nothing floored, nothing proven
-    for (const y of sparse) expect(h[y], `${y} carries one commons`).toBeCloseTo(1.1, 5);
+    for (const y of sparse) expect(h[y], `${y} carries one framework`).toBeCloseTo(1.1, 5);
     for (const w of want.filter((x) => x.n === peak)) {
       expect(h[w.y], `${w.y} is the filtered peak`).toBeCloseTo(19, 5);
     }

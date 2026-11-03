@@ -532,11 +532,12 @@ class Geography(unittest.TestCase):
         nogeo = [(layer, o) for layer, o in entities() if o.get("geo") is False]
         self.assertGreater(len(nogeo), 0)
         layers = Counter(layer for layer, _ in nogeo)
-        # Only the two placeless layers: international standards (frameworks) and
-        # one non-EU commons, as the map's own comment in `reg()` says. A project
+        # Only the two placeless layers can hold one: international standards
+        # and reference models (frameworks), and a commons from outside Europe,
+        # of which the corpus has none since CityLearn was archived. A project
         # or a team with no coordinates would be a data error, not a standard.
-        self.assertEqual(sorted(layers), ["COMMONS", "FRAMEWORKS"])
-        self.assertEqual(layers["COMMONS"], 1)
+        self.assertIn("FRAMEWORKS", layers)
+        self.assertLessEqual(set(layers), {"COMMONS", "FRAMEWORKS"})
         for _, o in nogeo:
             with self.subTest(id=o["id"]):
                 self.assertFalse(o.get("city"))

@@ -24,6 +24,7 @@ import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, layerRows, caption, setLayers, settleCounts,
   zoomBy, fitAll, expectCountersReconcile, MAP_PATH, bareDesc,
+  soloOffMapScope, narrowToScope,
 } from './_map.js';
 
 // ---------------------------------------------------------------- local helpers
@@ -695,14 +696,13 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
 
   test('§12 the feed header and its two reconciliation buttons', async ({ page }) => {
     await withCard(page);
-    // One layer only, chosen because exactly one of its entities has no
-    // coordinates — that makes the off-map hint the n = 1 case in both
-    // languages. Which layer that is (today the commons, for CityLearn) is a
-    // property of the payload, so it is derived rather than named.
-    const f = await facts(page);
-    const only = f.offMapByLayer.indexOf(1);
-    expect(only, 'one layer must hold exactly one entity without coordinates').toBeGreaterThan(-1);
-    await setLayers(page, [f.kinds[only]]);
+    // One layer, narrowed to one domain if it must be, so that exactly one
+    // entity without coordinates stays in scope — the n = 1 case of the
+    // off-map hint in both languages. Which pair that is (today Frameworks and
+    // defense) is a property of the payload, so it is derived rather than named.
+    const one = await soloOffMapScope(page);
+    expect(one, 'a layer, or a layer and one domain, must leave exactly one entity without coordinates').not.toBeNull();
+    await narrowToScope(page, one);
     await settleCounts(page);
     expect((await snapshot(page)).offMapMatch).toBe(1);
     expect(await textOf(page, '.fd-title span')).toBe('In view');
@@ -1394,13 +1394,13 @@ test.describe('§12 verb agreement in both languages', () => {
 
   test('§9.3 the off-the-map badge reads the same n as the feed button, in both languages', async ({ page }) => {
     await openMap(page, { lang: 'en' });
-    // Again the layer with exactly one entity lacking coordinates — today the
-    // commons, for CityLearn — derived rather than named, and the denominator
-    // is the whole off-map population.
+    // Again the scope with exactly one entity lacking coordinates — today
+    // Frameworks narrowed to defense — derived rather than named, and the
+    // denominator is the whole off-map population.
     const f = await facts(page);
-    const only = f.offMapByLayer.indexOf(1);
-    expect(only, 'one layer must hold exactly one entity without coordinates').toBeGreaterThan(-1);
-    await setLayers(page, [f.kinds[only]]);
+    const one = await soloOffMapScope(page);
+    expect(one, 'a layer, or a layer and one domain, must leave exactly one entity without coordinates').not.toBeNull();
+    await narrowToScope(page, one);
     await settleCounts(page);
     expect((await snapshot(page)).offMapMatch).toBe(1);
     expect(await textOf(page, '#nogeo-count')).toBe('1');

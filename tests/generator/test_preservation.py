@@ -556,8 +556,8 @@ class GeolessEntitiesInTheCommittedPayload(unittest.TestCase):
                        if e.get("geo") is False]
 
     def test_3_1_4_the_corpus_still_carries_geoless_entities(self):
-        # `> 0` survives dropping ten of the eleven: the one non-European
-        # commons alone would keep it green while every international standard
+        # `> 0` survives dropping all but one: a single non-European
+        # commons would keep it green while every international standard
         # vanished — which is precisely the regression §3.1.4 exists to
         # prevent, since "dropping them would delete the frameworks half of the
         # map". So the four families the spec names are asserted by name, and

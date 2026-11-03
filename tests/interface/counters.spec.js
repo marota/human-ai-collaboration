@@ -29,6 +29,7 @@ import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, layerRows, caption, toggleLayer, setLayers,
   setPeriod, applyPreset, expectCountersReconcile, settleCounts, zoomBy, fitAll,
+  soloOffMapScope, narrowToScope,
 } from './_map.js';
 
 const KINDS = ['project', 'team', 'cluster', 'commons', 'framework'];
@@ -484,21 +485,23 @@ test.describe('§9.1 two readings', () => {
     expect(await caption(page)).toBe(captionFor(d));
   });
 
-  test('§9.1 the layer rows report the match count, so the Commons row sits above a tile one lower', async ({ page }) => {
-    // The exact pairing the spec calls out — "Commons 25" two centimetres above
-    // a tile reading 24. The gap is not a mistake (a commons with no
+  test('§9.1 the layer rows report the match count, so a row with off-map entities sits above a lower tile', async ({ page }) => {
+    // The pairing the spec calls out — a layer row two centimetres above a tile
+    // that reads lower. The gap is not a mistake (an entity with no
     // coordinates has no marker to be in view) but it only reads as a gap
     // because the row and the tile now report two labelled readings of the same
-    // filter state. Both figures come off the payload: §3.2's snapshot has
-    // already moved past the 25 and the 24 the spec quotes.
+    // filter state. The layer is the payload's: the one with the fewest
+    // entities off the map, which today is Frameworks (it was Commons, for
+    // CityLearn, until that card was archived).
     await open(page);
     await fitAll(page);
     const c = await corpus(page);
-    const row = (await layerRows(page)).find((r) => r.kind === 'commons');
-    const tile = (await tiles(page)).find((t) => t.kind === 'commons');
-    expect(row.count).toBe(c.totals.commons);
-    expect(tile.count).toBe(c.totals.commons - c.nogeoByKind.commons);
-    expect(row.count - tile.count).toBe(c.nogeoByKind.commons);
+    const kind = Object.keys(c.nogeoByKind).sort((a, b) => c.nogeoByKind[a] - c.nogeoByKind[b])[0];
+    const row = (await layerRows(page)).find((r) => r.kind === kind);
+    const tile = (await tiles(page)).find((t) => t.kind === kind);
+    expect(row.count).toBe(c.totals[kind]);
+    expect(tile.count).toBe(c.totals[kind] - c.nogeoByKind[kind]);
+    expect(row.count - tile.count).toBe(c.nogeoByKind[kind]);
     expect(tile.title).toBe(`${tile.count} in view · ${row.count} match the filters`);
   });
 
@@ -997,11 +1000,13 @@ test.describe('inv 13 no frozen counts', () => {
     // figure, and why the period's own switch may leave it alone.
     expect(Object.keys(c.undatedByKind)).toEqual(['team']);
     expect(c.undatedByKind.team).toBe(c.undated);
-    // §3's off-map note: the international standards, plus the commons outside
-    // Europe. No project and no team sits off the map, which is what lets the
-    // caption tests isolate the "off screen" term on those two layers.
-    expect(Object.keys(c.nogeoByKind).sort()).toEqual(['commons', 'framework']);
-    expect(c.nogeoByKind.commons + c.nogeoByKind.framework).toBe(c.nogeo);
+    // §3's off-map note: the international standards and reference models,
+    // plus any commons from outside Europe (none since CityLearn was archived).
+    // No project and no team sits off the map, which is what lets the caption
+    // tests isolate the "off screen" term on those two layers.
+    expect(Object.keys(c.nogeoByKind)).toContain('framework');
+    expect(Object.keys(c.nogeoByKind).filter((k) => !['commons', 'framework'].includes(k))).toEqual([]);
+    expect((c.nogeoByKind.commons || 0) + c.nogeoByKind.framework).toBe(c.nogeo);
     // And all three populations are non-empty, or every "this figure moved off
     // the corpus figure" assertion below could be satisfied by a payload in
     // which nothing was there to move.
@@ -1055,16 +1060,27 @@ test.describe('inv 13 no frozen counts', () => {
     await open(page);
     const c = await corpus(page);
     for (const [layer, expected] of [
-      ['commons', c.nogeoByKind.commons], ['framework', c.nogeoByKind.framework], ['project', 0], ['team', 0],
+      ['commons', c.nogeoByKind.commons || 0], ['framework', c.nogeoByKind.framework], ['project', 0], ['team', 0],
     ]) {
       await setLayers(page, [layer]);
       await settleCounts(page);
       const pc = await panelCounts(page);
       expect(pc.nogeo, `off the map with only ${layer} on`).toBe(expected);
       const verb = expected === 1 ? 'matches' : 'match';
-      expect(pc.nogeoTitle).toBe(`${expected} of ${c.nogeo} ${verb} the current filters`);
+      // N of N narrows nothing, so the badge carries no title then (§9.1).
+      expect(pc.nogeoTitle).toBe(expected === c.nogeo ? '' : `${expected} of ${c.nogeo} ${verb} the current filters`);
       expect(pc.nogeoDimmed).toBe(c.nogeo - expected);
     }
+    // Down to 1: no layer may hold a single off-map entity, so the scope that
+    // leaves exactly one is derived, a layer narrowed to one domain if need be.
+    const one = await soloOffMapScope(page);
+    expect(one, 'some scope must leave exactly one entity off the map').not.toBeNull();
+    await narrowToScope(page, one);
+    await settleCounts(page);
+    const pc = await panelCounts(page);
+    expect(pc.nogeo).toBe(1);
+    expect(pc.nogeoTitle).toBe(`1 of ${c.nogeo} matches the current filters`);
+    expect(pc.nogeoDimmed).toBe(c.nogeo - 1);
   });
 
   test('inv 13 narrowing the period relights the histogram instead of leaving every year on', async ({ page }) => {
@@ -1519,7 +1535,9 @@ test.describe('§9.3 the feed header restates the gap', () => {
       await settleCounts(page);
       const pc = await panelCounts(page);
       const fh = await feedHeader(page);
-      expect(fh.offMap, `off-map button with ${layers.join('+')}`).toBe(`+ ${pc.nogeo} off the map`);
+      // With nothing off the map in scope the button hides rather than read 0.
+      expect(fh.offMap, `off-map button with ${layers.join('+')}`)
+        .toBe(pc.nogeo ? `+ ${pc.nogeo} off the map` : null);
       expect(pc.nogeo).toBe((await snapshot(page)).offMapMatch);
     }
   });

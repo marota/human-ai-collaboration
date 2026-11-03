@@ -717,7 +717,7 @@ test.describe('§4.1 projection and basemap', () => {
     await openMap(page);
     const [px, py] = refProject(2.352, 48.857);
     const parisians = MODEL.all.filter((m) => m.placed && m.d.city === 'Paris');
-    expect(parisians.length).toBeGreaterThan(5);
+    expect(parisians.length).toBeGreaterThan(1);
     const got = await page.evaluate((ids) => ids.map((id) => [byId[id].X, byId[id].Y]),
       parisians.map((m) => m.id));
     got.forEach(([x, y], i) => {

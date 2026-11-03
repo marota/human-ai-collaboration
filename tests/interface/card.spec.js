@@ -471,9 +471,8 @@ test.describe('invariant 5 — the panel and the feed render the same card', () 
 
   test('inv5 survives a pin taken from one surface', async ({ page }) => {
     await openMap(page);
-    const commons = only(await corpus(page), r => r.layer === 'commons' && !r.geo,
-      'is a commons with no coordinates');
-    await open(page, commons.id, { fly: false });
+    const offMap = any(await corpus(page), r => !r.geo, 'has no coordinates');
+    await open(page, offMap.id, { fly: false });
     await expect(page.locator(`${FEED_CARD} .dt-pin`)).toHaveText('☆ Pin');
 
     await page.click(`${FEED_CARD} .dt-pin`);

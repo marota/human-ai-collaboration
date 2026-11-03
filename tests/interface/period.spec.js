@@ -855,7 +855,7 @@ test.describe('§10.2 what counts as an unknown start', () => {
     expect(card.caveat).toContain('2020');
   });
 
-  test('§10.3 the researched dates are the entity\'s own; the three open ones keep a host bound', async ({ page }) => {
+  test('§10.3 the researched dates are the entity\'s own; the open ones keep a host bound', async ({ page }) => {
     await openMap(page);
     const { rows } = await payload(page);
     const row = (id) => rows.find((r) => r.id === id);
@@ -865,23 +865,23 @@ test.describe('§10.2 what counts as an unknown start', () => {
       powsybl: '2018', italgas: '2017', energinet: '2023', vitens: '2010',
       // Thames Water reads 2026-03: the phase 2 review narrowed §10.3's 2026 to
       // the month. Same year, still its own date.
-      'inserm-ai': '2021-12', 'thames-water': '2026-03',
+      'thames-water': '2026-03',
       'ifac-tc41-human-machine-systems': '1981',
     };
     for (const [id, start] of Object.entries(researched)) {
       const r = row(id);
       expect([id, r.start, r.host, isVague(r)]).toEqual([id, start, false, false]);
     }
-    // §10.3, "Judged": three remain genuinely open and stay on a host bound,
-    // which is what keeps them possible rather than present before 2020.
-    for (const id of ['ceps-ics', 'transelectrica-smartgrid', 'uisce-eireann']) {
+    // §10.3, "Judged": the ones still open stay on a host bound, which is what
+    // keeps them possible rather than present before 2020.
+    for (const id of ['ceps-ics', 'transelectrica-smartgrid']) {
       const r = row(id);
       expect([id, r.host, isVague(r), r.y0 < PRESENT]).toEqual([id, true, true, true]);
     }
     // Italgas 2017 is "not the 1837 company" — a researched date that the floor
     // would otherwise have had to stretch for.
     expect(row('italgas').y0).toBe(2017);
-    // The contrast needs one of the three open ones whose host year is under
+    // The contrast needs one of the open ones whose host year is under
     // 2016. That was ČEPS (1998) until the phase 2 review bounded it at 2019,
     // which puts 2016 before its host and so, rightly, out; Transelectrica's
     // 2000 bound keeps the comparison.
