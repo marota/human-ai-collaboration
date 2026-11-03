@@ -127,7 +127,10 @@ The map is organised around a core and the ecosystem that enables it.
   broad reference frameworks. Deliberately included so the map reads as a whole,
   but tagged so the core stays distinguishable.
 
-Borderline cases are welcome rather than excluded.
+Borderline cases are welcome rather than excluded. The
+[admission criteria]({{ '/docs/admission-criteria.html' | relative_url }}) say
+which proposals enter the map, in which tier, and how a borderline one is
+decided.
 
 ## A collaborative map
 
