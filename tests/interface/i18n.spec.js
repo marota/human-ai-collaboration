@@ -479,8 +479,9 @@ test.describe('§12 applyLang() re-renders every dynamic surface', () => {
     // Falsifiable only while a layer holds some aviation and not all of it: at
     // 0 the row could have stopped counting, and at the layer total it could
     // have reverted to TOTALS — the regression invariant 13 names. Every layer
-    // qualifies but the clusters, which hold no aviation at all.
-    expect(f.kinds.filter((k, i) => !(want[i] > 0 && want[i] < f.layerTotals[i]))).toEqual(['cluster']);
+    // qualifies, the clusters included since the Flatland Association runs
+    // AI4REALNET's air traffic test campaigns.
+    expect(f.kinds.filter((k, i) => !(want[i] > 0 && want[i] < f.layerTotals[i]))).toEqual([]);
     expect((await layerRows(page)).map((r) => r.count)).toEqual(want);
     await switchLang(page, 'fr');
     expect((await layerRows(page)).map((r) => r.label))
