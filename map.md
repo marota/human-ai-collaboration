@@ -80,11 +80,11 @@ consortium relationships between them. The current snapshot holds:
 
 <ul class="tiles">
   <li><strong>238</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
-  <li><strong>101</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
+  <li><strong>102</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
   <li><strong>45</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
   <li><strong>12</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
   <li><strong>15</strong><span>Clusters</span><em>Associations, networks and committees that convene teams and projects</em></li>
-  <li><strong>456</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
+  <li><strong>461</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
   <li><strong>25</strong><span>Countries</span><em>Europe in the broad sense, including UK, CH and NO</em></li>
 </ul>
 

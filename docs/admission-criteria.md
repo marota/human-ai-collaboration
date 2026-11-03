@@ -224,7 +224,7 @@ To check that the grid gives verdicts consistent with the map, here is what it w
   - Both are admissible. They are two Horizon Europe projects from the same call as AI-EFFECT, as the contributor said.
   - No source describes human–AI collaboration: T1 and T3 are missing, so no core.
   - Having core partners does not count (É1, clarification of 2 November). So A2 is needed, or A3 with a justified potential. No source shows either project as a building block of a core resource or project, hence no A2.
-  - **EnerTEF: justified but thin A3 → periphery.** Its service catalogue offers operational scheduling for Veolia's district-heating network. This service "recommends supply temperature setpoints, load distribution plans, and operation timelines", with outputs "suitable for direct operator use". AI recommendations meant for operators are therefore tested there, even if the interaction with the operator is not studied. **Decision of 2 November:** admitted in the periphery, with the note "A3 — justified potential". The reply is on the issue; the card is still to be created.
+  - **EnerTEF: justified but thin A3 → periphery.** Its service catalogue offers operational scheduling for Veolia's district-heating network. This service "recommends supply temperature setpoints, load distribution plans, and operation timelines", with outputs "suitable for direct operator use". AI recommendations meant for operators are therefore tested there, even if the interaction with the operator is not studied. **Decision of 2 November:** admitted in the periphery, with the note "A3 — justified potential". The reply is on the issue; the card, `data/projects/enertef.yml`, was created on 3 November.
   - **EnergyGuard: not yet.** Neither the CORDIS objective, nor the home page, nor the "About us" page gives an argument: no operator, no human in the loop. ICCS's page on the project did not respond on 2 November. **Decision of 2 November:** not yet; the reply is on the issue.
 
 ## 8. After validation
@@ -239,7 +239,7 @@ Once the grid is validated, and adjusted if needed, the form can go into the exi
 
 ## Annex — the two open proposals, run through the form
 
-Sources checked on 2026-11-02: the CORDIS records (XML format) and the websites of both projects. The issues were opened on 1 November by the site's public chat. **Decision of 2 November:** the replies are posted on the issues; the EnerTEF card is still to be created.
+Sources checked on 2026-11-02: the CORDIS records (XML format) and the websites of both projects. The issues were opened on 1 November by the site's public chat. **Decision of 2 November:** the replies are posted on the issues; the EnerTEF card, `data/projects/enertef.yml`, was created on 3 November.
 
 ### EnerTEF — [#45](https://github.com/marota/human-ai-collaboration/issues/45)
 
@@ -271,6 +271,7 @@ Sources checked on 2026-11-02: the CORDIS records (XML format) and the websites 
 - [x] To be decided · question: is the scheduling service for Veolia enough as a justified potential? If so, admitted in ecosystem, with the note "A3 — justified potential".
 - Decision of 2 November: yes, admitted in ecosystem with that note (reply on #45).
 - Corrections, if it enters: start '2024-11' instead of 2025-08; funding (grant agreement, call) and budget from CORDIS; decision_support, explainability and digital_twins have no source (a maintainer's field), only decision_support rests on the Veolia service.
+- Card created on 3 November with these corrections. Of the proposed focus_areas, it keeps decision_support and power_grid; explainability, digital_twins and energy_markets are left to the maintainer.
 ```
 
 ### EnergyGuard — [#46](https://github.com/marota/human-ai-collaboration/issues/46)

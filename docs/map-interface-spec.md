@@ -103,17 +103,17 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
-Counts are a snapshot (2 November 2026) and move with every upstream
+Counts are a snapshot (3 November 2026) and move with every upstream
 regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
-| Projects & programmes | 101 | large circle | `data/projects/` |
+| Projects & programmes | 102 | large circle | `data/projects/` |
 | Teams | 238 | small circle | `data/teams/` + infrastructure with no matching team |
 | Clusters | 15 | hexagon | `data/clusters/` |
 | Commons | 12 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
-| Links | 456 | curved edge | `data/edges.yml` |
+| Links | 461 | curved edge | `data/edges.yml` |
 
 **Clusters** are the associations, networks and clusters of projects that bring
 teams and projects together without being a funded project themselves (ADRA,
