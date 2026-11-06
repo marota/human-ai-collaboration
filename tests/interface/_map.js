@@ -215,3 +215,15 @@ export async function fitAll(page) {
   await page.evaluate(() => fitView(false));
   await settleCounts(page);
 }
+
+/** The period axis on its own, as it worked before the status facet (§10.4).
+ *  With *Foreseen* ticked, the default, a card that starts after the period is
+ *  kept, faded; with it off, it is out of the period again, and the overlap
+ *  rule of §10 is all there is. The tests that pin that rule start here. */
+export async function periodAlone(page) {
+  await page.evaluate(() => {
+    state.statuses.foreseen = false;
+    renderStatusRows();
+    refresh();
+  });
+}

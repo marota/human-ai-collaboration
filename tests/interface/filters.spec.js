@@ -24,7 +24,7 @@
 import { test, expect } from '@playwright/test';
 import {
   MAP_PATH, openMap, snapshot, tiles, layerRows, caption, toggleLayer, setLayers,
-  setPeriod, periodLabel, applyPreset, settleCounts, fitAll, expectCountersReconcile,
+  setPeriod, periodLabel, applyPreset, settleCounts, fitAll, expectCountersReconcile, periodAlone
 } from './_map.js';
 
 // ---------------------------------------------------------------------------
@@ -289,6 +289,7 @@ test.describe('§6 the predicate', () => {
 
   test('§6 matchesFilters() with no skip is the AND of layer, domain and period', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const cfg = { layers: ['project', 'commons'], domains: ['energy', 'xai'], a: 2015, b: 2020 };
     await setLayers(page, cfg.layers);
     await setDomains(page, cfg.domains);
@@ -301,6 +302,7 @@ test.describe('§6 the predicate', () => {
 
   test('§6.1 skip:"layer" leaves the layer axis out and keeps the other two', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const cfg = { layers: ['commons'], domains: ['energy', 'aviation'], a: 2018, b: 2024 };
     await setLayers(page, cfg.layers);
     await setDomains(page, cfg.domains);
@@ -316,6 +318,7 @@ test.describe('§6 the predicate', () => {
 
   test('§6.1 skip:"domain" leaves the domain axis out and keeps the other two', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const cfg = { layers: ['team', 'framework'], domains: ['nuclear'], a: 2010, b: 2022 };
     await setLayers(page, cfg.layers);
     await setDomains(page, cfg.domains);
@@ -326,17 +329,20 @@ test.describe('§6 the predicate', () => {
 
   test('§6.1 skip:"period" leaves the period axis out and keeps the other two', async ({ page }) => {
     await open(page);
-    const { YMIN } = await bounds(page);
-    const cfg = { layers: ['project'], domains: ['health'], a: YMIN, b: YMIN + 1 };
+    const { YMAX } = await bounds(page);
+    // The last year alone: what the window excludes ended before it, which is
+    // terminated, a status left on — so the period axis is all that excludes it,
+    // whatever the status facet makes of what starts later (§10.4).
+    const cfg = { layers: ['project'], domains: ['health'], a: YMAX, b: YMAX };
     await setLayers(page, cfg.layers);
     await setDomains(page, cfg.domains);
     await setPeriod(page, cfg.a, cfg.b);
-    // Two years at the floor exclude every project, so the skip is doing visible work here:
-    // the unskipped predicate is empty and the skipped one is not, both derived.
+    // The skip is doing visible work here: the skipped predicate holds the projects
+    // that ended earlier, which the unskipped one does not, both derived.
     const want = await page.evaluate((c) => window.__oracle.pass({ ...c, skip: 'period' }).sort(), cfg);
-    expect(want.length).toBeGreaterThan(0);
-    expect(await page.evaluate((c) => window.__oracle.pass(c).length, cfg)).toBe(0);
-    expect(await passIds(page)).toEqual([]);
+    const kept = await page.evaluate((c) => window.__oracle.pass(c).sort(), cfg);
+    expect(want.length).toBeGreaterThan(kept.length);
+    expect(await passIds(page)).toEqual(kept);
     expect(await passIds(page, 'period')).toEqual(want);
   });
 
@@ -406,16 +412,17 @@ test.describe('§6 the predicate', () => {
 
   test('§6 the axes combine with AND: an on layer cannot save an entity the period excludes', async ({ page }) => {
     await open(page);
-    // A commons whose start year is its own and later than the floor, so a two-year range
-    // at the floor is guaranteed to exclude it however the corpus is regenerated.
-    const { YMIN } = await bounds(page);
-    const id = await page.evaluate((y) => (window.__oracle.items
-      .find((i) => i.kind === 'commons' && !i.vague && i.y0 != null && i.y0 > y + 1) || {}).id, YMIN);
-    expect(typeof id).toBe('string');
-    await setLayers(page, ['commons']);
-    await setPeriod(page, YMIN, YMIN + 1);
-    expect((await visible(page)).vis).not.toContain(id);
-    expect(await passIds(page, 'period')).toContain(id);
+    // A project whose own end is before the last year, so a window starting after
+    // that end is guaranteed to exclude it however the corpus is regenerated. It
+    // ended before the window, so it is terminated, a status left on (§10.4).
+    const { YMAX } = await bounds(page);
+    const it = await page.evaluate((y) => (window.__oracle.items
+      .find((i) => i.kind === 'project' && !i.vague && i.y1 != null && i.y1 < y) || {}), YMAX);
+    expect(typeof it.id).toBe('string');
+    await setLayers(page, ['project']);
+    await setPeriod(page, it.y1 + 1, YMAX);
+    expect((await visible(page)).vis).not.toContain(it.id);
+    expect(await passIds(page, 'period')).toContain(it.id);
   });
 
   test('§6 visibleSet() returns the three sets the counters read, and `matched` is the predicate', async ({ page }) => {
@@ -522,6 +529,7 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
 
   test('§6.1 a period change moves every layer figure', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const { YMIN } = await bounds(page);
     await setPeriod(page, YMIN, YMIN);
     const want = await page.evaluate((y) => window.__oracle.counts({ a: y, b: y, skip: 'layer' }), YMIN);
@@ -543,6 +551,7 @@ test.describe('§6.1 scopeItems and the facet counts', () => {
     // dropping the unknown starts is a period change like any other and the rows must
     // follow it. The two figures are derived, the narrowing between them is the assertion.
     await open(page);
+    await periodAlone(page);
     const { YMIN } = await bounds(page);
     await setPeriod(page, YMIN, YMIN);
     const loose = await page.evaluate((y) => window.__oracle.counts({ a: y, b: y, skip: 'layer' }), YMIN);
@@ -807,6 +816,7 @@ test.describe('invariant 6 — a filter change never hides the open card', () =>
 
   test('inv6 §6/§10 the focused entity survives a period that excludes it', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     // An entity with a start year of its own, later than the floor, and a marker to watch:
     // a two-year range at the floor then excludes it whatever the corpus holds.
     const { YMIN } = await bounds(page);
@@ -1346,6 +1356,7 @@ test.describe('§6 boundaries', () => {
 
   test('§6 the period floor and ceiling are inclusive at both ends', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const { YMIN, YMAX } = await bounds(page);
     // §10's own rule, re-derived straight off the payload: the axis runs from 1945 — a
     // handful of founders predate it, so the floor is a clamp and not the earliest year —
@@ -1378,6 +1389,7 @@ test.describe('§6 boundaries', () => {
     // the panel shut. The facet counts are updated from refresh() rather than from their own
     // render function precisely so that reopening the panel shows the map as it is now.
     await open(page);
+    await periodAlone(page);
     // Widened first: at the 1280 px default with the feed open, `.ctl-tr`'s box reaches back
     // over the collapse button and swallows the click (a §5 matter, not a §6 one). The resize
     // has to come before the collapse, since the resize handler re-opens the panel.

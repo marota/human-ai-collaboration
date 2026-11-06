@@ -29,7 +29,8 @@
 // interface vocabulary.
 import { test, expect } from '@playwright/test';
 import { openMap, snapshot, setLayers, setPeriod, settleCounts, tiles, layerRows,
-  caption, expectCountersReconcile, MAP_PATH, bareDesc } from './_map.js';
+  caption, expectCountersReconcile, MAP_PATH, bareDesc, periodAlone
+} from './_map.js';
 
 // ---------------------------------------------------------------- local rig
 
@@ -700,6 +701,7 @@ test.describe('§11 search — reach', () => {
 
   test('§11 search reaches an entity the period filter excludes', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const { ymin } = await page.evaluate(() => ({ ymin: YMIN }));
     await setPeriod(page, ymin, ymin);        // a one-year window at the floor
     await settleCounts(page);

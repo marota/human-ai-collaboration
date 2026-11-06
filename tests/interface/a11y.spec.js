@@ -25,8 +25,7 @@
 import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, layerRows, toggleLayer, setLayers,
-  nudgePeriod, periodLabel, settleCounts, zoomBy, fitAll, openViaSearch,
-} from './_map.js';
+  nudgePeriod, periodLabel, settleCounts, zoomBy, fitAll, openViaSearch, periodAlone } from './_map.js';
 
 // The data bounds the period slider must expose, re-derived from the payload by
 // §10's rule rather than read back out of the page's YMIN/YMAX.
@@ -254,13 +253,15 @@ test.describe('§14 landmarks and regions', () => {
 
 // ---------------------------------------------------------------------------
 test.describe('§14 aria-pressed on every toggle', () => {
-  test('§14 exactly twelve controls claim a pressed state, and they are the toggles', async ({ page }) => {
+  test('§14 exactly fifteen controls claim a pressed state, and they are the toggles', async ({ page }) => {
     await openMap(page);
     // Enumerated rather than spot-checked: the failure this guards against is a
     // new two-state control that keeps its state in a CSS class only.
     expect(await page.evaluate(() =>
-      [...document.querySelectorAll('[aria-pressed]')].map((el) => el.id || el.dataset.layer || el.dataset.tier)))
-      .toEqual(['project', 'team', 'cluster', 'commons', 'framework', 'core', 'ecosystem', 'links-row', 'links-pill',
+      [...document.querySelectorAll('[aria-pressed]')].map((el) =>
+        el.id || el.dataset.layer || el.dataset.tier || el.dataset.status)))
+      .toEqual(['project', 'team', 'cluster', 'commons', 'framework', 'core', 'ecosystem',
+        'terminated', 'ongoing', 'foreseen', 'links-row', 'links-pill',
         'mymap-pill', 'feed-pill', 'chat-pill']);
   });
 
@@ -541,6 +542,7 @@ test.describe('§14 the period handles are sliders', () => {
 
   test('§14 the value the slider reports is the value the filter used', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const { min, max } = await payloadYears(page);
     // The slider is not just an ARIA widget: a knob that updated aria-valuenow
     // without running refresh() would announce a map nobody is looking at. The
