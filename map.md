@@ -42,7 +42,7 @@ its source and a confidence level. Of those, 35 turned out to have only their
 *host institution's* founding year on record rather than their own — that year
 becomes a floor, not a start: the entry is shown as certainly present in the
 2020s, only possibly so back to the year its host was founded, and never before
-it. A further 13 entities carry no date at all and are treated the same way,
+it. A further 14 entities carry no date at all and are treated the same way,
 with no floor. Both groups are kept by default and can be dropped with the
 *undated* checkbox. The few real foundings older than 1945 — Philips, the ASEA
 and Siemens laboratories, Radboud University — stay included in any range that
@@ -79,12 +79,12 @@ The data is organised into five layers, one YAML file per entity, plus the
 consortium relationships between them. The current snapshot holds:
 
 <ul class="tiles">
-  <li><strong>238</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
-  <li><strong>102</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
+  <li><strong>239</strong><span>Teams</span><em>Research labs, industrial R&amp;D groups, operator R&amp;D teams</em></li>
+  <li><strong>104</strong><span>Projects</span><em>Funded projects and programmes — Horizon Europe, SESAR, national</em></li>
   <li><strong>45</strong><span>Frameworks</span><em>Standards, regulations, guidelines, reference models</em></li>
   <li><strong>12</strong><span>Commons</span><em>Open datasets, benchmarks, models, software, communities</em></li>
   <li><strong>15</strong><span>Clusters</span><em>Associations, networks and committees that convene teams and projects</em></li>
-  <li><strong>461</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
+  <li><strong>465</strong><span>Links</span><em>Which team sits in which project consortium</em></li>
   <li><strong>25</strong><span>Countries</span><em>Europe in the broad sense, including UK, CH and NO</em></li>
 </ul>
 

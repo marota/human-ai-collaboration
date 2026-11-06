@@ -103,17 +103,17 @@ recolours markers, which readers will not notice as a bug.
 
 ### 3.2 Layers
 
-Counts are a snapshot (3 November 2026) and move with every upstream
+Counts are a snapshot (6 November 2026) and move with every upstream
 regeneration; the shape of the table is what is normative, not the figures.
 
 | Layer | Count | Marker | Origin |
 |---|---:|---|---|
-| Projects & programmes | 102 | large circle | `data/projects/` |
-| Teams | 238 | small circle | `data/teams/` + infrastructure with no matching team |
+| Projects & programmes | 104 | large circle | `data/projects/` |
+| Teams | 239 | small circle | `data/teams/` + infrastructure with no matching team |
 | Clusters | 15 | hexagon | `data/clusters/` |
 | Commons | 12 | dashed circle | `data/commons/` |
 | Frameworks | 45 | square | `data/frameworks/` |
-| Links | 461 | curved edge | `data/edges.yml` |
+| Links | 465 | curved edge | `data/edges.yml` |
 
 **Clusters** are the associations, networks and clusters of projects that bring
 teams and projects together without being a funded project themselves (ADRA,
@@ -780,8 +780,8 @@ range goes. The *unknown start* checkbox removes the whole set for a reader who
 wants only established dates.
 
 **Its count is the set it actually governs**, computed across every axis but the
-period (§6.1). All 48 undated entities are teams, so a reader filtered to
-Commons needs to see 0 there, not 48 — a figure that would name a set the
+period (§6.1). All 49 undated entities are teams, so a reader filtered to
+Commons needs to see 0 there, not 49 — a figure that would name a set the
 checkbox beside it cannot change. Zero is also a useful signal in its own right:
 the switch has nothing to do in the current view.
 
