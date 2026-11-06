@@ -164,7 +164,9 @@ login, and Funnel's configuration persists in `tailscaled`. The log is
 `tests/chat/test_public.py` holds it: no file from the repository, ceilings per
 address and per day, a cap on concurrent generations, references fetched only
 from the public internet, and issues that say a visitor opened them and cannot
-mention anyone. Every request through the tunnel is logged with its address.
+mention anyone but the GitHub account the visitor gave to be notified, which
+GitHub is asked about first. Every request through the tunnel is logged with
+its address.
 If the chat is abused, stopping Funnel is the switch.
 
 ## What it will and will not do

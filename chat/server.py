@@ -258,8 +258,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _fail(self, message: str, status: int = 400, *, close: bool = False) -> None:
-        self._json({"error": message}, status, close=close)
+    def _fail(self, message: str, status: int = 400, *, close: bool = False,
+              code: str = "") -> None:
+        self._json({"error": message, **({"code": code} if code else {})}, status, close=close)
 
     def _limited(self, bucket: str) -> bool:
         """Answer 429 when a visitor is over a ceiling, and say whether it did."""
@@ -594,6 +595,14 @@ class Handler(SimpleHTTPRequestHandler):
         report = cards.validate(layer, card, corpus, mode, lang).as_json()
 
         public = self._is_public()
+        # The GitHub account to notify, if the contributor gave one. It is checked
+        # for the preview as for the issue, so what they read is what is posted.
+        try:
+            notify = issues.login(body.get("github"))
+            if notify:
+                notify = issues.account(notify)
+        except issues.LoginError as e:
+            return self._fail(str(e), 422, code=e.code)
         title = str(body.get("title") or "").strip() or \
             issues.title_for(mode, layer, card, changed)
         if public:
@@ -604,11 +613,11 @@ class Handler(SimpleHTTPRequestHandler):
             report=report,
             changed=changed,
             transcript=str(body.get("transcript") or ""),
-            lang=lang, as_of=corpus.as_of, public=public)
+            lang=lang, as_of=corpus.as_of, public=public, notify=notify)
 
         if body.get("preview"):
             return self._json({"preview": True, "title": title, "body": text,
-                               "repo": issues.REPO, "report": report})
+                               "repo": issues.REPO, "report": report, "notify": notify})
         # `force` is the curator overriding a check they have read. A visitor
         # cannot: their proposal passes its checks or it is not opened.
         if not report["ok"] and (public or not body.get("force")):
@@ -618,6 +627,7 @@ class Handler(SimpleHTTPRequestHandler):
         labels = issues.LABELS + ((issues.PUBLIC_LABEL,) if public else ())
         result = issues.create(title, text, labels=labels)
         result["report"] = report
+        result["notify"] = notify
         self._json(result)
 
 

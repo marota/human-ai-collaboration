@@ -81,6 +81,22 @@
       post: 'Ouvrir l’issue sur GitHub', posted: 'Issue ouverte',
       postedNote: 'Un mainteneur la relira avant qu’elle devienne une pull request '
         + 'sur le dépôt de données.',
+      notifyH: 'Être prévenu quand elle sera traitée ?',
+      notifyAsk: 'Donnez votre nom d’utilisateur GitHub : l’issue vous mentionnera, et GitHub '
+        + 'vous préviendra quand un mainteneur y répondra ou la fermera. Il apparaîtra dans '
+        + 'l’issue, qui est publique. Sinon, laissez vide et suivez l’issue à son lien, une '
+        + 'fois ouverte.',
+      notifyLabel: 'Nom d’utilisateur GitHub', optional: 'facultatif',
+      notifyCheck: 'Vérification du compte et mise à jour de l’aperçu…',
+      postedNotify: (n) => `GitHub préviendra @${n} quand l’issue sera traitée.`,
+      postedFollow: 'Gardez ce lien pour suivre l’issue : c’est là que le mainteneur répondra.',
+      err_login: 'Ce ne peut pas être un nom d’utilisateur GitHub : lettres, chiffres et '
+        + 'tirets simples, 39 caractères au plus.',
+      err_no_account: 'GitHub n’a pas de compte à ce nom.',
+      err_not_user: 'Ce compte n’est pas celui d’une personne, et GitHub ne prévient que des '
+        + 'personnes.',
+      err_github: 'GitHub n’a pas pu confirmer ce compte pour l’instant. Réessayez, ou '
+        + 'laissez le champ vide.',
       cancel: 'Abandonner', back: 'Retour',
       noGh: 'GitHub n’est pas joignable : ',
       required: 'obligatoire', dryRun: 'mode essai — rien n’est publié',
@@ -141,6 +157,21 @@
       post: 'Open the issue on GitHub', posted: 'Issue opened',
       postedNote: 'A maintainer reviews it before it becomes a pull request on the '
         + 'data repository.',
+      notifyH: 'Be told when it is handled?',
+      notifyAsk: 'Give your GitHub username: the issue will mention you, and GitHub will '
+        + 'notify you when a maintainer replies or closes it. It appears in the issue, which '
+        + 'is public. Otherwise, leave it empty and follow the issue at its link once it is '
+        + 'opened.',
+      notifyLabel: 'GitHub username', optional: 'optional',
+      notifyCheck: 'Checking the account and updating the preview…',
+      postedNotify: (n) => `GitHub will notify @${n} when the issue is handled.`,
+      postedFollow: 'Keep this link to follow the issue: that is where the maintainer will reply.',
+      err_login: 'This cannot be a GitHub username: letters, digits and single hyphens, '
+        + '39 characters at most.',
+      err_no_account: 'GitHub has no account with this username.',
+      err_not_user: 'This is not a person’s account, and GitHub only notifies people.',
+      err_github: 'GitHub could not confirm this account just now. Try again, or leave the '
+        + 'field empty.',
       cancel: 'Give up', back: 'Back',
       noGh: 'GitHub is not reachable: ',
       required: 'required', dryRun: 'dry run — nothing is posted',
@@ -292,6 +323,7 @@
     color:var(--accent)}
   .ch-prop p{font-size:12px;line-height:1.55;color:var(--ink-soft);margin:0 0 9px}
   .ch-fields{display:grid;gap:9px}
+  .ch-notify{margin-top:11px;padding-top:10px;border-top:1px solid var(--rule)}
   .ch-f{display:grid;gap:3px}
   .ch-f > label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
     color:var(--ink-faint)}
@@ -601,6 +633,12 @@
       changed: [],
       yaml: '',
       issue: null,
+      // The GitHub username to notify — as typed, as sent, and as the preview
+      // on screen was built with: the issue is opened only when the last two agree.
+      githubTyped: '',
+      github: '',
+      previewed: null,
+      notifyError: '',
       error: '',
       pending: '',
     };
@@ -819,10 +857,19 @@
     return el(`<p>${esc(p.issueTitle || '')}</p>
       <details class="ch-fold" open><summary>${esc(w('preview'))}</summary>
         <pre>${esc(p.issueBody || '')}</pre></details>
+      <div class="ch-notify">
+        <p><strong>${esc(w('notifyH'))}</strong> ${esc(w('notifyAsk'))}</p>
+        <div class="ch-f${p.notifyError ? ' bad' : ''}">
+          <label for="ch-notify">${esc(w('notifyLabel'))}<span>${esc(w('optional'))}</span></label>
+          <input id="ch-notify" type="text" data-notify value="${esc(p.githubTyped || '')}"
+            maxlength="40" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
+        ${p.notifyError ? `<div class="ch-state bad">${esc(p.notifyError)}</div>`
+          : p.pending === 'preview' ? `<div class="ch-state">${esc(w('notifyCheck'))}</div>` : ''}
+      </div>
       ${p.error ? `<div class="ch-state bad">${esc(p.error)}</div>` : ''}
       <div class="ch-acts">
         <button class="ch-btn primary" type="button" data-act="post"
-          ${p.pending ? 'disabled' : ''}>${esc(p.pending === 'issue'
+          ${p.pending || !previewIsCurrent() ? 'disabled' : ''}>${esc(p.pending === 'issue'
             ? w('posting') : w('post'))}</button>
         <button class="ch-btn" type="button" data-act="edit">${esc(w('back'))}</button>
         <button class="ch-btn quiet" type="button" data-act="cancel">${esc(w('cancel'))}</button>
@@ -832,10 +879,12 @@
   function doneStep() {
     const p = S.prop;
     const url = p.issue && p.issue.url;
+    const notified = p.issue && p.issue.notify;
     return el(`<div class="ch-state ok"><strong>${esc(w('posted'))}</strong><br>
       ${url ? `<a href="${esc(url)}" target="_blank" rel="noreferrer"
         style="color:var(--accent)">${esc(url)}</a><br>` : ''}
-      ${esc(w('postedNote'))}
+      ${esc(w('postedNote'))}<br>
+      <span class="ch-follow">${esc(notified ? w('postedNotify')(notified) : w('postedFollow'))}</span>
       ${p.issue && p.issue.dry_run ? `<br><em>${esc(w('dryRun'))}</em>` : ''}</div>
       <div class="ch-acts">
         <button class="ch-btn quiet" type="button" data-act="cancel">${esc(w('close'))}</button>
@@ -853,8 +902,12 @@
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const refused = REFUSED[res.status];
-      throw Object.assign(new Error(refused ? w(refused) : (data.error || ('HTTP ' + res.status))),
-        { status: res.status });
+      // A refusal the server names (a GitHub username it cannot use) is said in
+      // the reader's language; the server's own sentence is the fallback.
+      const named = data.code && WORDS.en['err_' + data.code] ? w('err_' + data.code) : '';
+      throw Object.assign(new Error(refused ? w(refused)
+        : named || data.error || ('HTTP ' + res.status)),
+      { status: res.status, code: refused ? '' : (data.code || '') });
     }
     return data;
   }
@@ -935,32 +988,78 @@
     }, 450);
   }
 
+  /** Whether the body on screen was built with the username now in the field —
+   *  invariant 16 again: what is opened is what was read. */
+  function previewIsCurrent() {
+    const p = S.prop;
+    return !!p && p.previewed === (p.github || '');
+  }
+
+  /** render(), leaving the caret where it was in the username field. The column
+   *  is rebuilt on every change, and a preview that updates while someone types
+   *  must not take the field away from them. */
+  function renderKeepingCaret() {
+    const was = document.activeElement;
+    const typing = was && was.matches && was.matches('[data-notify]');
+    const at = typing ? was.selectionStart : null;
+    render();
+    if (!typing) return;
+    const input = logEl.querySelector('[data-notify]');
+    if (!input) return;
+    input.focus();
+    if (at != null) input.setSelectionRange(at, at);
+  }
+
+  let repreview = null;
+  function previewSoon() {
+    clearTimeout(repreview);
+    repreview = setTimeout(() => {
+      const p = S.prop;
+      if (!p || p.step !== 'issue' || previewIsCurrent()) return;
+      if (p.pending) { previewSoon(); return; }
+      previewIssue();
+    }, 600);
+  }
+
   async function previewIssue() {
     const p = S.prop;
+    const github = p.github || '';
     p.pending = 'preview';
     p.error = '';
-    render();
+    p.notifyError = '';
+    renderKeepingCaret();
     try {
       const out = await post('/api/issue', {
         preview: true, mode: p.mode, layer: p.layer, card: p.card,
         target: p.mode === 'fix' ? p.target : '', lang: lang(),
-        reference: p.reference, transcript: history()
+        reference: p.reference, github, transcript: history()
           .map((m) => (m.role === 'user' ? 'Contributor: ' : 'Assistant: ') + m.content)
           .join('\n\n'),
       });
       p.issueTitle = out.title;
       p.issueBody = out.body;
+      p.previewed = github;
       p.step = 'issue';
     } catch (e) {
-      p.error = String(e.message || e);
+      // A username the server cannot use is said beside its field, and the
+      // issue stays shut until the field is fixed or emptied.
+      if (e.code) {
+        p.notifyError = String(e.message || e);
+        p.previewed = null;
+        p.step = 'issue';
+      } else {
+        p.error = String(e.message || e);
+      }
     } finally {
       p.pending = '';
-      render();
+      renderKeepingCaret();
+      if (S.prop === p && p.step === 'issue' && !p.notifyError && !previewIsCurrent()) previewSoon();
     }
   }
 
   async function openIssue() {
     const p = S.prop;
+    if (!previewIsCurrent()) return;
     p.pending = 'issue';
     p.error = '';
     render();
@@ -968,7 +1067,7 @@
       p.issue = await post('/api/issue', {
         mode: p.mode, layer: p.layer, card: p.card,
         target: p.mode === 'fix' ? p.target : '', lang: lang(),
-        title: p.issueTitle, reference: p.reference,
+        title: p.issueTitle, reference: p.reference, github: p.previewed,
         transcript: history()
           .map((m) => (m.role === 'user' ? 'Contributor: ' : 'Assistant: ') + m.content)
           .join('\n\n'),
@@ -1022,6 +1121,16 @@
     if (propField) {
       p[propField.dataset.prop] = propField.value.trim();
       if (propField.dataset.prop === 'layer') render();
+      return;
+    }
+    const notify = e.target.closest('[data-notify]');
+    if (notify) {
+      p.githubTyped = notify.value;
+      p.github = notify.value.trim().replace(/^@\s*/, '');
+      // Until the preview has caught up, the button would open a body nobody read.
+      const open = logEl.querySelector('[data-act="post"]');
+      if (open) open.disabled = !!p.pending || !previewIsCurrent();
+      previewSoon();
       return;
     }
     if (!p.card) return;

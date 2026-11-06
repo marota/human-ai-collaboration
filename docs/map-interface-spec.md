@@ -1201,6 +1201,14 @@ enumerate the corpus for ten minutes.
    reference and its verdict, the diff, the failed checks if any, the
    conversation folded away, and the review bar from `CONTRIBUTING.md`. It says
    in as many words that nothing has been changed on the map.
+   Beside the button, the contributor is offered to give a GitHub username, so
+   that the issue mentions them and GitHub tells them when it is handled; left
+   empty, the chat tells them to keep the issue's link to follow it. The server
+   holds the name to GitHub's rule for a login and asks GitHub that it is a
+   person's account, and the preview is rebuilt with it: the button stays
+   disabled until the body on screen carries the name in the field
+   (invariant 16). A refusal comes with a reason code, said beside the field in
+   the reader's language.
 
 ### 18.4 What it is not
 
@@ -1255,7 +1263,7 @@ not:
 | At once | — | 2 conversations, 1 draft; past that "busy" (503), not a queue |
 | Request size | 1 MB | 64 KB; the last 12 turns are read, none over 4 000 characters |
 | `/api/health` | everything | whether it can answer and send — no model inventory, address or account |
-| An issue | as written | says a visitor opened it; `@` and `#` inert outside code blocks; the conversation in a code block; `force` refused |
+| An issue | as written | says a visitor opened it; `@` and `#` inert outside code blocks, but for the one GitHub account the visitor gave to be notified, checked against GitHub and said to be unverified; the conversation in a code block; `force` refused |
 
 **Telling a visitor apart.** The tunnel connects from loopback, so the socket
 cannot. A request is the curator's only if its `Host` is a loopback name *and*

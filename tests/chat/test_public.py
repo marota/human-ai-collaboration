@@ -8,7 +8,9 @@ tests hold the line that makes that safe, at the three places it is drawn:
   and serves a visitor the API and nothing else — never a file;
 - a reference is fetched only from a globally routable address, checked on the
   socket so that neither a redirect nor a second DNS answer can talk it inward;
-- an issue a visitor opened says so, and their words in it cannot ping anyone.
+- an issue a visitor opened says so, and their words in it cannot ping anyone;
+  the one mention it may carry is the GitHub account they gave to be notified,
+  held to GitHub's rule for a login and checked against GitHub first.
 
 None of it needs the network, the model or `gh`: the server is started on an
 ephemeral port in this process, and the socket checks run against a listener
@@ -19,11 +21,14 @@ from __future__ import annotations
 import email.message
 import http.client
 import ipaddress
+import json
+import re
 import socket
 import threading
 import unittest
 from functools import partial
 from http.server import ThreadingHTTPServer
+from unittest import mock
 
 CHAT = None
 SERVER = None
@@ -318,6 +323,132 @@ class AVisitorsIssueSaysSoAndPingsNobody(unittest.TestCase):
         self.assertIn("proposed through the map's chat.", body)
         self.assertIn("ask @marota about owner/repo#12", body)
         self.assertNotIn("​", body)
+
+
+class AContributorMayAskToBeNotified(unittest.TestCase):
+    """The one mention a visitor's issue may carry: the GitHub account they gave
+    to be told when it is handled. It is held to GitHub's rule for a login and
+    checked against GitHub, never repaired, and it pings that account alone."""
+
+    def body(self, notify, public=True):
+        return CHAT.issues.body_for(
+            "fix", "team", card(), reference=None,
+            report={"ok": True, "errors": [], "warnings": []},
+            changed=[{"path": "name", "before": "Example Lab", "after": "Example @someone Lab"}],
+            transcript="ask @marota", lang="en", as_of="2026-11-06", public=public,
+            notify=notify)
+
+    def test_a_login_is_taken_as_github_spells_the_rule(self):
+        login = CHAT.issues.login
+        for raw, want in (("octocat", "octocat"), ("@octocat", "octocat"), (" @ a-b1 ", "a-b1"),
+                          ("x" * 39, "x" * 39), ("", ""), (None, ""), ("  ", "")):
+            with self.subTest(raw=raw):
+                self.assertEqual(login(raw), want)
+
+    def test_anything_else_is_refused_rather_than_repaired(self):
+        for raw in ("-octocat", "octocat-", "octo--cat", "octo_cat", "octo cat", "x" * 40,
+                    "octocat\n@marota", "a/b", "@@octocat", "octocat#12", "é"):
+            with self.subTest(raw=raw), self.assertRaises(CHAT.issues.LoginError) as caught:
+                CHAT.issues.login(raw)
+            self.assertEqual(caught.exception.code, "login")
+
+    def test_only_a_person_s_account_that_exists_is_accepted(self):
+        issues = CHAT.issues
+        answers = {
+            "Octocat": '{"login": "octocat", "type": "User"}',
+            "github": '{"login": "github", "type": "Organization"}',
+        }
+
+        def gh(*args, **_):
+            name = args[1].split("/", 1)[1]
+            if name == "nobody-here":
+                raise issues.IssueError("gh: Not Found (HTTP 404)")
+            if name == "offline":
+                raise issues.IssueError("error connecting to api.github.com")
+            return answers[name]
+
+        with mock.patch.object(issues, "_gh", gh), mock.patch.object(issues, "DRY_RUN", False):
+            self.assertEqual(issues.account("Octocat"), "octocat")
+            for name, code in (("github", "not_user"), ("nobody-here", "no_account"),
+                               ("offline", "github")):
+                with self.subTest(name), self.assertRaises(issues.LoginError) as caught:
+                    issues.account(name)
+                self.assertEqual(caught.exception.code, code)
+
+    def test_the_account_is_mentioned_once_and_nothing_else_pings(self):
+        body = self.body("octocat")
+        prose = body.split("```yaml")[0]
+        self.assertEqual(re.findall(r"@[A-Za-z0-9][\w-]*", prose), ["@octocat"])
+        self.assertIn("The contributor asked to be told when this is handled: @octocat.", body)
+        self.assertIn("The chat cannot check that this GitHub account is theirs.", body)
+        self.assertIn("@​someone", prose)
+
+    def test_without_an_account_the_issue_is_as_before(self):
+        before = CHAT.issues.body_for(
+            "fix", "team", card(), reference=None,
+            report={"ok": True, "errors": [], "warnings": []},
+            changed=[{"path": "name", "before": "Example Lab", "after": "Example @someone Lab"}],
+            transcript="ask @marota", lang="en", as_of="2026-11-06", public=True)
+        self.assertEqual(self.body(""), before)
+        self.assertNotIn("asked to be told", before)
+        self.assertNotRegex(before.split("```yaml")[0], r"@[A-Za-z0-9]")
+
+    def test_the_curator_is_not_told_their_own_account_is_unchecked(self):
+        body = self.body("octocat", public=False)
+        self.assertIn("asked to be told when this is handled: @octocat.", body)
+        self.assertNotIn("cannot check", body)
+
+
+class TheIssueEndpointChecksTheAccount(unittest.TestCase):
+    """The same rule at the server, for the preview the contributor reads and so
+    for the issue opened from it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = ThreadingHTTPServer(
+            ("127.0.0.1", 0), partial(SERVER.Handler, directory=str(SERVER.REPO_ROOT)))
+        cls.httpd.daemon_threads = True
+        cls.port = cls.httpd.server_address[1]
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+
+    def preview(self, github, headers=None):
+        payload = json.dumps({"preview": True, "mode": "add", "layer": "team", "lang": "en",
+                              "card": {"name": "Example Lab", "id": "example-lab"},
+                              "github": github}).encode()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+        conn.request("POST", "/api/issue", body=payload,
+                     headers={"Content-Type": "application/json", **(headers or {})})
+        res = conn.getresponse()
+        data = json.loads(res.read() or b"{}")
+        conn.close()
+        return res.status, data
+
+    def test_a_name_that_cannot_be_a_login_is_refused_with_its_reason(self):
+        for headers in ({"Host": f"127.0.0.1:{self.port}"},
+                        {"Host": "mac.example.ts.net:8443", "X-Forwarded-For": "198.51.100.40"}):
+            with self.subTest(headers=headers):
+                status, data = self.preview("octo cat @marota", headers)
+                self.assertEqual(status, 422)
+                self.assertEqual(data["code"], "login")
+
+    def test_a_checked_account_is_in_the_preview_and_said_back(self):
+        with mock.patch.object(CHAT.issues, "account", lambda name: name.lower()):
+            status, data = self.preview("@OctoCat", {"Host": "mac.example.ts.net:8443",
+                                                     "X-Forwarded-For": "198.51.100.41"})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["notify"], "octocat")
+        self.assertIn("asked to be told when this is handled: @octocat.", data["body"])
+
+    def test_no_account_previews_as_before(self):
+        status, data = self.preview("", {"Host": f"127.0.0.1:{self.port}"})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["notify"], "")
+        self.assertNotIn("asked to be told", data["body"])
 
 
 if __name__ == "__main__":
