@@ -24,7 +24,7 @@
 import { test, expect } from '@playwright/test';
 import {
   MAP_PATH, openMap, snapshot, tiles, layerRows, caption, setLayers, setPeriod,
-  applyPreset, settleCounts, fitAll, zoomBy, expectCountersReconcile,
+  applyPreset, settleCounts, fitAll, zoomBy, expectCountersReconcile, periodAlone
 } from './_map.js';
 
 // ---------------------------------------------------------------------------
@@ -273,6 +273,7 @@ test.describe('§6 the tier axis', () => {
 
   test('§6 matchesFilters() is the AND of layer, tier, domain and period', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const cfg = { layers: ['project', 'team'], tiers: ['core'], domains: ['energy', 'aviation', 'hf'], a: 2015, b: 2024 };
     await setLayers(page, cfg.layers);
     await setTiers(page, cfg.tiers);
@@ -348,6 +349,7 @@ test.describe('§6.1 the tier rows are facet counts', () => {
 
   test('§6.1 a layer, a domain and a period change each move the tier figures', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const n = await corpusByTier(page);
     const check = async (why, c) => {
       const want = await page.evaluate((x) => window.__tiers.byTier(window.__tiers.pass({ ...x, skip: 'tier' })), c);

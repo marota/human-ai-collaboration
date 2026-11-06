@@ -20,7 +20,7 @@
 import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, setLayers, setPeriod, nudgePeriod,
-  periodLabel, applyPreset, expectCountersReconcile, fitAll,
+  periodLabel, applyPreset, expectCountersReconcile, fitAll, periodAlone
 } from './_map.js';
 
 // ---------------------------------------------------------------------------
@@ -427,6 +427,7 @@ test.describe('§10 overlap semantics', () => {
 
   test('§10 one result: Frameworks in 1960 leaves only Fitts, which has no marker', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const pl = await payload(page);
     const ax = axis(pl);
     await setLayers(page, ['framework']);
@@ -444,6 +445,7 @@ test.describe('§10 overlap semantics', () => {
 
   test('§10 zero results: Commons has nothing before 1961', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const pl = await payload(page);
     const ax = axis(pl);
     await setLayers(page, ['commons']);
@@ -486,6 +488,7 @@ test.describe('§10.1 unknown start', () => {
 
   test('§10.1 reaching 2020 or later: solid, certainly present', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const { rows } = await payload(page);
     const vague = rows.filter(isVague);
     // The lower bound outranks the table's first row, and the data now makes
@@ -592,6 +595,7 @@ test.describe('§10.1 unknown start', () => {
 
   test('§10.1 soft puts the entity in both vis and dimmed', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     await setPeriod(page, FLOOR, 2019);
     const seen = await seenBy(page, 'tno-hmt');
     expect(seen).toMatchObject({
@@ -633,6 +637,7 @@ test.describe('§10.1 unknown start', () => {
 
   test('§10.1 possible entities count as matching the filters', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const pl = await payload(page);
     const ax = axis(pl);
     await setPeriod(page, FLOOR, 2019);
@@ -657,6 +662,7 @@ test.describe('§10.1 unknown start', () => {
 test.describe('§10.1 the unknown-start checkbox', () => {
   test('§10.1 unchecking removes exactly the possible set', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const pl = await payload(page);
     const ax = axis(pl);
     await setPeriod(page, FLOOR, 2019);
@@ -677,6 +683,7 @@ test.describe('§10.1 the unknown-start checkbox', () => {
 
   test('§10.1 unchecking leaves an impossible entity impossible, not merely undimmed', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const pl = await payload(page);
     const ax = axis(pl);
     await setPeriod(page, FLOOR, 1948);
@@ -772,6 +779,7 @@ test.describe('§10.1 the unknown-start checkbox', () => {
   // therefore change nothing; the row is what would have to give.
   test('§10.1 at the full range the switch has no effect (current behaviour)', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const pl = await payload(page);
     const ax = axis(pl);
     await setPeriod(page, 1990, 2010);
@@ -1260,6 +1268,7 @@ test.describe('§10.3 interaction', () => {
 
   test('§10 the reset button returns the whole axis', async ({ page }) => {
     await openMap(page);
+    await periodAlone(page);
     const pl = await payload(page);
     const ax = axis(pl);
     await setPeriod(page, 1990, 2001);

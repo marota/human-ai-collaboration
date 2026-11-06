@@ -394,7 +394,7 @@ There is exactly one filter predicate, `matchesFilters(it, skip)`, and exactly
 one visibility function, `visibleSet()`, built on it. `visibleSet()` returns
 three sets: `vis` (rendered), `dimmed` (rendered faintly) and `matched` (what
 the filters actually select, recorded before the focus override below). Every
-counter in the interface reads one of the three. Five independent axes combine
+counter in the interface reads one of the three. Six independent axes combine
 with AND:
 
 1. **Layer** — one toggle per layer.
@@ -406,8 +406,10 @@ with AND:
 3. **Domain** — 17 checkboxes. An entity survives if *any* of its domains is
    checked, so a multi-domain marker stays visible until all of its domains are
    unchecked.
-4. **Period** — see §10.
-5. **My map** — when on, replaces the above entirely: only pins and their
+4. **Status** — the *Status* section: terminated, ongoing and foreseen, read at
+   the year of the period's right handle, all three on by default (§10.4).
+5. **Period** — see §10.
+6. **My map** — when on, replaces the above entirely: only pins and their
    immediate neighbours, the neighbours dimmed.
 
 The focused entity is always re-added to `vis` and un-dimmed, along with any of
@@ -417,9 +419,9 @@ filter while reading.
 
 **Starting views** are named domain presets (Overview, Energy & grids,
 Aviation & ATM, Health, Human factors & XAI, Simulation & infrastructure). They
-reset the layers, the tiers, the period and My map, so a preset is a clean slate
-rather than a modifier on the current state. The domain section's Reset puts
-every axis back to its default, the tiers included.
+reset the layers, the tiers, the statuses, the period and My map, so a preset is
+a clean slate rather than a modifier on the current state. The domain section's
+Reset puts every axis back to its default, the tiers and statuses included.
 
 ### 6.1 A control's own count leaves its own axis out
 
@@ -429,8 +431,9 @@ a control's count has to answer "how many would this bring in", which it cannot
 do while counting itself: a layer row whose figure collapsed to zero the moment
 you switched the layer off would be useless for deciding whether to switch it
 back on. So the Commons row skips `layer`, the Core and Periphery rows skip
-`tier`, the *unknown start* checkbox skips `period`, and the period histogram
-skips `period`. A tier row shows a bare figure: no header tile reads the tiers,
+`tier`, the status rows skip `status`, the *unknown start* checkbox skips
+`period`, and the period histogram skips `time`, the period and the status
+together, since the status is read at the handle being dragged (§10.4). A tier row shows a bare figure: no header tile reads the tiers,
 so there is no placeless half to split off as a layer row does (§9.1.1).
 
 The consequence to keep in mind when adding a control: **its own toggle must not
@@ -725,7 +728,8 @@ being read, not its height against other filter states.
 
 **Semantics.** A dated entity is kept when its span overlaps the selection. No
 recorded end means "still running", so it stays visible for any range reaching
-its start.
+its start. The one exception is a card that starts after the selection, which
+its status keeps, faded, while *Foreseen* is on (§10.4).
 
 **The axis stops at "now", not at the furthest funded end-date.** `YMAX` used
 to be `Math.max(...YEARS)` — the latest year appearing anywhere in the data,
@@ -831,6 +835,44 @@ handle on that side is grabbed, which is what lets a range collapsed to a single
 year be reopened in either direction. Keyboard: arrows ±1, PageUp/PageDown ±5,
 Home/End to the bounds, with `role="slider"` and a live `aria-valuenow`.
 
+### 10.4 Status at the right handle
+
+A card's status is read at the year of the period's right handle, `b`
+(`statusAt()`), so moving that handle moves cards from foreseen to ongoing to
+terminated:
+
+| Status | At year `b` | On the map |
+|---|---|---|
+| Terminated | it ended before `b` | as usual, if it ended within the period |
+| Ongoing | it has started by `b` and not ended before it | as usual |
+| Foreseen | it starts after `b` | faded, and kept beyond the period |
+
+The *Status* section of the sidebar has one toggle per status, all on by
+default, under a heading that names the year (*Status in 2018*, *Statut en
+2018*). Each row's tooltip says what the status means at that year.
+
+- **The full range changes nothing.** With the handle at the last year nothing
+  starts later, so *Foreseen* is empty and the default view is the whole corpus,
+  as before.
+- **A foreseen card overlaps none of the period**, since it starts after it.
+  Kept by its toggle, it stays on the map beyond the period, faded (in
+  `dimmed`), and the feed gives its start year in place of its place (*from
+  2021*, *dès 2021*), as it says *possibly* for an unknown start (§10.1).
+  Turning *Foreseen* off gives back the period axis of §10 exactly.
+- **The left handle still bounds the history.** A card that ended before the
+  period's start is out of it, whatever its status.
+- **No start of its own, never foreseen.** A host's founding year is a floor,
+  not a start (§10.2), so a vague card is ongoing or terminated. A card with no
+  date at all has only its own `status`, which is today's: it holds from
+  `AS_OF`'s year on, and before that the card counts as ongoing.
+- **The rows are facet counts** (§6.1): each counts its own status across every
+  other axis, and its own toggle never moves its figure. The histogram leaves the
+  status out with the period: it is the backdrop the handles are sized against,
+  and one that changed shape under the handle being dragged would be none.
+- **A year is a year.** A project that ended in March of the snapshot's year
+  was still running *in* that year, so it counts as ongoing there, even where the
+  card's own `status` already says concluded.
+
 ---
 
 ## 11. Search, pins, sharing, print
@@ -906,17 +948,18 @@ when it differs from the default:
 | `dom=a,b` | checked domains |
 | `lay=a,b` | enabled layers |
 | `tier=core` | the tiers left on, by data value (`core`, `ecosystem`) |
+| `st=ongoing,foreseen` | the statuses left on (`terminated`, `ongoing`, `foreseen`, §10.4) |
 | `links=1` | full link mesh drawn |
 | `my=1` | My map mode |
 | `yr=2016,2021` | period range |
 | `nd=0` | undated entities excluded |
 
 Unknown ids and codes are filtered out on read, so a stale link degrades to a
-sensible view instead of an empty map: a `tier=` left with no known code keeps
-both tiers, as a `dom=` left with no known domain keeps all of them.
+sensible view instead of an empty map: a `tier=` or `st=` left with no known
+code keeps them all, as a `dom=` left with no known domain keeps all of them.
 
-The filters live in the fragment alone. None of them — layers, tiers, domains,
-period — is kept in `localStorage`, so a reload starts from the default view and
+The filters live in the fragment alone. None of them — layers, tiers, statuses,
+domains, period — is kept in `localStorage`, so a reload starts from the default view and
 a shared link is the whole view: a reader's own last session never leaks into a
 link they open.
 

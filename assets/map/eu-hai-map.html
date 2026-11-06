@@ -551,6 +551,12 @@
         <p class="note" data-i18n="tiersNote">Cœur : les fiches qui font elles-mêmes de la collaboration humain–IA. Périphérie : celles qui gravitent autour, avec un lien plus lâche — simples partenaires, calcul, cadres, briques. Leurs marqueurs sont estompés.</p>
       </section>
 
+      <section class="sb-section" id="f-status">
+        <h3 class="sb-h" id="status-h">Statut</h3>
+        <div id="status-rows"></div>
+        <p class="note" data-i18n="statusNote">Lu à l’année de la poignée droite de la période : terminé, c’est fini avant ; en cours, actif cette année-là ; prévu, commence plus tard. Une fiche prévue est estompée, et reste sur la carte au-delà de la période tant que sa case est cochée.</p>
+      </section>
+
       <section class="sb-section" id="f-domains">
         <h3 class="sb-h"><span data-i18n="domainsTitle">Domaines</span>
           <span class="mini-act"><button class="mini-btn" id="reset-btn" data-i18n="reset">Réinitialiser</button></span>
@@ -743,6 +749,9 @@ const perKind = v => Object.fromEntries(KINDS.map(k => [k, v]));
 // with no tier is core, as the data repository defines it.
 const TIERS = ['core','ecosystem'];
 const perTier = v => Object.fromEntries(TIERS.map(k => [k, v]));
+// A card's status as read at the period's right handle (§10.4).
+const STATUSES = ['terminated','ongoing','foreseen'];
+const perStatus = v => Object.fromEntries(STATUSES.map(k => [k, v]));
 const CAPITALS = [
   ['Paris',48.857,2.352],['London',51.507,-0.128],['Berlin',52.52,13.405],['Madrid',40.417,-3.703],
   ['Roma',41.902,12.496],['Wien',48.208,16.373],['Warszawa',52.23,21.011],['Stockholm',59.329,18.069],
@@ -760,6 +769,9 @@ const I18N = {
     stTile:(v,m)=>`${v} dans la vue · ${m} ${m>1?'correspondent':'correspond'} aux filtres`,
     presetsTitle:'Vues de départ', layersTitle:'Couches', domainsTitle:'Domaines', reset:'Réinitialiser',
     tiersTitle:'Périmètre', 'tier.core':'Cœur', 'tier.ecosystem':'Périphérie',
+    statusTitle:y=>`Statut en ${y}`, 'status.terminated':'Terminé', 'status.ongoing':'En cours', 'status.foreseen':'Prévu',
+    statusHint:{ terminated:y=>`Achevé avant ${y}`, ongoing:y=>`En cours en ${y}`, foreseen:y=>`Commence après ${y}` },
+    statusNote:'Lu à l\u2019année de la poignée droite de la période : terminé, c\u2019est fini avant ; en cours, actif cette année-là ; prévu, commence plus tard. Une fiche prévue est estompée, et reste sur la carte au-delà de la période tant que sa case est cochée.',
     tiersNote:'Cœur : les fiches qui font elles-mêmes de la collaboration humain–IA. Périphérie : celles qui gravitent autour, avec un lien plus lâche — simples partenaires, calcul, cadres, briques. Leurs marqueurs sont estompés.',
     all:'Tout', none:'Aucun',
     'grp.industrial':'Domaines industriels', 'grp.research':'Axes de recherche', 'grp.infra':'Infrastructures de recherche',
@@ -805,7 +817,7 @@ const I18N = {
     'sec.refs':'S\u2019appuie sur', 'sec.papers':'Publications', 'sec.links':'Autres liens',
     provBy:'Ajouté par', provConf:'confiance', provSrc:'Source :',
     noPlace:'Sans ancrage géographique',
-    timeTitle:'Période', timeAll:'Toutes les années', timeUndated:'date incertaine', timeMaybe:'peut-être',
+    timeTitle:'Période', timeAll:'Toutes les années', timeUndated:'date incertaine', timeMaybe:'peut-être', timeStarts:y=>`dès ${y}`,
     dateHost:'Année de fondation de l\u2019institution hôte : la date propre de cette équipe n\u2019est pas publiée. Elle borne le démarrage — la carte la montre pleine à partir de 2020, atténuée entre les deux, absente avant.',
     dateApprox:'Date approchée, reconstituée à partir d\u2019indices indirects.',
     timeFrom:'Première année', timeTo:'Dernière année', timeFloor:'les fondations antérieures restent incluses',
@@ -855,6 +867,9 @@ const I18N = {
     stTile:(v,m)=>`${v} in view · ${m} ${m===1?'matches':'match'} the filters`,
     presetsTitle:'Starting views', layersTitle:'Layers', domainsTitle:'Domains', reset:'Reset',
     tiersTitle:'Scope', 'tier.core':'Core', 'tier.ecosystem':'Periphery',
+    statusTitle:y=>`Status in ${y}`, 'status.terminated':'Terminated', 'status.ongoing':'Ongoing', 'status.foreseen':'Foreseen',
+    statusHint:{ terminated:y=>`Ended before ${y}`, ongoing:y=>`Running in ${y}`, foreseen:y=>`Starting after ${y}` },
+    statusNote:'Read at the year of the period\u2019s right handle: terminated means ended before it, ongoing means running that year, foreseen means starting later. A foreseen card is shown faded, and stays on the map beyond the period while its box is ticked.',
     tiersNote:'Core: the cards that do human–AI collaboration themselves. Periphery: the ones that gravitate around them, with a looser link — partners only, compute, frameworks, building blocks. Their markers are drawn faded.',
     all:'All', none:'None',
     'grp.industrial':'Industrial domains', 'grp.research':'Research focus', 'grp.infra':'Research infrastructure',
@@ -900,7 +915,7 @@ const I18N = {
     'sec.refs':'Builds on', 'sec.papers':'Publications', 'sec.links':'Other links',
     provBy:'Added by', provConf:'confidence', provSrc:'Source:',
     noPlace:'No geographic anchor',
-    timeTitle:'Period', timeAll:'All years', timeUndated:'unknown start', timeMaybe:'possibly',
+    timeTitle:'Period', timeAll:'All years', timeUndated:'unknown start', timeMaybe:'possibly', timeStarts:y=>`from ${y}`,
     dateHost:'Founding year of the host institution: this team\u2019s own start date is not published. It bounds the start — the map shows it solid from 2020, dimmed in between, and hides it before.',
     dateApprox:'Approximate date, reconstructed from indirect evidence.',
     timeFrom:'First year', timeTo:'Last year', timeFloor:'earlier foundings stay included',
@@ -964,6 +979,7 @@ const state = {
   domains: new Set(ALL_DOMS),
   layers: perKind(true),
   tiers: perTier(true),
+  statuses: perStatus(true),
   years: null, // {a,b,undated} — filled once the data bounds are known
   feed:false, inView:new Set(), inFilter:new Set(),
   matchCount:0, offMapMatch:0, offScreen:0, keptOpen:0,
@@ -1066,6 +1082,21 @@ function periodState(it){
   const s = it.y0==null ? -Infinity : it.y0;
   const e = it.y1==null ?  Infinity : it.y1;
   return (s <= state.years.b && e >= state.years.a) ? 'in' : 'out';
+}
+// A card's status at the year of the period's right handle (§10.4): foreseen
+// before its start, terminated after its end, ongoing in between, so that
+// moving the timeline moves cards from one to the next. A host's founding year
+// is no start (§10.2), so a vague card is never foreseen. A card with no date
+// at all has only its own `status`, which is today's: it holds from AS_OF's year.
+function statusAt(it){
+  const b = state.years.b;
+  if (it.y0 != null && !it.vague && it.y0 > b) return 'foreseen';
+  if (it.y1 != null && it.y1 < b) return 'terminated';
+  if (!it.dated && b >= (AS_OF_YEAR || YMAX)){
+    if (it.d.status === 'concluded') return 'terminated';
+    if (it.d.status === 'planned') return 'foreseen';
+  }
+  return 'ongoing';
 }
 
 // adjacency
@@ -1373,19 +1404,26 @@ function flyTo(id){
 }
 
 // ---------- visibility ----------
-// The four filter axes as one predicate. Every counter in the interface reads
+// The five filter axes as one predicate. Every counter in the interface reads
 // it, so "matches the filters" means the same thing in the header tiles, the
 // layer and tier rows, the period control and the off-the-map list — the
 // alternative, each control counting in its own terms, is what made a layer row
 // say 25 while the tile beneath it said 24 and the caption said both.
 // `skip` leaves one axis out: a control's own count has to answer "how many
 // would this bring in", which it cannot do while counting itself. A layer row
-// skips 'layer', a tier row 'tier', the unknown-start checkbox skips 'period'.
+// skips 'layer', a tier row 'tier', a status row 'status', the unknown-start
+// checkbox 'period'. The period's histogram skips 'time', both period and
+// status: the status is read at the right handle, and a backdrop that changed
+// shape under the handle being dragged would be no backdrop.
+// A foreseen card starts after the period, so it overlaps none of it: kept by
+// its status box, it stays on the map beyond the period (§10.4).
 function matchesFilters(it, skip){
   if (skip !== 'layer'  && !state.layers[it.kind]) return false;
   if (skip !== 'tier'   && !state.tiers[it.tier]) return false;
   if (skip !== 'domain' && !it.domains.some(d=>state.domains.has(d))) return false;
-  if (skip !== 'period' && periodState(it) === 'out') return false;
+  const status = statusAt(it);
+  if (skip !== 'status' && skip !== 'time' && !state.statuses[status]) return false;
+  if (skip !== 'period' && skip !== 'time' && status !== 'foreseen' && periodState(it) === 'out') return false;
   return true;
 }
 // My map replaces the filters rather than narrowing them, so in that mode the
@@ -1412,6 +1450,7 @@ function visibleSet(){
       if (!matchesFilters(it)) return;
       vis.add(it.id);
       if (periodState(it) === 'soft') dimmed.add(it.id);   // possible, not established
+      if (statusAt(it) === 'foreseen') dimmed.add(it.id);  // not started yet at that year
     });
   }
   // What actually matches, recorded before the focus override below adds an
@@ -1464,7 +1503,7 @@ function refresh(){
   styleHotEdges();
   // Every count in the panel is a reading of the same filter state, so they all
   // move together or none of them can be trusted.
-  updateLayerCounts(); updateTierCounts(); updateUndatedCount(); renderHist(); paintHist();
+  updateLayerCounts(); updateTierCounts(); updateStatusCounts(); updateUndatedCount(); renderHist(); paintHist();
   updateInView(vis, matched); renderStats(); updateNoGeo(); renderFeed();
   document.getElementById('links-row').setAttribute('aria-pressed', state.links);
   document.getElementById('links-pill').classList.toggle('active', state.links);
@@ -1496,9 +1535,10 @@ function applyPreset(id){
   state.domains = new Set(p.doms || ALL_DOMS);
   KINDS.forEach(k=>state.layers[k]=true);
   TIERS.forEach(k=>state.tiers[k]=true);
+  STATUSES.forEach(k=>state.statuses[k]=true);
   state.myMap = false;
   state.years = { a:YMIN, b:YMAX, undated:true };
-  syncDomainChecks(); renderLayerRows(); renderTierRows(); renderTime(); refresh(); fitView(true);
+  syncDomainChecks(); renderLayerRows(); renderTierRows(); renderStatusRows(); renderTime(); refresh(); fitView(true);
   closeWelcome();
 }
 function renderLayerRows(){
@@ -1579,6 +1619,43 @@ function updateTierCounts(){
     el.textContent = n[k];
     const msg = state.myMap ? t('layerCountMyMap')(n[k])
       : (n[k] === TIER_TOTALS[k] ? '' : t('layerCount')(n[k], TIER_TOTALS[k]));
+    el.title = msg; el.setAttribute('aria-label', msg);
+  });
+}
+// Status rows (§10.4), drawn like the tier rows: a toggle and a facet count,
+// under a heading that names the year the status is read at.
+const STATUS_GLYPH = {
+  terminated: '<circle r="4.6" fill="currentColor" opacity=".42"></circle>',
+  ongoing: '<circle r="4.6" fill="currentColor"></circle>',
+  foreseen: '<circle r="4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.2 1.6"></circle>',
+};
+function renderStatusRows(){
+  const host = document.getElementById('status-rows');
+  host.innerHTML = STATUSES.map(k=>`
+    <button class="layer-row" data-status="${k}" aria-pressed="${state.statuses[k]}">
+      <span class="glyph"><svg width="16" height="16" viewBox="-8 -8 16 16">${STATUS_GLYPH[k]}</svg></span>
+      <span class="lbl">${esc(t('status.'+k))}</span>
+      <span class="cnt">0</span>
+      <span class="sw"></span>
+    </button>`).join('');
+  host.querySelectorAll('[data-status]').forEach(b=>b.addEventListener('click',()=>{
+    const k = b.dataset.status; state.statuses[k] = !state.statuses[k];
+    b.setAttribute('aria-pressed', state.statuses[k]); refresh();
+  }));
+  updateStatusCounts();
+}
+// The facet count again (§6.1), with the status axis left out. The figures and
+// the heading move with the right handle, since that is the year they are read at.
+function updateStatusCounts(){
+  const y = state.years.b;
+  document.getElementById('status-h').textContent = t('statusTitle')(y);
+  const n = perStatus(0);
+  scopeItems('status').forEach(it=>{ n[statusAt(it)]++; });
+  document.querySelectorAll('.layer-row[data-status]').forEach(b=>{
+    const k = b.dataset.status, el = b.querySelector('.cnt');
+    el.textContent = n[k];
+    b.title = t('statusHint')[k](y);
+    const msg = state.myMap ? t('layerCountMyMap')(n[k]) : '';
     el.title = msg; el.setAttribute('aria-label', msg);
   });
 }
@@ -2084,7 +2161,9 @@ function renderFeed(){
       <button class="fd-row" data-open="${esc(it.id)}" aria-expanded="${it.id===focus}">
         <span class="glyph"><svg width="16" height="16" viewBox="-9 -9 18 18">${shapeSvg(it.domains,it.kind,it.kind==='team'?4.5:6,false)}</svg></span>
         <span class="nm">${esc(it.d.name)}</span>
-        <span class="mt">${periodState(it)==='soft' ? esc(t('timeMaybe')) : esc([it.d.city,it.d.country].filter(Boolean).join(', '))}</span>
+        <span class="mt">${periodState(it)==='soft' ? esc(t('timeMaybe'))
+          : statusAt(it)==='foreseen' ? esc(t('timeStarts')(it.y0))
+          : esc([it.d.city,it.d.country].filter(Boolean).join(', '))}</span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
       ${it.id===focus ? `<div class="fd-card">${cardHtml(it)}</div>` : ''}
@@ -2138,7 +2217,7 @@ function renderHist(){
   // handles against a population they are not selecting from.
   const n = tfSpan + 1;
   const counts = new Array(n).fill(0);
-  scopeItems('period').forEach(it => {
+  scopeItems('time').forEach(it => {
     if (!it.dated) return;
     const s = Math.max(YMIN, it.y0==null ? YMIN : it.y0);
     const e = Math.min(YMAX, it.y1==null ? YMAX : it.y1);
@@ -2332,10 +2411,11 @@ document.getElementById('mymap-pill').addEventListener('click', toggleMyMap);
 document.getElementById('reset-btn').addEventListener('click', ()=>{
   state.domains = new Set(ALL_DOMS); KINDS.forEach(k=>state.layers[k]=true);
   TIERS.forEach(k=>state.tiers[k]=true);
+  STATUSES.forEach(k=>state.statuses[k]=true);
   state.links = false; state.myMap = false; closeDetail();
   state.years = { a:YMIN, b:YMAX, undated:true };
   searchInput.value=''; searchDrop.classList.remove('open');
-  syncDomainChecks(); renderLayerRows(); renderTierRows(); renderTime(); refresh(); fitView(true);
+  syncDomainChecks(); renderLayerRows(); renderTierRows(); renderStatusRows(); renderTime(); refresh(); fitView(true);
 });
 document.getElementById('share-btn').addEventListener('click', ()=>{
   const h = [];
@@ -2346,6 +2426,8 @@ document.getElementById('share-btn').addEventListener('click', ()=>{
   if (lays.length !== KINDS.length) h.push('lay='+lays.join(','));
   const tiers = TIERS.filter(k=>state.tiers[k]);
   if (tiers.length !== TIERS.length) h.push('tier='+tiers.join(','));
+  const sts = STATUSES.filter(k=>state.statuses[k]);
+  if (sts.length !== STATUSES.length) h.push('st='+sts.join(','));
   if (state.links) h.push('links=1');
   if (state.myMap) h.push('my=1');
   if (timeOn()) h.push('yr='+state.years.a+','+state.years.b);
@@ -2473,7 +2555,7 @@ function applyLang(){
   document.getElementById('sb-foot').innerHTML = t('footer');
   document.getElementById('fd-close').title = t('feedHide'); document.getElementById('fd-close').setAttribute('aria-label', t('feedHide'));
   document.title = t('title') + (LANG==='fr' ? ' — carte de l\u2019écosystème' : ' — ecosystem map');
-  renderPresets(); renderLayerRows(); renderTierRows(); renderDomainGroups(); renderLegend(); renderPins(); renderNoGeo(); renderTime();
+  renderPresets(); renderLayerRows(); renderTierRows(); renderStatusRows(); renderDomainGroups(); renderLegend(); renderPins(); renderNoGeo(); renderTime();
   if (welcome.classList.contains('open')) renderWelcome();
   if (state.focusId) renderDetail(state.focusId);
   refresh();
@@ -2491,6 +2573,8 @@ function applyHash(){
   // Like `dom`: unknown codes are dropped, and a link left with none keeps both.
   const tier = h.get('tier'); if (tier){ const on = tier.split(',').filter(k=>TIERS.includes(k));
     if (on.length) TIERS.forEach(k=>state.tiers[k] = on.includes(k)); }
+  const st = h.get('st'); if (st){ const on = st.split(',').filter(k=>STATUSES.includes(k));
+    if (on.length) STATUSES.forEach(k=>state.statuses[k] = on.includes(k)); }
   if (h.get('links')==='1') state.links = true;
   if (h.get('my')==='1' && state.pins.size) state.myMap = true;
   const yr = h.get('yr');

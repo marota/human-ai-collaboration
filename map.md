@@ -48,6 +48,13 @@ with no floor. Both groups are kept by default and can be dropped with the
 and Siemens laboratories, Radboud University — stay included in any range that
 reaches the floor. Narrowed periods travel in the shareable link.
 
+The **Status** section of the filters reads every entry at the year of the
+slider's right handle: *terminated* if it ended before that year, *ongoing* if it
+runs that year, *foreseen* if it starts later. Moving the handle moves entries
+from one to the next. All three are on by default: a foreseen entry stays on the
+map beyond the period, faded, and the feed gives its start year. Turn *Foreseen*
+off to keep only what existed by then.
+
 The four counters in the side panel follow the **viewport**: zoom in and they
 count what is actually on screen, with the number matching the filters as a
 caption. When the two differ, the caption says why, in the two ways they can:

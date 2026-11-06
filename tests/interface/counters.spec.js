@@ -29,7 +29,7 @@ import { test, expect } from '@playwright/test';
 import {
   openMap, snapshot, tiles, layerRows, caption, toggleLayer, setLayers,
   setPeriod, applyPreset, expectCountersReconcile, settleCounts, zoomBy, fitAll,
-  soloOffMapScope, narrowToScope,
+  soloOffMapScope, narrowToScope, periodAlone
 } from './_map.js';
 
 const KINDS = ['project', 'team', 'cluster', 'commons', 'framework'];
@@ -554,6 +554,7 @@ test.describe('§9.1 two readings', () => {
     // which layer owned the seven. The row now splits at that seam — 23 you can
     // see, +7 you cannot — so the two numbers reconcile where they are read.
     await open(page);
+    await periodAlone(page);
     await setPeriod(page, await page.evaluate(() => YMIN), 2011);
     await settleCounts(page);
     // Derived from the payload: of the entities matching this period, how many
@@ -649,6 +650,7 @@ test.describe('inv 14 one tile per layer', () => {
 
   test('inv 14 the tiles sum to state.inView across zoom, layer, period and My map states', async ({ page }) => {
     await open(page, { storage: { 'hai-map-v2-pins': JSON.stringify(['sbb']) } });
+    await periodAlone(page);
     const check = async (because) => {
       await settleCounts(page);
       const s = await snapshot(page);
@@ -802,6 +804,7 @@ test.describe('inv 12 reconciliation', () => {
 
   test('§9.2 / inv 12 reconciles with a narrowed period, zoomed in and zoomed out', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     await setPeriod(page, 2010, 2012);
     await settleCounts(page);
     await expectCountersReconcile(page, 'narrowed period, default view');
@@ -1018,6 +1021,7 @@ test.describe('inv 13 no frozen counts', () => {
 
   test('inv 13 narrowing the period moves the layer rows off the corpus totals', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const c = await corpus(page);
     const before = await layerRows(page);
     expect(before.map((r) => r.count)).toEqual(KINDS.map((k) => c.totals[k]));
@@ -1037,6 +1041,7 @@ test.describe('inv 13 no frozen counts', () => {
 
   test('inv 13 narrowing the period moves the Off-the-map badge off the corpus figure', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const c = await corpus(page);
     let pc = await panelCounts(page);
     expect(pc.nogeo).toBe(c.nogeo);
@@ -1217,6 +1222,7 @@ test.describe('inv 13 no frozen counts', () => {
     // is not when the filters move. Poking the state and calling only refresh()
     // is the cheapest way to catch a counter wired to the wrong function.
     await open(page);
+    await periodAlone(page);
     const c = await corpus(page);
     await page.evaluate(() => {
       state.layers.team = false; state.layers.project = false; state.layers.framework = false;
@@ -1291,6 +1297,7 @@ test.describe('inv 13 no frozen counts', () => {
     // every language switch, which is exactly where the frozen numbers used to
     // come back.
     await open(page);
+    await periodAlone(page);
     const c = await corpus(page);
     await setPeriod(page, 2010, 2012);
     await settleCounts(page);
@@ -1329,6 +1336,7 @@ test.describe('inv 13 no frozen counts', () => {
 
   test('inv 13 the period floor and ceiling are live states, not the corpus state', async ({ page }) => {
     await open(page);
+    await periodAlone(page);
     const c = await corpus(page);
     const bounds = await page.evaluate(() => ({ ymin: YMIN, ymax: YMAX }));
     await setPeriod(page, bounds.ymin, bounds.ymin);
@@ -1361,6 +1369,7 @@ test.describe('inv 13 no frozen counts', () => {
     // the axis — and the counters must report that handful, not zero and not
     // the corpus.
     await open(page, { hash: '#yr=1945,1945&nd=0' });
+    await periodAlone(page);
     const d = await expectEverythingLive(page, 'the floor year with unknown starts excluded');
     expect(d.match).toBeGreaterThan(0);
     expect(d.match).toBe(d.matchKind.team);         // the founders on this map are all teams
