@@ -154,7 +154,9 @@ French. The chat takes it from there, with you:
    what you fix in thirty seconds would take a maintainer far longer to
    reconstruct.
 3. **The issue.** You read the exact GitHub issue it will open, then send it.
-   Nothing has changed on the map at that point.
+   If you give your GitHub username, the issue mentions you, and GitHub tells
+   you when it is handled; otherwise, keep its link to follow it. Nothing has
+   changed on the map at that point.
 4. **The review.** A maintainer checks the proposal — that it fits the map's
    scope, that a public source backs every claim, that it uses the map's
    vocabulary, that the coordinates point at the right place — and turns it
@@ -167,8 +169,8 @@ off, the chat says so — and an issue opened directly, below, does the same job
 What you type stays private unless you make it a proposal. The server keeps no
 record of conversations — only the address a request came from, to apply
 per-visitor limits — and your browser keeps the conversation on your side. A
-proposal's issue is public, and it includes the conversation it came from: you
-see it in full before you send it.
+proposal's issue is public, and it includes the conversation it came from, and
+your GitHub username if you gave one: you see it in full before you send it.
 
 ### Directly on GitHub
 

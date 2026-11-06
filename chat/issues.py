@@ -7,7 +7,8 @@ CONTRIBUTING.md. A maintainer reads it and turns it into a pull request, or
 closes it. That is the whole authority model, and it is why the chat can be
 left running for someone else to use — including, since the map was published
 with it (§18.6), a visitor nobody has met. Their issues say so, keep their words
-in a code block, and cannot ping anyone.
+in a code block, and cannot ping anyone but the one GitHub account the
+contributor gave, on purpose, to be told when the issue is handled.
 
 Posting goes through the `gh` CLI rather than a token of our own: it is already
 authenticated on this machine, it keeps credentials out of this repository, and
@@ -41,10 +42,23 @@ PUBLIC_LABEL = os.environ.get("HAI_CHAT_PUBLIC_LABEL", "via-public-chat")
 # readable and the link inert.
 _MENTION_RE = re.compile(r"@(?=[A-Za-z0-9])")
 _ISSUE_REF_RE = re.compile(r"#(?=\d)")
+# A GitHub login, by GitHub's own rule: letters, digits and single hyphens, at
+# most 39 characters, with no hyphen first or last.
+_LOGIN_RE = re.compile(r"[A-Za-z0-9](?:-?[A-Za-z0-9])*")
+_LOGIN_MAX = 39
 
 
 class IssueError(RuntimeError):
     pass
+
+
+class LoginError(IssueError):
+    """The account given to be notified cannot be used. `code` lets the page say
+    why in the reader's language: `login`, `no_account`, `not_user` or `github`."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def _gh(*args: str, stdin: str | None = None, check: bool = True) -> str:
@@ -71,6 +85,45 @@ def available_labels() -> set[str]:
 def defang(text: str) -> str:
     """A visitor's words, unable to mention anyone or cross-reference any issue."""
     return _ISSUE_REF_RE.sub("#\u200b", _MENTION_RE.sub("@\u200b", str(text)))
+
+
+def login(raw: Any) -> str:
+    """The GitHub username a contributor gave to be notified, or "" for none.
+
+    It is the one mention an issue may carry, so it is held to GitHub's own
+    rule rather than defanged: anything else is refused, not repaired."""
+    name = str(raw or "").strip()
+    name = name[1:].strip() if name.startswith("@") else name
+    if not name:
+        return ""
+    if len(name) > _LOGIN_MAX or not _LOGIN_RE.fullmatch(name):
+        raise LoginError("login", "this cannot be a GitHub username: letters, digits and "
+                                  "single hyphens, 39 characters at most")
+    return name
+
+
+def account(name: str) -> str:
+    """The login as GitHub spells it, when it is a person's account.
+
+    A mention notifies people, not organisations, and a name with no account
+    behind it notifies nobody: both are refused before the contributor is told
+    they will hear back. Whether the account is theirs, no one can check."""
+    if DRY_RUN:
+        return name
+    try:
+        raw = _gh("api", f"users/{name}", "--jq", "{login: .login, type: .type}")
+    except IssueError as e:
+        if "404" in str(e) or "Not Found" in str(e):
+            raise LoginError("no_account", f"GitHub has no account named {name}") from e
+        raise LoginError("github", f"GitHub could not be asked about {name}: {e}") from e
+    try:
+        info = json.loads(raw or "{}")
+    except json.JSONDecodeError as e:
+        raise LoginError("github", f"GitHub could not be asked about {name}") from e
+    if info.get("type") != "User":
+        raise LoginError("not_user", f"{name} is not a person's account, and GitHub "
+                                     "notifies people")
+    return str(info.get("login") or name)
 
 
 def _fenced(text: str) -> list[str]:
@@ -102,12 +155,16 @@ def _value(v: Any) -> str:
 def body_for(mode: str, layer: str, card: dict[str, Any], *,
              reference: dict[str, Any] | None, report: dict[str, Any] | None,
              changed: list[dict[str, Any]] | None, transcript: str,
-             lang: str, as_of: str, public: bool = False) -> str:
+             lang: str, as_of: str, public: bool = False, notify: str = "") -> str:
     """The issue a maintainer reads.
 
     `public` is a proposal from the published map: someone outside this machine
     wrote every free-text field in it, so outside code blocks those fields are
     defanged, and the conversation goes in a code block whole.
+
+    `notify` is the GitHub login the contributor gave to be told when the issue
+    is handled, already checked by `login()` and `account()`. It is mentioned
+    once, on a line of its own, and is the only mention a visitor's issue has.
     """
     path = f"{LAYER_DIR[layer]}/{card.get('id', '<slug>')}.yml"
     rows: list[str] = []
@@ -122,6 +179,10 @@ def body_for(mode: str, layer: str, card: dict[str, Any], *,
         rows.append(f"A correction to **{said(card.get('name'))}** (`{card.get('id')}`), "
                     f"proposed through {via}. The file is `{path}` in "
                     f"[{DATA_REPO}](https://github.com/{DATA_REPO}).")
+    if notify:
+        rows += ["", f"The contributor asked to be told when this is handled: @{notify}."
+                 + (" The chat cannot check that this GitHub account is theirs."
+                    if public else "")]
 
     ref = reference or {}
     rows += ["", "### Reference", ""]

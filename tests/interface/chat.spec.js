@@ -104,16 +104,27 @@ async function stubServer(page, overrides = {}) {
       });
     }
     if (path === '/api/issue') {
+      // The username to notify, as chat/issues.py checks it: `nobody-here` has
+      // no account behind it.
+      const notify = String(body.github || '').replace(/^@/, '');
+      if (notify === 'nobody-here') {
+        return route.fulfill({
+          status: 422, contentType: 'application/json',
+          body: JSON.stringify({ error: 'GitHub has no account named nobody-here', code: 'no_account' }),
+        });
+      }
       if (body.preview) {
         return json(route, {
           preview: true, title: 'Map data: add Example Grid Lab (team)',
-          body: '### Proposed YAML\n```yaml\nid: example-grid-lab\n```',
+          body: (notify ? `The contributor asked to be told when this is handled: @${notify}.\n\n` : '')
+            + '### Proposed YAML\n```yaml\nid: example-grid-lab\n```',
           repo: 'marota/human-ai-collaboration', report: { ok: true, errors: [], warnings: [] },
+          notify,
         });
       }
       return json(route, {
         url: 'https://github.com/marota/human-ai-collaboration/issues/42',
-        repo: 'marota/human-ai-collaboration', dry_run: true, title: body.title,
+        repo: 'marota/human-ai-collaboration', dry_run: true, title: body.title, notify,
       });
     }
     return json(route, { error: 'unexpected endpoint' });
@@ -329,7 +340,7 @@ test.describe('§18.2 answering', () => {
 // ============================================================== the proposal ==
 
 test.describe('§18.3 proposing a change', () => {
-  async function propose(page, event = { t: 'propose', mode: 'add', target: 'team' }) {
+  async function propose(page, event = { t: 'propose', mode: 'add', target: 'team' }, lang = 'en') {
     const calls = await stubServer(page, {
       '/api/chat': (route) => route.fulfill({
         status: 200, contentType: 'application/x-ndjson',
@@ -341,7 +352,7 @@ test.describe('§18.3 proposing a change', () => {
         ]),
       }),
     });
-    await openMap(page, CHAT);
+    await openMap(page, { ...CHAT, lang });
     await page.fill('#ch-input', 'the Example Grid Lab is missing');
     await page.click('#ch-send');
     await expect(page.locator('.ch-prop')).toBeVisible();
@@ -448,6 +459,78 @@ test.describe('§18.3 proposing a change', () => {
     // a deliberate click to post it.
     expect(posted.body.preview).toBeFalsy();
     expect(posted.body.card.name).toBe('Renamed Grid Lab');
+  });
+
+  /** Through to step 3, the issue's preview, with the checks passing. */
+  async function toPreview(page, lang = 'en') {
+    const calls = await propose(page, undefined, lang);
+    await page.click('[data-act="draft"]');
+    await page.fill('[data-field="name"]', 'Example Grid Lab');
+    await expect.poll(() => calls.filter((c) => c.path === '/api/validate').length)
+      .toBeGreaterThan(0);
+    await page.click('[data-act="preview"]');
+    await expect(page.locator('.ch-prop-s')).toContainText('3 ·');
+    return calls;
+  }
+  const issueCalls = (calls) => calls.filter((c) => c.path === '/api/issue');
+
+  test('the issue step offers to notify a GitHub username, and the preview mentions it before anything is opened', async ({ page }) => {
+    const calls = await toPreview(page);
+    await expect(page.locator('.ch-notify')).toContainText('Be told when it is handled?');
+    await expect(page.locator('.ch-notify')).toContainText('which is public');
+    await expect(page.locator('.ch-notify label')).toContainText('GitHub username');
+    await expect(page.locator('.ch-notify label')).toContainText('optional');
+    await expect(page.locator('[data-act="post"]')).toBeEnabled();
+
+    await page.fill('[data-notify]', '@octocat');
+    // invariant 16: until the preview has the mention, there is nothing to open.
+    await expect(page.locator('[data-act="post"]')).toBeDisabled();
+    await expect.poll(() => issueCalls(calls).at(-1).body.github).toBe('octocat');
+    expect(issueCalls(calls).at(-1).body.preview).toBe(true);
+    await expect(page.locator('.ch-fold pre')).toContainText('@octocat');
+    await expect(page.locator('[data-act="post"]')).toBeEnabled();
+    // The preview updated under the reader's hands without taking the field away.
+    await expect(page.locator('[data-notify]')).toBeFocused();
+    await expect(page.locator('[data-notify]')).toHaveValue('@octocat');
+
+    await page.click('[data-act="post"]');
+    await expect(page.locator('.ch-state.ok')).toContainText('Issue opened');
+    const posted = issueCalls(calls).at(-1);
+    expect(posted.body.preview).toBeFalsy();
+    expect(posted.body.github).toBe('octocat');
+    await expect(page.locator('.ch-follow')).toHaveText('GitHub will notify @octocat when the issue is handled.');
+  });
+
+  test('without a username, the opened issue is left to follow at its link', async ({ page }) => {
+    const calls = await toPreview(page);
+    await page.click('[data-act="post"]');
+    await expect(page.locator('.ch-state.ok a')).toHaveAttribute(
+      'href', 'https://github.com/marota/human-ai-collaboration/issues/42');
+    expect(issueCalls(calls).at(-1).body.github).toBe('');
+    await expect(page.locator('.ch-follow')).toHaveText(
+      'Keep this link to follow the issue: that is where the maintainer will reply.');
+  });
+
+  test('a username GitHub does not know is refused beside its field, and nothing opens until it is fixed', async ({ page }) => {
+    const calls = await toPreview(page);
+    await page.fill('[data-notify]', 'nobody-here');
+    await expect(page.locator('.ch-notify .ch-state.bad'))
+      .toHaveText('GitHub has no account with this username.');
+    await expect(page.locator('.ch-notify .ch-f')).toHaveClass(/bad/);
+    await expect(page.locator('[data-act="post"]')).toBeDisabled();
+    expect(issueCalls(calls).filter((c) => !c.body.preview)).toEqual([]);
+
+    await page.fill('[data-notify]', '');
+    await expect(page.locator('.ch-notify .ch-state.bad')).toHaveCount(0);
+    await expect(page.locator('[data-act="post"]')).toBeEnabled();
+    await expect(page.locator('.ch-fold pre')).not.toContainText('asked to be told');
+  });
+
+  test('the refusal is said in the reader\u2019s language, from the reason the server names', async ({ page }) => {
+    await toPreview(page, 'fr');
+    await expect(page.locator('.ch-notify label')).toContainText('Nom d\u2019utilisateur GitHub');
+    await page.fill('[data-notify]', 'nobody-here');
+    await expect(page.locator('.ch-notify .ch-state.bad')).toHaveText('GitHub n\u2019a pas de compte \u00e0 ce nom.');
   });
 
   test('nothing is posted while the checks fail', async ({ page }) => {
