@@ -407,7 +407,8 @@ with AND:
    checked, so a multi-domain marker stays visible until all of its domains are
    unchecked.
 4. **Status** — the *Status* section: terminated, ongoing and foreseen, read at
-   the year of the period's right handle, all three on by default (§10.4).
+   the year of the period's right handle; terminated and ongoing are on by
+   default, foreseen is off (§10.4).
 5. **Period** — see §10.
 6. **My map** — when on, replaces the above entirely: only pins and their
    immediate neighbours, the neighbours dimmed.
@@ -729,7 +730,7 @@ being read, not its height against other filter states.
 **Semantics.** A dated entity is kept when its span overlaps the selection. No
 recorded end means "still running", so it stays visible for any range reaching
 its start. The one exception is a card that starts after the selection, which
-its status keeps, faded, while *Foreseen* is on (§10.4).
+its status keeps, faded, once *Foreseen* is ticked (§10.4).
 
 **The axis stops at "now", not at the furthest funded end-date.** `YMAX` used
 to be `Math.max(...YEARS)` — the latest year appearing anywhere in the data,
@@ -847,18 +848,20 @@ terminated:
 | Ongoing | it has started by `b` and not ended before it | as usual |
 | Foreseen | it starts after `b` | faded, and kept beyond the period |
 
-The *Status* section of the sidebar has one toggle per status, all on by
-default, under a heading that names the year (*Status in 2018*, *Statut en
-2018*). Each row's tooltip says what the status means at that year.
+The *Status* section of the sidebar has one toggle per status, under a
+heading that names the year (*Status in 2018*, *Statut en 2018*). Each row's
+tooltip says what the status means at that year. *Terminated* and *Ongoing* are
+on by default and *Foreseen* is off: a map reads most naturally as what existed
+by the year it is set to, and what comes later is one tick away.
 
 - **The full range changes nothing.** With the handle at the last year nothing
   starts later, so *Foreseen* is empty and the default view is the whole corpus,
-  as before.
+  whether it is ticked or not.
 - **A foreseen card overlaps none of the period**, since it starts after it.
-  Kept by its toggle, it stays on the map beyond the period, faded (in
+  Once its toggle is ticked, it stays on the map beyond the period, faded (in
   `dimmed`), and the feed gives its start year in place of its place (*from
   2021*, *dès 2021*), as it says *possibly* for an unknown start (§10.1).
-  Turning *Foreseen* off gives back the period axis of §10 exactly.
+  With *Foreseen* off, the default, the period axis of §10 is all there is.
 - **The left handle still bounds the history.** A card that ended before the
   period's start is out of it, whatever its status.
 - **No start of its own, never foreseen.** A host's founding year is a floor,
@@ -948,15 +951,15 @@ when it differs from the default:
 | `dom=a,b` | checked domains |
 | `lay=a,b` | enabled layers |
 | `tier=core` | the tiers left on, by data value (`core`, `ecosystem`) |
-| `st=ongoing,foreseen` | the statuses left on (`terminated`, `ongoing`, `foreseen`, §10.4) |
+| `st=ongoing,foreseen` | the statuses on, when they differ from the default (`terminated`, `ongoing`, `foreseen`, §10.4) |
 | `links=1` | full link mesh drawn |
 | `my=1` | My map mode |
 | `yr=2016,2021` | period range |
 | `nd=0` | undated entities excluded |
 
 Unknown ids and codes are filtered out on read, so a stale link degrades to a
-sensible view instead of an empty map: a `tier=` or `st=` left with no known
-code keeps them all, as a `dom=` left with no known domain keeps all of them.
+sensible view instead of an empty map: a `tier=` left with no known code keeps
+them all, an `st=` left with none keeps the default statuses, as a `dom=` left with no known domain keeps all of them.
 
 The filters live in the fragment alone. None of them — layers, tiers, statuses,
 domains, period — is kept in `localStorage`, so a reload starts from the default view and
