@@ -217,9 +217,10 @@ export async function fitAll(page) {
 }
 
 /** The period axis on its own, as it worked before the status facet (§10.4).
- *  With *Foreseen* ticked, the default, a card that starts after the period is
- *  kept, faded; with it off, it is out of the period again, and the overlap
- *  rule of §10 is all there is. The tests that pin that rule start here. */
+ *  With *Foreseen* ticked a card that starts after the period is kept, faded;
+ *  with it off, the default, it is out of the period, and the overlap rule of
+ *  §10 is all there is. The tests that pin that rule start here, so they hold
+ *  whatever the default becomes. */
 export async function periodAlone(page) {
   await page.evaluate(() => {
     state.statuses.foreseen = false;

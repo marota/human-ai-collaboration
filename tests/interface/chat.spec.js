@@ -416,6 +416,31 @@ test.describe('§18.3 proposing a change', () => {
     await expect(page.locator('.ch-state.ok')).toContainText('passes its checks');
   });
 
+  test('editing a field leaves the column where it was, and the field in hand', async ({ page }) => {
+    // The form is rebuilt when the server's verdict comes back. That redraw
+    // used to scroll the log to its bottom, so every edit near the top of a
+    // long card sent the reader away from the field they were filling.
+    const calls = await propose(page);
+    await page.click('[data-act="draft"]');
+    const name = page.locator('[data-field="name"]');
+    await expect(name).toBeVisible();
+    const log = page.locator('#ch-log');
+    const tall = await log.evaluate((el) => el.scrollHeight > el.clientHeight + 40);
+    expect(tall, 'the drafted card must overflow the column for this to test anything').toBe(true);
+    // The card is shown from its top, where the form starts.
+    await expect(name).toBeInViewport();
+    await name.click();
+    const before = await log.evaluate((el) => el.scrollTop);
+    const n = calls.filter((c) => c.path === '/api/validate').length;
+    await page.keyboard.type(' bis');
+    await expect.poll(() => calls.filter((c) => c.path === '/api/validate').length).toBeGreaterThan(n);
+    await expect(page.locator('.ch-state.ok')).toContainText('passes its checks');
+    expect(await log.evaluate((el) => el.scrollTop)).toBe(before);
+    await expect(name).toBeFocused();
+    await page.keyboard.type('!');
+    await expect(name).toHaveValue('Example Grid Lab bis!');
+  });
+
   test('a multi-value field, an id list and a consortium row all read back', async ({ page }) => {
     const calls = await propose(page);
     await page.click('[data-act="draft"]');

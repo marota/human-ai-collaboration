@@ -752,6 +752,10 @@ const perTier = v => Object.fromEntries(TIERS.map(k => [k, v]));
 // A card's status as read at the period's right handle (§10.4).
 const STATUSES = ['terminated','ongoing','foreseen'];
 const perStatus = v => Object.fromEntries(STATUSES.map(k => [k, v]));
+// What a map shows by default is what existed by the period's end: a card that
+// starts later is one tick away, under *Foreseen* (§10.4).
+const STATUS_DEFAULT = { terminated:true, ongoing:true, foreseen:false };
+const defaultStatuses = () => STATUSES.forEach(k=>state.statuses[k]=STATUS_DEFAULT[k]);
 const CAPITALS = [
   ['Paris',48.857,2.352],['London',51.507,-0.128],['Berlin',52.52,13.405],['Madrid',40.417,-3.703],
   ['Roma',41.902,12.496],['Wien',48.208,16.373],['Warszawa',52.23,21.011],['Stockholm',59.329,18.069],
@@ -979,7 +983,7 @@ const state = {
   domains: new Set(ALL_DOMS),
   layers: perKind(true),
   tiers: perTier(true),
-  statuses: perStatus(true),
+  statuses: { ...STATUS_DEFAULT },
   years: null, // {a,b,undated} — filled once the data bounds are known
   feed:false, inView:new Set(), inFilter:new Set(),
   matchCount:0, offMapMatch:0, offScreen:0, keptOpen:0,
@@ -1535,7 +1539,7 @@ function applyPreset(id){
   state.domains = new Set(p.doms || ALL_DOMS);
   KINDS.forEach(k=>state.layers[k]=true);
   TIERS.forEach(k=>state.tiers[k]=true);
-  STATUSES.forEach(k=>state.statuses[k]=true);
+  defaultStatuses();
   state.myMap = false;
   state.years = { a:YMIN, b:YMAX, undated:true };
   syncDomainChecks(); renderLayerRows(); renderTierRows(); renderStatusRows(); renderTime(); refresh(); fitView(true);
@@ -2411,7 +2415,7 @@ document.getElementById('mymap-pill').addEventListener('click', toggleMyMap);
 document.getElementById('reset-btn').addEventListener('click', ()=>{
   state.domains = new Set(ALL_DOMS); KINDS.forEach(k=>state.layers[k]=true);
   TIERS.forEach(k=>state.tiers[k]=true);
-  STATUSES.forEach(k=>state.statuses[k]=true);
+  defaultStatuses();
   state.links = false; state.myMap = false; closeDetail();
   state.years = { a:YMIN, b:YMAX, undated:true };
   searchInput.value=''; searchDrop.classList.remove('open');
@@ -2427,7 +2431,7 @@ document.getElementById('share-btn').addEventListener('click', ()=>{
   const tiers = TIERS.filter(k=>state.tiers[k]);
   if (tiers.length !== TIERS.length) h.push('tier='+tiers.join(','));
   const sts = STATUSES.filter(k=>state.statuses[k]);
-  if (sts.length !== STATUSES.length) h.push('st='+sts.join(','));
+  if (STATUSES.some(k=>state.statuses[k] !== STATUS_DEFAULT[k])) h.push('st='+sts.join(','));
   if (state.links) h.push('links=1');
   if (state.myMap) h.push('my=1');
   if (timeOn()) h.push('yr='+state.years.a+','+state.years.b);

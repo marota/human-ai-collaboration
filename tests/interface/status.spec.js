@@ -2,19 +2,21 @@
 //
 // A card's status is read at the year of the period's right handle: foreseen
 // before its start, terminated after its end, ongoing in between. Three toggles,
-// all on by default, decide which of them the map shows, and a foreseen card,
-// which starts after the period and so overlaps none of it, stays on the map
-// beyond the period, faded, while its toggle is on.
+// Terminated and Ongoing on by default and Foreseen off, decide which of them
+// the map shows, and a foreseen card, which starts after the period and so
+// overlaps none of it, stays on the map beyond the period, faded, once its
+// toggle is ticked.
 //
 // What is pinned here is that contract against the page's own data: the status
-// follows the handle, the default changes nothing at the full range, turning
-// Foreseen off gives back the period axis of §10 exactly, the rows are facet
+// follows the handle, the default changes nothing at the full range, with
+// Foreseen off the period axis of §10 is all there is, the rows are facet
 // counts like the tier rows (§6.1), and the choice travels in the shared link
 // only (§13).
 import { test, expect } from '@playwright/test';
 import { MAP_PATH, openMap, snapshot, setLayers, setPeriod, applyPreset } from './_map.js';
 
 const STATUSES = ['terminated', 'ongoing', 'foreseen'];
+const DEFAULT = { terminated: true, ongoing: true, foreseen: false };
 
 async function open(page, opts) {
   await openMap(page, opts);
@@ -73,11 +75,11 @@ test.describe('§10.4 the status follows the right handle', () => {
 });
 
 test.describe('§10.4 the default changes nothing at the full range', () => {
-  test('§10.4 three rows, all on, under a heading that names the last year', async ({ page }) => {
+  test('§10.4 three rows, Foreseen off, under a heading that names the last year', async ({ page }) => {
     await open(page);
     const rows = await statusRows(page);
     expect(rows.map((r) => r.status)).toEqual(STATUSES);
-    expect(rows.map((r) => r.on)).toEqual([true, true, true]);
+    expect(rows.map((r) => r.on)).toEqual([true, true, false]);
     expect(rows.map((r) => r.label)).toEqual(['Terminated', 'Ongoing', 'Foreseen']);
     const { YMAX } = await spanned(page);
     expect(await heading(page)).toBe(`Status in ${YMAX}`);
@@ -95,10 +97,11 @@ test.describe('§10.4 the default changes nothing at the full range', () => {
 });
 
 test.describe('§10.4 moving the right handle', () => {
-  test('§10.4 a project that starts after the period stays on the map, faded, and the feed gives its start', async ({ page }) => {
+  test('§10.4 with Foreseen ticked, a project that starts after the period stays on the map, faded, and the feed gives its start', async ({ page }) => {
     await open(page);
     const p = await spanned(page);
     await setPeriod(page, p.YMIN, p.y0 - 1);
+    await toggleStatus(page, 'foreseen');
     const v = await page.evaluate(() => { const s = visibleSet(); return { vis: [...s.vis], dimmed: [...s.dimmed] }; });
     expect(v.vis).toContain(p.id);
     expect(v.dimmed).toContain(p.id);
@@ -106,11 +109,10 @@ test.describe('§10.4 moving the right handle', () => {
     await expect(page.locator(`.fd-item[data-id="${p.id}"] .mt`)).toHaveText(`from ${p.y0}`);
   });
 
-  test('§10.4 with Foreseen off the period axis of §10 is all there is', async ({ page }) => {
+  test('§10.4 with Foreseen off, the default, the period axis of §10 is all there is', async ({ page }) => {
     await open(page);
     const p = await spanned(page);
     await setPeriod(page, p.YMIN, p.y0 - 1);
-    await toggleStatus(page, 'foreseen');
     expect(await matched(page)).toEqual(await periodRule(page));
     expect(await matched(page)).not.toContain(p.id);
   });
@@ -170,7 +172,7 @@ test.describe('§10.4 / §6.1 the status rows are facet counts', () => {
     await setPeriod(page, 2010, 2018);
     const bars = () => page.evaluate(() => document.getElementById('tf-hist').innerHTML);
     const before = await bars();
-    for (const k of STATUSES) await toggleStatus(page, k);
+    for (const k of STATUSES) if (DEFAULT[k]) await toggleStatus(page, k);
     expect(await bars()).toBe(before);
     expect((await snapshot(page)).matchCount).toBe(0);
   });
@@ -190,17 +192,21 @@ test.describe('§13 the statuses in the shared link', () => {
   }
   const fragmentOf = (url) => new URL(url).hash.replace(/^#/, '');
 
-  test('§13 st= carries the statuses left on, and only when one is off', async ({ page }) => {
+  test('§13 st= carries the statuses on, and only when they differ from the default', async ({ page }) => {
     await open(page);
     expect(fragmentOf(await copiedLink(page))).toBe('');
     await toggleStatus(page, 'foreseen');
-    expect(fragmentOf(await copiedLink(page))).toBe('st=terminated,ongoing');
+    expect(fragmentOf(await copiedLink(page))).toBe('st=terminated,ongoing,foreseen');
+    await toggleStatus(page, 'foreseen');
+    await toggleStatus(page, 'terminated');
+    expect(fragmentOf(await copiedLink(page))).toBe('st=ongoing');
   });
 
   test('§13 a round trip through the link restores the statuses and what they select', async ({ page }) => {
     await open(page);
     await setPeriod(page, 2005, 2018);
     await toggleStatus(page, 'terminated');
+    await toggleStatus(page, 'foreseen');
     const read = () => page.evaluate(() => ({ statuses: { ...state.statuses }, matched: [...visibleSet().matched].sort() }));
     const before = await read();
     const u = new URL(await copiedLink(page));
@@ -210,9 +216,8 @@ test.describe('§13 the statuses in the shared link', () => {
     expect((await statusRows(page)).map((r) => r.on)).toEqual([false, true, true]);
   });
 
-  test('§13 a stale or empty st= degrades to all three rather than an empty map', async ({ page }) => {
-    const all = { terminated: true, ongoing: true, foreseen: true };
-    for (const [hash, want] of [['#st=later', all], ['#st=', all],
+  test('§13 a stale or empty st= degrades to the default rather than an empty map', async ({ page }) => {
+    for (const [hash, want] of [['#st=later', DEFAULT], ['#st=', DEFAULT],
       ['#st=ongoing,later', { terminated: false, ongoing: true, foreseen: false }]]) {
       await reopen(page, { hash });
       expect(await page.evaluate(() => ({ ...state.statuses })), hash).toEqual(want);
@@ -228,17 +233,18 @@ test.describe('§13 the statuses in the shared link', () => {
     await page.goto('about:blank');
     await page.goto(`${MAP_PATH}?lang=en`);
     await expect(page.locator('#st-note')).not.toBeEmpty();
-    expect(await page.evaluate(() => ({ ...state.statuses }))).toEqual({ terminated: true, ongoing: true, foreseen: true });
+    expect(await page.evaluate(() => ({ ...state.statuses }))).toEqual(DEFAULT);
   });
 
-  test('§10.4 a starting view and Reset both put the three statuses back on', async ({ page }) => {
+  test('§10.4 a starting view and Reset both put the statuses back to the default', async ({ page }) => {
     await open(page);
     await toggleStatus(page, 'terminated');
     await toggleStatus(page, 'foreseen');
     await applyPreset(page, 'overview');
-    expect((await statusRows(page)).map((r) => r.on)).toEqual([true, true, true]);
+    expect((await statusRows(page)).map((r) => r.on)).toEqual([true, true, false]);
     await toggleStatus(page, 'ongoing');
+    await toggleStatus(page, 'foreseen');
     await page.click('#reset-btn');
-    expect((await statusRows(page)).map((r) => r.on)).toEqual([true, true, true]);
+    expect((await statusRows(page)).map((r) => r.on)).toEqual([true, true, false]);
   });
 });

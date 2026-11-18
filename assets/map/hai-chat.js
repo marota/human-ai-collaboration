@@ -489,7 +489,37 @@
     return `<div class="ch-src"><div class="ch-src-h">${esc(w('sources'))}</div>${chips}</div>`;
   }
 
+  // The log is rebuilt on every change, so render() decides where it is left:
+  // at the bottom when the conversation itself moved (a message, a streamed
+  // word), at the top of the proposal when it reaches a new step, and otherwise
+  // exactly where the reader had it — editing a field re-validates and redraws
+  // the form, and that must not throw them back to the bottom of the column.
+  let seenTail = null;
+  let seenStep = null;
+
+  /** The field being typed in, by its place among the log's fields, so it can
+   *  be given back once the log has been rebuilt around it. */
+  function focusedField() {
+    const el = document.activeElement;
+    if (!el || !logEl.contains(el) || !el.matches('input, textarea, select')) return null;
+    let caret = null;
+    try { caret = [el.selectionStart, el.selectionEnd]; } catch (e) { /* not a text field */ }
+    return { at: [...logEl.querySelectorAll('input, textarea, select')].indexOf(el), caret };
+  }
+
+  function giveFocusBack(was) {
+    if (!was || was.at < 0) return;
+    const el = logEl.querySelectorAll('input, textarea, select')[was.at];
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    if (was.caret && was.caret[0] != null) {
+      try { el.setSelectionRange(was.caret[0], was.caret[1]); } catch (e) { /* not a text field */ }
+    }
+  }
+
   function render() {
+    const kept = logEl.scrollTop;
+    const was = focusedField();
     const parts = S.log.length ? [] : [intro()];
     S.log.forEach((m) => {
       if (m.role === 'user') {
@@ -503,8 +533,22 @@
       }
     });
     logEl.innerHTML = parts.join('');
-    if (S.prop) logEl.appendChild(proposalCard());
-    scrollDown();
+    const card = S.prop ? logEl.appendChild(proposalCard()) : null;
+    giveFocusBack(was);
+
+    const last = S.log[S.log.length - 1];
+    const tail = `${S.log.length}:${last ? (last.text || last.html || '').length : 0}`;
+    const step = S.prop ? `${S.prop.mode}:${S.prop.step}` : '';
+    if (tail !== seenTail) scrollDown();
+    else if (step !== seenStep && card) {
+      // A card taller than the column is shown from its top, where its form
+      // starts; a short one is simply the last thing in the conversation.
+      if (card.offsetHeight > logEl.clientHeight) {
+        logEl.scrollTop += card.getBoundingClientRect().top - logEl.getBoundingClientRect().top;
+      } else scrollDown();
+    } else logEl.scrollTop = kept;
+    seenTail = tail;
+    seenStep = step;
   }
 
   // ---------- conversation ----------
@@ -995,21 +1039,6 @@
     return !!p && p.previewed === (p.github || '');
   }
 
-  /** render(), leaving the caret where it was in the username field. The column
-   *  is rebuilt on every change, and a preview that updates while someone types
-   *  must not take the field away from them. */
-  function renderKeepingCaret() {
-    const was = document.activeElement;
-    const typing = was && was.matches && was.matches('[data-notify]');
-    const at = typing ? was.selectionStart : null;
-    render();
-    if (!typing) return;
-    const input = logEl.querySelector('[data-notify]');
-    if (!input) return;
-    input.focus();
-    if (at != null) input.setSelectionRange(at, at);
-  }
-
   let repreview = null;
   function previewSoon() {
     clearTimeout(repreview);
@@ -1027,7 +1056,7 @@
     p.pending = 'preview';
     p.error = '';
     p.notifyError = '';
-    renderKeepingCaret();
+    render();
     try {
       const out = await post('/api/issue', {
         preview: true, mode: p.mode, layer: p.layer, card: p.card,
@@ -1052,7 +1081,7 @@
       }
     } finally {
       p.pending = '';
-      renderKeepingCaret();
+      render();
       if (S.prop === p && p.step === 'issue' && !p.notifyError && !previewIsCurrent()) previewSoon();
     }
   }
