@@ -461,7 +461,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if m.group(1).lower() == "add":
                     links = prompts.CardLinks()
                 self._event(t="propose", mode=m.group(1).lower(), target=m.group(2),
-                            name=prompts.guess_name(last) or prompts.guess_name(query))
+                            name=prompts.guess_name(last) or prompts.guess_name(query),
+                            url=prompts.first_url(query))
             if links:
                 text = links.feed(text)
             if text:
@@ -510,7 +511,8 @@ class Handler(SimpleHTTPRequestHandler):
                     self._event(t="propose", mode="add",
                                 target=prompts.guess_layer(last),
                                 name=prompts.guess_name(last)
-                                or prompts.guess_name(query), guessed=True)
+                                or prompts.guess_name(query),
+                                url=prompts.first_url(query), guessed=True)
         self._event(t="done")
 
     def _reference(self, body: dict[str, Any]) -> None:

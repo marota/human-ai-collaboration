@@ -113,6 +113,11 @@ nothing: what is missing from the map has no card, so every `[Name](#id)` there 
 point at some other entity. A `fix` reply links the card being corrected, and that one \
 only.
 
+If the reader has already given a web page — a link anywhere in what they have written \
+— that question is answered. Do not ask for it again: say that the page will be read, \
+and that the form beside the conversation has it. Ask again only when nothing they \
+have written carries one.
+
 Only emit a control line when the reader is actually proposing a change. A question \
 about what the map contains is a question, even when the answer is "nothing".{extra}
 """
@@ -131,6 +136,24 @@ def retrieval_query(history: list[dict[str, str]], turns: int = 2) -> str:
     """
     asked = [t["content"] for t in history if t.get("role") == "user"]
     return " ".join(asked[-turns:]) if turns > 0 else ""
+
+
+_URL_RE = re.compile(r"https?://[^\s<>\"'()\[\]]+", re.I)
+# Trailing punctuation belongs to the sentence, not to the address.
+_URL_TAIL = ".,;:!?'\"»"
+
+
+def first_url(text: str) -> str:
+    """The first web address in the reader's own words, "" if there is none.
+
+    A contributor who answers "the page is https://… " has given the proposal
+    the one thing it cannot start without. The panel asked for it in its own
+    field, which the conversation never filled, so they were asked again — and
+    again. The address rides on the propose event instead, and the panel opens
+    with it in hand.
+    """
+    m = _URL_RE.search(text or "")
+    return m.group(0).rstrip(_URL_TAIL) if m else ""
 
 
 class CardLinks:

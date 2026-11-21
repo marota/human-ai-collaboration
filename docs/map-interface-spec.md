@@ -1218,7 +1218,15 @@ enumerate the corpus for ten minutes.
    sends an event. A small model forgets, so the reader's own words are a
    backstop (`sniff_intent`). Both only ever *open* a panel the reader can
    close.
+   The control line comes on every turn the model reads as a proposal, so the
+   same panel is announced again while the contributor is filling it. A second
+   event for the proposal already open changes nothing in it: the reference and
+   the name they typed stay, and so does the step they had reached. Only
+   another card to correct is another proposal, and starts over.
 2. **The reference.** The contributor gives the page that documents the entity.
+   A page they have already given in the conversation rides on the propose
+   event (`first_url`) and the panel opens with it in the field, rather than
+   asking for what they just said.
    The server fetches it once, says whether it loaded and whether the name
    actually appears on it, and keeps the text for the drafter. Only globally
    routable addresses are fetched, checked on the socket for every hop of every
