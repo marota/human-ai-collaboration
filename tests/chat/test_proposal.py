@@ -197,6 +197,26 @@ class ReadsAnIntentToContribute(unittest.TestCase):
                      "Il faudrait corriger cette fiche"):
             self.assertEqual(CHAT.prompts.guess_name(text), "", text)
 
+    def test_a_page_the_reader_gave_is_read_off_their_own_words(self):
+        # The panel asks for the reference in its own field, which the
+        # conversation never filled: proposal #45's visitor gave two addresses
+        # in the chat and was asked for a page three times running.
+        self.assertEqual(
+            CHAT.prompts.first_url("https://enertef.eu/ and https://energy-guard.eu/"),
+            "https://enertef.eu/")
+        self.assertEqual(
+            CHAT.prompts.first_url("the page is http://example.org/lab, I think."),
+            "http://example.org/lab")
+        self.assertEqual(
+            CHAT.prompts.first_url("voir https://example.org/équipe ?"),
+            "https://example.org/équipe")
+        for text in ("", "it is missing from the map", "example.org has it"):
+            self.assertEqual(CHAT.prompts.first_url(text), "", text)
+
+    def test_a_reader_who_gave_a_page_is_not_asked_for_one_again(self):
+        system = CHAT.prompts.answer_system(corpus(), "en")
+        self.assertIn("Do not ask for it again", system)
+
     def test_an_add_reply_is_told_to_link_nothing(self):
         # What is missing has no card, so every link in that reply points at
         # some other entity — and the reader's interface opens it as a card.

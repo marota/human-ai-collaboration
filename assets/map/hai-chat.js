@@ -662,13 +662,30 @@
     const mode = ev.mode === 'fix' ? 'fix' : 'add';
     const target = ev.target || '';
     const entity = byId[target];
+    // The model emits its control line on every turn it reads as a proposal,
+    // so the same panel is announced again while the contributor is filling
+    // it. Rebuilding it there threw away the reference and the name they had
+    // typed and sent them back to step 1 — the conversation undoing the form.
+    // Only another card to correct is another proposal.
+    const open = S.prop;
+    if (open && open.mode === mode
+        && !(mode === 'fix' && entity && open.target !== target)) {
+      if (!open.name && ev.name) open.name = ev.name;
+      if (!open.url && ev.url) open.url = ev.url;
+      // The layer is still the model's to revise, until the contributor has
+      // put anything of their own into the panel.
+      if (mode === 'add' && LAYERS.includes(target) && !open.url && !open.card) {
+        open.layer = target;
+      }
+      return;
+    }
     S.prop = {
       mode,
       step: 'reference',
       target: entity ? target : '',
       layer: entity ? entity.kind : (LAYERS.includes(target) ? target : 'team'),
       name: entity ? entity.d.name : (ev.name || ''),
-      url: '',
+      url: ev.url || '',
       reference: null,
       refNote: '',
       card: null,

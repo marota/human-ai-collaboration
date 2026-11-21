@@ -369,6 +369,64 @@ test.describe('§18.3 proposing a change', () => {
     await expect(page.locator('.ch-msg.bot').last()).toContainText('Which page documents it?');
   });
 
+  test('the panel survives the model saying the same thing again', async ({ page }) => {
+    // The control line comes on every turn the model reads as a proposal, so
+    // the panel the contributor is filling is announced again. Rebuilding it
+    // there threw away the reference and the name they had typed and sent them
+    // back to step 1 — the conversation undoing the form. Proposal #45 is the
+    // case: the visitor answered in the chat, and nothing they did advanced.
+    await propose(page, { t: 'propose', mode: 'add', target: 'project', name: '' });
+    await page.fill('[data-prop="url"]', 'https://enertef.eu/');
+    await page.fill('[data-prop="name"]', 'EnerTEF');
+
+    await page.fill('#ch-input', 'https://enertef.eu/ and https://energy-guard.eu/');
+    await page.click('#ch-send');
+    await expect(page.locator('.ch-msg.bot')).toHaveCount(2);
+
+    await expect(page.locator('[data-prop="url"]')).toHaveValue('https://enertef.eu/');
+    await expect(page.locator('[data-prop="name"]')).toHaveValue('EnerTEF');
+    await expect(page.locator('.ch-prop-s')).toContainText('1 ·');
+    await expect(page.locator('.ch-prop')).toHaveCount(1);
+  });
+
+  test('a page the reader already gave opens the panel with it in hand', async ({ page }) => {
+    // chat/server.py reads it off their own words, so the field the
+    // conversation could never fill arrives filled.
+    await propose(page, {
+      t: 'propose', mode: 'add', target: 'project', name: 'EnerTEF',
+      url: 'https://enertef.eu/',
+    });
+    await expect(page.locator('[data-prop="url"]')).toHaveValue('https://enertef.eu/');
+    await expect(page.locator('[data-prop="name"]')).toHaveValue('EnerTEF');
+  });
+
+  test('another card to correct is another proposal, and starts over', async ({ page }) => {
+    const calls = await stubServer(page, {
+      '/api/chat': (route, body) => route.fulfill({
+        status: 200, contentType: 'application/x-ndjson',
+        body: ndjson([
+          { t: 'retrieved', ids: [] },
+          // The second turn is about a different card.
+          { t: 'propose', mode: 'fix',
+            target: (body.messages || []).length > 1 ? 'grid2op' : 'rte-rd-grid-ai' },
+          { t: 'delta', text: 'Which page says so?' },
+          { t: 'done' },
+        ]),
+      }),
+    });
+    await openMap(page, { ...CHAT, lang: 'en' });
+    await page.fill('#ch-input', "RTE's card is out of date");
+    await page.click('#ch-send');
+    await expect(page.locator('[data-prop="name"]')).toHaveValue(/RTE/);
+    await page.fill('[data-prop="url"]', 'https://rte-france.com/');
+
+    await page.fill('#ch-input', 'and Grid2Op is wrong too');
+    await page.click('#ch-send');
+    await expect(page.locator('[data-prop="name"]')).toHaveValue(/Grid2Op/);
+    await expect(page.locator('[data-prop="url"]')).toHaveValue('');
+    expect(calls.filter((c) => c.path === '/api/chat').length).toBe(2);
+  });
+
   test('the reference is checked and the verdict is shown before anything is drafted', async ({ page }) => {
     const calls = await propose(page);
     await page.fill('[data-prop="name"]', 'Example Grid Lab');
@@ -668,7 +726,11 @@ test.describe('§18 invariant 9 — the chat escapes what it renders', () => {
     await page.fill('#ch-input', 'try it');
     await page.click('#ch-send');
     const bot = page.locator('.ch-msg.bot').last();
-    expect(await bot.locator('a').count()).toBe(1);
+    // toHaveCount, not count(): the reply is streamed, and a plain count()
+    // settles the question before the delta has been rendered. Under the full
+    // suite it read 0 once, which is the test losing a race, not the page
+    // turning a javascript: url into a link.
+    await expect(bot.locator('a')).toHaveCount(1);
     await expect(bot.locator('a')).toHaveAttribute('href', 'https://example.org/x');
     await expect(bot.locator('a')).toHaveAttribute('target', '_blank');
   });
