@@ -144,6 +144,60 @@ class RanksWhatAReaderMeans(unittest.TestCase):
         self.assertIsNone(self.corpus.find_by_name(""))
 
 
+class SearchesTheSubjectAndNotOnlyTheLastWords(unittest.TestCase):
+    """What retrieval is given to search, built from the conversation.
+
+    A follow-up says almost nothing on its own, and the cards it brings back
+    are the only ones the reply may cite. The map's own proposal #64 is the
+    case: "ok add it then", searched alone, matched `add` — one word, in one
+    description out of 416 — and the reply proposed Network Rail's Digital
+    Railway instead of the Greek laboratory two turns earlier.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.corpus = CHAT.hai_data.load(DATA_JS)
+
+    @staticmethod
+    def query(*turns):
+        """`turns` as the reader and the assistant alternating, reader first."""
+        roles = ("user", "assistant")
+        history = [{"role": roles[i % 2], "content": t} for i, t in enumerate(turns)]
+        return CHAT.prompts.retrieval_query(history)
+
+    def test_a_follow_up_carries_the_subject_of_the_question_before_it(self):
+        q = self.query("Do we have Grid2Op on the map?", "It is not on the map.",
+                       "ok add it then")
+        self.assertIn("Grid2Op", q)
+        self.assertIn("add it then", q)
+
+    def test_the_assistant_s_own_words_are_never_searched(self):
+        # The reply names cards; searching it would rank them again and keep
+        # the conversation circling whatever came back first.
+        q = self.query("who works on rail?", "ATO-Cargo and DB InfraGO do.",
+                       "and in Greece?")
+        self.assertNotIn("ATO-Cargo", q)
+        self.assertNotIn("InfraGO", q)
+
+    def test_the_short_follow_up_no_longer_lands_on_one_unrelated_card(self):
+        alone = [e["id"] for _, e in self.corpus.search("ok add it then", limit=5)]
+        self.assertEqual(alone, ["network-rail-digital"],
+                         "the bug this guards: `add` names exactly one card")
+        with_subject = [e["id"] for _, e in self.corpus.search(
+            self.query("is the Software Quality Lab of Patras on the map?",
+                       "It is not on the map.", "ok add it then"), limit=8)]
+        self.assertNotIn("network-rail-digital", with_subject)
+
+    def test_one_turn_of_conversation_is_searched_whole(self):
+        self.assertEqual(self.query("who works on rail?"), "who works on rail?")
+
+    def test_no_reader_turn_leaves_nothing_to_search(self):
+        self.assertEqual(CHAT.prompts.retrieval_query([]), "")
+        self.assertEqual(
+            CHAT.prompts.retrieval_query([{"role": "assistant", "content": "hello"}]),
+            "")
+
+
 class CountsRatherThanEstimates(unittest.TestCase):
     """The figures block exists because a model cannot count what it has not
     been shown, and will try anyway."""

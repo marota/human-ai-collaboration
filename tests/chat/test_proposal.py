@@ -197,6 +197,13 @@ class ReadsAnIntentToContribute(unittest.TestCase):
                      "Il faudrait corriger cette fiche"):
             self.assertEqual(CHAT.prompts.guess_name(text), "", text)
 
+    def test_an_add_reply_is_told_to_link_nothing(self):
+        # What is missing has no card, so every link in that reply points at
+        # some other entity — and the reader's interface opens it as a card.
+        system = CHAT.prompts.answer_system(corpus(), "en")
+        self.assertIn("link nothing", system)
+        self.assertIn("A `fix` reply links the card being corrected", system)
+
     def test_the_layer_is_read_from_the_words_used_for_it(self):
         self.assertEqual(CHAT.prompts.guess_layer("add the AI4REALNET project"), "project")
         self.assertEqual(CHAT.prompts.guess_layer("ajoute le consortium TRUST-AI"), "project")
@@ -238,6 +245,54 @@ class ReadsAnIntentToContribute(unittest.TestCase):
         self.assertIn("Contributor: il manque le labo X", text)
         self.assertIn("Assistant: Quelle page ?", text)
         self.assertNotIn("PROPOSE", text)
+
+
+class KeepsCardLinksOutOfAnAddReply(unittest.TestCase):
+    """The guard behind that instruction, since the model may ignore it.
+
+    In proposal #64 the reply to "ok add it then" read "I understand you want
+    to add the team [Network Rail — Digital Railway](#network-rail-digital)",
+    and that link opens the card. In a reply proposing an addition there is no
+    card to link, so the link goes and its text stays. The reply is streamed,
+    so a link can arrive split across pieces.
+    """
+
+    @staticmethod
+    def through(*pieces):
+        links = CHAT.prompts.CardLinks()
+        return "".join(links.feed(p) for p in pieces) + links.flush()
+
+    def test_a_card_link_becomes_its_own_text(self):
+        self.assertEqual(
+            self.through("You want to add [Network Rail — Digital Railway]"
+                         "(#network-rail-digital) to the map."),
+            "You want to add Network Rail — Digital Railway to the map.")
+
+    def test_a_link_split_across_pieces_is_still_caught(self):
+        for cut in range(1, 30):
+            whole = "add [Grid2Op](#grid2op) then"
+            self.assertEqual(self.through(whole[:cut], whole[cut:]),
+                             "add Grid2Op then", f"cut at {cut}")
+
+    def test_one_piece_per_character_is_the_same_reply(self):
+        whole = "both [RTE](#rte-rd-grid-ai) and [Grid2Op](#grid2op) matter"
+        self.assertEqual(self.through(*whole), "both RTE and Grid2Op matter")
+
+    def test_an_ordinary_bracket_is_left_alone(self):
+        self.assertEqual(self.through("the page [1] says so"),
+                         "the page [1] says so")
+        self.assertEqual(self.through("see [the page](https://example.org/x)"),
+                         "see [the page](https://example.org/x)")
+
+    def test_a_bracket_the_reply_ends_on_is_released(self):
+        self.assertEqual(self.through("the start of something ["),
+                         "the start of something [")
+        self.assertEqual(self.through("half a link [Grid2Op](#grid"),
+                         "half a link [Grid2Op](#grid")
+
+    def test_a_bracket_that_never_closes_does_not_hold_the_reply(self):
+        long_tail = "x" * 400
+        self.assertEqual(self.through("text [" + long_tail), "text [" + long_tail)
 
 
 class ReadsAReferencePage(unittest.TestCase):

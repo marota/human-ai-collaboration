@@ -108,9 +108,79 @@ without — the web page that documents it. Do not ask for anything else yet, do
 write the card, and do not promise that it has been added: a form opens next to the \
 conversation, and a maintainer reviews it afterwards.
 
+In an `add` reply, name what is being proposed in the reader's own words and link \
+nothing: what is missing from the map has no card, so every `[Name](#id)` there would \
+point at some other entity. A `fix` reply links the card being corrected, and that one \
+only.
+
 Only emit a control line when the reader is actually proposing a change. A question \
 about what the map contains is a question, even when the answer is "nothing".{extra}
 """
+
+
+def retrieval_query(history: list[dict[str, str]], turns: int = 2) -> str:
+    """What retrieval searches: the reader's last `turns` messages, joined.
+
+    The reader's own turns, not the last turns of the conversation. A follow-up
+    carries almost nothing on its own — "ok add it then", "and in Germany?" —
+    so its subject has to come from what they said before. Taking the last two
+    turns of any role and keeping the user ones leaves exactly one message,
+    since every other turn is the assistant's: "ok add it then" then searched
+    on `add` alone, which named one card in the whole map, and the reply
+    proposed that card instead of the entity being asked for.
+    """
+    asked = [t["content"] for t in history if t.get("role") == "user"]
+    return " ".join(asked[-turns:]) if turns > 0 else ""
+
+
+class CardLinks:
+    """Strips `[Name](#id)` down to `Name` in a stream of deltas.
+
+    The guard behind the instruction above: in a reply proposing an addition,
+    every card link is wrong by construction, and the reader's interface turns
+    one into a card that opens. The text arrives in pieces, so a link can
+    straddle two of them; anything that could still grow into one is held back
+    until it does or cannot.
+    """
+
+    # A link fully in hand, and a prefix that may still become one.
+    _WHOLE = re.compile(r"\[([^\]\n]*)\]\(#[^)\s]*\)")
+    _PARTIAL = re.compile(r"\[[^\]\n]*(\](\((#[^)\s]*)?)?)?\Z")
+    # A bracket that never closes must not hold the reply hostage.
+    _HELD_MAX = 200
+
+    def __init__(self) -> None:
+        self._held = ""
+
+    def feed(self, piece: str) -> str:
+        self._held += piece
+        out = ""
+        while self._held:
+            i = self._held.find("[")
+            if i < 0:
+                out += self._held
+                self._held = ""
+                break
+            out += self._held[:i]
+            rest = self._held[i:]
+            m = self._WHOLE.match(rest)
+            if m:
+                out += m.group(1)
+                self._held = rest[m.end():]
+                continue
+            if self._PARTIAL.match(rest) and len(rest) <= self._HELD_MAX:
+                self._held = rest
+                break
+            # Not a card link, and not on its way to being one: the bracket is
+            # the reader's to see — a footnote marker, a bare [text](http…).
+            out += rest[0]
+            self._held = rest[1:]
+        return out
+
+    def flush(self) -> str:
+        """Whatever is still held back, once the stream ends."""
+        out, self._held = self._held, ""
+        return out
 
 
 def answer_messages(corpus: Corpus, history: list[dict[str, str]], lang: str,

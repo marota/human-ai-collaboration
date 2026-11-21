@@ -431,9 +431,9 @@ class Handler(SimpleHTTPRequestHandler):
         corpus = CORPUS.get()
         last = history[-1]["content"]
 
-        # Retrieval reads the last turn plus the one before it, so a follow-up
-        # ("and in Germany?") still carries its subject.
-        query = " ".join(t["content"] for t in history[-2:] if t["role"] == "user")
+        # Retrieval reads the reader's last two messages, so a follow-up
+        # ("and in Germany?", "ok add it then") still carries its subject.
+        query = prompts.retrieval_query(history)
         retrieved, entities = hai_data.retrieved_block(corpus, query, lang)
         figures = hai_data.figures(corpus, query)
 
@@ -446,17 +446,24 @@ class Handler(SimpleHTTPRequestHandler):
         text = ""
         proposed = False
         head_done = False
+        # Set when the reply proposes an addition: there is no card to link
+        # then, so any link the model writes points at the wrong entity.
+        links: prompts.CardLinks | None = None
 
         def flush_head() -> None:
             """Release the held-back opening, control line removed."""
-            nonlocal text, proposed, head_done
+            nonlocal text, proposed, head_done, links
             head_done = True
             m = prompts.PROPOSE_RE.match(text)
             if m:
                 proposed = True
                 text = text[m.end():]
+                if m.group(1).lower() == "add":
+                    links = prompts.CardLinks()
                 self._event(t="propose", mode=m.group(1).lower(), target=m.group(2),
-                            name=prompts.guess_name(last))
+                            name=prompts.guess_name(last) or prompts.guess_name(query))
+            if links:
+                text = links.feed(text)
             if text:
                 self._event(t="delta", text=text)
 
@@ -471,11 +478,18 @@ class Handler(SimpleHTTPRequestHandler):
                     flush_head()
                     continue
                 text += piece
-                self._event(t="delta", text=piece)
+                out = links.feed(piece) if links else piece
+                if out:
+                    self._event(t="delta", text=out)
             if not head_done:
                 # A reply short enough to fit entirely in the held-back opening
                 # still has to be said.
                 flush_head()
+            if links:
+                # A bracket the stream ended on is text, not a link.
+                tail = links.flush()
+                if tail:
+                    self._event(t="delta", text=tail)
         except llm.OllamaError as e:
             self._event(t="error", message=str(e))
             return
@@ -495,7 +509,8 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     self._event(t="propose", mode="add",
                                 target=prompts.guess_layer(last),
-                                name=prompts.guess_name(last), guessed=True)
+                                name=prompts.guess_name(last)
+                                or prompts.guess_name(query), guessed=True)
         self._event(t="done")
 
     def _reference(self, body: dict[str, Any]) -> None:
